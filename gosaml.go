@@ -324,7 +324,7 @@ func (xp *Xp) createElementNS(prefix, element string, context *C.xmlNode, before
 }
 
 // Hash Perform a digest calculation using the given crypto.Hash
-func Hash(h crypto.Hash, data string) []byte {
+func hash(h crypto.Hash, data string) []byte {
 	digest := h.New()
 	io.WriteString(digest, data)
 	return digest.Sum(nil)
@@ -344,12 +344,12 @@ func (xp *Xp) VerifySignature(context *C.xmlNode, pub *rsa.PublicKey) (isvalid b
 	digestMethod := xp.Q1("ds:Reference/ds:DigestMethod/@Algorithm", signedInfo)
 
 	C.xmlUnlinkNode(signature)
-	contextDigest := Hash(algos[digestMethod].algo, xp.c14n(context))
+	contextDigest := hash(algos[digestMethod].algo, xp.c14n(context))
 	contextDigestValueComputed := base64.StdEncoding.EncodeToString(contextDigest)
 	isvalid = isvalid && contextDigestValueComputed == digestValue
 
 	signatureMethod := xp.Q1("ds:SignatureMethod/@Algorithm", signedInfo)
-	signedInfoDigest := Hash(algos[signatureMethod].algo, signedInfoC14n)
+	signedInfoDigest := hash(algos[signatureMethod].algo, signedInfoC14n)
 	ds, _ := base64.StdEncoding.DecodeString(signatureValue)
 	err := rsa.VerifyPKCS1v15(pub, algos[signatureMethod].algo, signedInfoDigest[:], ds)
 	isvalid = isvalid && err == nil
@@ -358,7 +358,7 @@ func (xp *Xp) VerifySignature(context *C.xmlNode, pub *rsa.PublicKey) (isvalid b
 
 // Sign the given context with the given private key
 func (xp *Xp) Sign(context *C.xmlNode, priv *rsa.PrivateKey, algo string) (isvalid bool, err error) {
-	contextHash := Hash(algos[algo].algo, xp.c14n(context))
+	contextHash := hash(algos[algo].algo, xp.c14n(context))
 	contextDigest := base64.StdEncoding.EncodeToString(contextHash)
 	signaturexml := `<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
 <ds:SignedInfo>
@@ -393,7 +393,7 @@ func (xp *Xp) Sign(context *C.xmlNode, priv *rsa.PrivateKey, algo string) (isval
 
 	signedInfoC14n := xp.c14n(signedInfo)
 
-	d := Hash(algos[algo].algo, signedInfoC14n)
+	d := hash(algos[algo].algo, signedInfoC14n)
 	sig, _ := rsa.SignPKCS1v15(rand.Reader, priv, algos[algo].algo, d)
 
 	sigvalue := base64.StdEncoding.EncodeToString(sig)
