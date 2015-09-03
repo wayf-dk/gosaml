@@ -169,11 +169,11 @@ func ExampleSignAndValidate() {
 	block, _ := pem.Decode(privatekey)
 	priv, _  := x509.ParsePKCS1PrivateKey(block.Bytes)
 
-	xp := New(response)
+	xp := NewXp(response)
 	assertion := xp.Query("saml:Assertion[1]", nil)[0]
 	xp.Sign(assertion, priv, "sha256")
 
-	xp = New([]byte(xp.Pp()))
+	xp = NewXp([]byte(xp.Pp()))
 
 	fmt.Println(xp.Q1("saml:Assertion/ds:Signature/ds:SignedInfo/ds:Reference/ds:DigestMethod/@Algorithm", nil))
 	fmt.Println(xp.Q1("/samlp:Response/saml:Assertion/ds:Signature/ds:SignedInfo/ds:SignatureMethod/@Algorithm", nil))
@@ -188,7 +188,7 @@ func ExampleSignAndValidate() {
 	xp.Sign(assertion, priv, "sha1")
 	//log.Print(xp.C14n(nil))
 
-	xp = New([]byte(xp.Pp()))
+	xp = NewXp([]byte(xp.Pp()))
 
 	fmt.Println(xp.Q1("saml:Assertion/ds:Signature/ds:SignedInfo/ds:Reference/ds:DigestMethod/@Algorithm", nil))
 	fmt.Println(xp.Q1("saml:Assertion/ds:Signature/ds:SignedInfo/ds:SignatureMethod/@Algorithm", nil))
@@ -205,7 +205,7 @@ func ExampleSignAndValidate() {
 }
 
 func ExampleMetadata() {
-	md := New(metadata)
+	md := NewXp(metadata)
     fmt.Println(md.Q1("/md:EntityDescriptor/@entityID", nil))
     fmt.Println(md.Q1("/md:EntityDescriptor/md:IDPSSODescriptor/md:NameIDFormat", nil))
     // Output:
@@ -214,7 +214,7 @@ func ExampleMetadata() {
 }
 
 func ExampleQueryDashP_1() {
-	xp := New(response)
+	xp := NewXp(response)
     xp.QueryDashP(nil, `saml:Assertion/saml:AuthnStatement/saml:AuthnContext/saml:AuthenticatingAuthority[1]`, "anton", nil)
     xp.QueryDashP(nil, `saml:Assertion/saml:AuthnStatement/saml:AuthnContext/saml:AuthenticatingAuthority[3]`, "banton", nil)
 
@@ -228,7 +228,7 @@ func ExampleQueryDashP_1() {
 }
 
 func ExampleQueryDashP_2() {
-	xp := New([]byte(`<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"/>`))
+	xp := NewXp([]byte(`<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"/>`))
     xp.QueryDashP(nil, `/samlp:Response/@ID`, "zf0de122f115e3bb7e0c2eebcc4537ac44189c6dc", nil)
     xp.QueryDashP(nil, `saml:Assertion/saml:AuthnStatement/saml:AuthnContext/saml:AuthenticatingAuthority[3]`, "banton", nil)
 

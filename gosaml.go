@@ -124,11 +124,11 @@ func GetMetaData(path string) *Xp {
 	if err != nil {
 		return nil //, errors.New("no md available")
 	}
-	return New(md)
+	return NewXp(md)
 }
 
 // Parse SAML xml to Xp object with doc and xpath with relevant namespaces registered
-func New(xml []byte) *Xp {
+func NewXp(xml []byte) *Xp {
 	x := new(Xp)
 	x.doc = C.xmlParseMemory((*C.char)(unsafe.Pointer(&xml[0])), C.int(len(xml)))
 	x.xpathCtx = C.xmlXPathNewContext(x.doc)
