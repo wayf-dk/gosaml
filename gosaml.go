@@ -23,7 +23,7 @@ xmlNode* fetchNode(xmlNodeSet *nodeset, int index) {
 import "C"
 
 import (
-    "bytes"
+	"bytes"
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
@@ -33,17 +33,23 @@ import (
 	"html"
 	"io"
 	"io/ioutil"
-//	"log"
+	"log"
 	"regexp"
 	"runtime"
 	"strconv"
+	"time"
 	"unsafe"
+)
+
+const (
+	xsDateTime = "2006-01-02T15:04:05Z"
 )
 
 // Xp is a wrapper for the libxml2 xmlDoc and xmlXpathContext
 type Xp struct {
 	doc      *C.xmlDoc
 	xpathCtx *C.xmlXPathContext
+	context  *C.xmlNode
 }
 
 // NamespaceMap is namespace struct (in *C.char format) from ns prefix to urn/url
@@ -182,11 +188,14 @@ func (xp *Xp) Pp() string {
 // returns a slice of nodes
 func (xp *Xp) Query(path string, context *C.xmlNode) (nodes []*C.xmlNode) {
 	if context == nil {
+		context = xp.context
+	}
+	if context == nil {
 		context = C.xmlDocGetRootElement(xp.doc)
 	}
 	C.xmlXPathSetContextNode(context, xp.xpathCtx)
 
-    Cpath := unsafe.Pointer(C.CString(path))
+	Cpath := unsafe.Pointer(C.CString(path))
 	defer C.free(Cpath)
 	xpathObj := C.xmlXPathEvalExpression((*C.xmlChar)(Cpath), xp.xpathCtx)
 
@@ -248,10 +257,10 @@ func (xp *Xp) QueryDashP(context *C.xmlNode, query string, data string, before *
 	re2 := regexp.MustCompile(`^(?:(\w+):?)?([^\[@]*)(?:\[(\d+)\])?(?:\[?@([^=]+)(?:="([^"]*)"])?)?()$`)
 	path := re.FindAllStringSubmatch(query, -1)
 	if query[0] == '/' {
-    	var buffer bytes.Buffer
-    	buffer.WriteString("/")
-    	buffer.WriteString(path[0][1])
-	    path[0][1] = buffer.String()
+		var buffer bytes.Buffer
+		buffer.WriteString("/")
+		buffer.WriteString(path[0][1])
+		path[0][1] = buffer.String()
 	}
 
 	for _, elements := range path {
@@ -267,11 +276,11 @@ func (xp *Xp) QueryDashP(context *C.xmlNode, query string, data string, before *
 			}
 
 			dn := d[0]
-    		ns, element, position_s, attribute, value := dn[1], dn[2], dn[3], dn[4], dn[5]
+			ns, element, position_s, attribute, value := dn[1], dn[2], dn[3], dn[4], dn[5]
 			if element != "" {
 				if position_s != "" {
 					position, _ := strconv.ParseInt(position_s, 10, 0)
-				    originalcontext := context
+					originalcontext := context
 					for i := 1; i <= int(position); i++ {
 						existingelement := xp.Query(ns+":"+element+"["+strconv.Itoa(i)+"]", originalcontext)
 						if len(existingelement) > 0 {
@@ -315,9 +324,9 @@ func (xp *Xp) createElementNS(prefix, element string, context *C.xmlNode, before
 	if before != nil {
 		newcontext = C.xmlAddPrevSibling(before, newelement)
 	} else {
-        if context == nil {
-            context = C.xmlDocGetRootElement(xp.doc)
-        }
+		if context == nil {
+			context = C.xmlDocGetRootElement(xp.doc)
+		}
 		newcontext = C.xmlAddChild(context, newelement)
 	}
 	return
@@ -329,6 +338,13 @@ func hash(h crypto.Hash, data string) []byte {
 	io.WriteString(digest, data)
 	return digest.Sum(nil)
 }
+
+func id() (id string) {
+    b := make([]byte, 21) // 168 bits - just over the 160 bit recomendation without base64 padding
+    rand.Read(b)
+    return "_" + base64.StdEncoding.EncodeToString(b)
+}
+
 
 // VerifySignature Verify a signature for the given context and public key
 func (xp *Xp) VerifySignature(context *C.xmlNode, pub *rsa.PublicKey) (isvalid bool) {
@@ -422,3 +438,155 @@ func PublicKeysFromMD(certs []*C.xmlNode) (pub []*rsa.PublicKey) {
 	}
 	return
 }
+
+/*  NewAuthnRequest - create an AuthnRequest using the supplied metadata for setting the fields according to the following rules:
+    - The Destination is the 1st SingleSignOnService with a redirect binding in the idpmetadata
+    - The AssertionConsumerServiceURL is Location of the 1st ACS with a post binding in the spmetadata
+    - The ProtocolBinding is post
+    - The Issuer is the entityID ín the idpmetadata
+    - The NameID defaults to transient
+*/
+func NewAuthnRequest(spmd *Xp, idpmd *Xp) (request *Xp) {
+	template := []byte(`<samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
+                    xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
+                    Version="2.0"
+                    ID="x"
+                    IssueInstant="x"
+                    Destination="x"
+                    AssertionConsumerServiceURL="x"
+                    ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+                    >
+<saml:Issuer>x</saml:Issuer>
+<samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" AllowCreate="true" />
+</samlp:AuthnRequest>`)
+
+	request = NewXp(template)
+	request.QueryDashP(nil, "./@ID", id(), nil)
+	request.QueryDashP(nil, "./@IssueInstant", time.Now().Format(xsDateTime), nil)
+	request.QueryDashP(nil, "./@Destination", idpmd.Q1(`md:SingleSignOnService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"]/@Location`, nil), nil)
+	request.QueryDashP(nil, "./@AssertionConsumerURL", spmd.Q1(`md:AssertionConsumerService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"]/@Location`, nil), nil)
+	request.QueryDashP(nil, "./saml:Issuer", spmd.Q1(`/md:EntitiesDescriptor/md:EntityDescriptor/@entityID`, nil), nil)
+	return
+}
+
+/*  NewResponse - create a new response using the supplied metadata and resp. authnrequest and response for filling out the fields
+    The response is primarily for the attributes, but other fields is eg. the AuthnContextClassRef is also drawn from it
+*/
+func NewResponse(idpmd, spmd, authnrequest, sourceResponse *Xp) (response *Xp) {
+	template := []byte(`<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
+                ID=""
+                Version="2.0"
+                IssueInstant=""
+                InResponseTo=""
+                Destination="https://phph.wayf.dk"
+                >
+    <saml:Issuer xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"></saml:Issuer>
+    <samlp:Status>
+        <samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success" />
+    </samlp:Status>
+    <saml:Assertion xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                    xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                    xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
+                    ID=""
+                    Version="2.0"
+                    IssueInstant=""
+                    >
+        <saml:Issuer></saml:Issuer>
+        <ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#"></ds:Signature>
+        <saml:Subject>
+            <saml:NameID SPNameQualifier="https://birk.wayf.dk/birk.php/metadata.wayf.dk/PHPh-proxy"
+                         Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
+                         ></saml:NameID>
+            <saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
+                <saml:SubjectConfirmationData NotOnOrAfter=""
+                                              Recipient=""
+                                              InResponseTo=""
+                                              />
+            </saml:SubjectConfirmation>
+        </saml:Subject>
+        <saml:Conditions NotBefore=""
+                         NotOnOrAfter=""
+                         >
+            <saml:AudienceRestriction>
+                <saml:Audience></saml:Audience>
+            </saml:AudienceRestriction>
+        </saml:Conditions>
+        <saml:AuthnStatement AuthnInstant=""
+                             SessionNotOnOrAfter=""
+                             SessionIndex=""
+                             >
+            <saml:AuthnContext>
+                <saml:AuthnContextClassRef>missing</saml:AuthnContextClassRef>
+            </saml:AuthnContext>
+        </saml:AuthnStatement>
+        <saml:AttributeStatement>
+        </saml:AttributeStatement>
+    </saml:Assertion>
+</samlp:Response>`)
+
+	response = NewXp(template)
+	ID := id()
+	now := time.Now().Format(xsDateTime)
+    notOnOrAfter := time.Now().Add(5 * time.Minute).Format(xsDateTime)
+    sessionNotOnOrAfter := time.Now().Add(5 * time.Hour).Format(xsDateTime)
+
+    spEntityID :=spmd.Q1(`/md:EntitiesDescriptor/md:EntityDescriptor/@entityID`, nil)
+    idpEntityID := idpmd.Q1(`/md:EntitiesDescriptor/md:EntityDescriptor/@entityID`, nil)
+
+	response.QueryDashP(nil, "./@ID", ID, nil)
+	response.QueryDashP(nil, "./@IssueInstant", now, nil)
+	response.QueryDashP(nil, "./@InResponseTo", authnrequest.Q1("@ID", nil), nil)
+	response.QueryDashP(nil, "./@Destination", authnrequest.Q1("@AssertionConsumerURL", nil), nil)
+	response.QueryDashP(nil, "./saml:Issuer", idpEntityID, nil)
+
+	response.QueryDashP(nil, "./saml:Assertion/@ID", id(), nil)
+	response.QueryDashP(nil, "./saml:Assertion/saml:Issuer", idpEntityID, nil)
+	response.QueryDashP(nil, "./saml:Assertion/@IssueInstant", now, nil)
+
+	response.QueryDashP(nil, "./saml:Assertion/saml:Subject/saml:NameID/@SPNameQualifier", spEntityID, nil)
+	response.QueryDashP(nil, "./saml:Assertion/saml:Subject/saml:NameID/@Format", "NameID@Format", nil)
+	response.QueryDashP(nil, "./saml:Assertion/saml:Subject/saml:NameID", "Subject", nil)
+
+
+	response.QueryDashP(nil, "./saml:Assertion/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@NotOnOrAfter", now, nil)
+	response.QueryDashP(nil, "./saml:Assertion/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@Recipient", spEntityID, nil)
+	response.QueryDashP(nil, "./saml:Assertion/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@InResponseTo", authnrequest.Q1("@ID", nil), nil)
+
+	response.QueryDashP(nil, "./saml:Assertion/saml:Conditions/@NotBefore", now, nil)
+	response.QueryDashP(nil, "./saml:Assertion/saml:Conditions/@NotOnOrAfter", notOnOrAfter, nil)
+	response.QueryDashP(nil, "./saml:Assertion/saml:Conditions/saml:AudienceRestriction/saml:Audience", spEntityID, nil)
+
+
+	response.QueryDashP(nil, "./saml:Assertion/saml:AuthnStatement/@AuthnInstant", now, nil)
+	response.QueryDashP(nil, "./saml:Assertion/saml:AuthnStatement/@SessionNotOnOrAfter", sessionNotOnOrAfter, nil)
+	response.QueryDashP(nil, "./saml:Assertion/saml:AuthnStatement/@SessionIndex", "missing", nil)
+
+	response.QueryDashP(nil, "./saml:Assertion/saml:AttributeStatement", "missing", nil)
+
+
+	requestedAttributes := spmd.Query(`//md:RequestedAttribute[@isRequired="true"]`, nil)
+    // <md:RequestedAttribute FriendlyName="preferredLanguage" Name="urn:oid:2.16.840.1.113730.3.1.39" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
+    sourceAttributes := sourceResponse.Query(`//saml:AttributeStatement`, nil)[0]
+	log.Printf("srcatt: %v\n", sourceAttributes)
+
+
+	for _, attribute := range requestedAttributes {
+	    name := GetAttr(attribute, "Name")
+	    nameFormat := GetAttr(attribute, "NameFormat")
+	    friendlyName := GetAttr(attribute, "FriendlyName")
+	    // look for a requested attribute with the requested nameformat
+	    // TO-DO - xpath escape name and nameFormat
+	    attributeValue := sourceResponse.Query(`saml:Attribute[@Name="` + name + `" and @NameFormat="` + nameFormat + `"]`, sourceAttributes)
+	    if len(attributeValue) < 1 {
+	        // did not find a value - try with
+
+	    }
+	    log.Printf("val: %s %s %s %v\n", friendlyName, name, nameFormat, attributeValue)
+
+	    //sourceresponse.Query(""
+	    log.Printf("attr: %s %s\n", name, nameFormat)
+	}
+
+	return
+}
+
