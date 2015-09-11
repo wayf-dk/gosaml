@@ -1,4 +1,4 @@
-// Package gosaml is a library for doing SAML stuff in Go.
+// Gosaml is a library for doing SAML stuff in Go.
 // It uses a libxml2 dom representation of SAML "objects" and combines it with xpath for extracting information
 //
 // It also supplies a "generative-xpath" function that allows insertion into SAML "objects" using (a subset of) xpath queries.
@@ -33,7 +33,7 @@ import (
 	"html"
 	"io"
 	"io/ioutil"
-	"log"
+//	"log"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -186,7 +186,7 @@ func (xp *Xp) Pp() string {
 
 // Query Do a xpath query with the given context
 // returns a slice of nodes
-func (xp *Xp) Query(path string, context *C.xmlNode) (nodes []*C.xmlNode) {
+func (xp *Xp) Query(context *C.xmlNode, path string) (nodes []*C.xmlNode) {
 	if context == nil {
 		context = xp.context
 	}
@@ -219,12 +219,13 @@ func (xp *Xp) Query(path string, context *C.xmlNode) (nodes []*C.xmlNode) {
 
 // Q1 Utility function to get the content of the first node from an xpath query
 // as a string
-func (xp *Xp) Q1(path string, context *C.xmlNode) (res string) {
-	nodes := xp.Query(path, context)
-	if len(nodes) > 0 {
-		content := C.xmlNodeGetContent(nodes[0])
+func (xp *Xp) Query1(context *C.xmlNode, path string) (res string) {
+	nodes := xp.Query(context, path)
+	for _, node := range nodes {
+		content := C.xmlNodeGetContent(node)
 		res = C.GoString((*C.char)(unsafe.Pointer(content)))
 		C.free(unsafe.Pointer(content))
+		return
 	}
 	return
 }
@@ -234,6 +235,14 @@ func (xp *Xp) nodeSetContent(node *C.xmlNode, content string) {
 	Ccontent := unsafe.Pointer(C.CString(content))
 	C.xmlNodeSetContent(C.xmlNodePtr(node), (*C.xmlChar)(Ccontent))
 	C.free(Ccontent)
+}
+
+// nodeGetContent  Set the content of a node (or attribute)
+func (xp *Xp) nodeGetContent(node *C.xmlNode) (res string) {
+    content := C.xmlNodeGetContent(node)
+    res = C.GoString((*C.char)(unsafe.Pointer(content)))
+    C.free(unsafe.Pointer(content))
+    return
 }
 
 // GetAttr gets the value of the non-namespaced attribute attr
@@ -265,7 +274,7 @@ func (xp *Xp) QueryDashP(context *C.xmlNode, query string, data string, before *
 
 	for _, elements := range path {
 		element := elements[1]
-		nodes := xp.Query(element, context)
+		nodes := xp.Query(context, element)
 		if len(nodes) > 0 {
 			context = nodes[0]
 			continue
@@ -282,7 +291,7 @@ func (xp *Xp) QueryDashP(context *C.xmlNode, query string, data string, before *
 					position, _ := strconv.ParseInt(position_s, 10, 0)
 					originalcontext := context
 					for i := 1; i <= int(position); i++ {
-						existingelement := xp.Query(ns+":"+element+"["+strconv.Itoa(i)+"]", originalcontext)
+						existingelement := xp.Query(originalcontext, ns+":"+element+"["+strconv.Itoa(i)+"]")
 						if len(existingelement) > 0 {
 							context = existingelement[0]
 						} else {
@@ -348,23 +357,23 @@ func id() (id string) {
 
 // VerifySignature Verify a signature for the given context and public key
 func (xp *Xp) VerifySignature(context *C.xmlNode, pub *rsa.PublicKey) (isvalid bool) {
-	signature := xp.Query("ds:Signature[1]", context)[0]
-	signatureValue := xp.Q1("ds:SignatureValue", signature)
-	signedInfo := xp.Query("ds:SignedInfo", signature)[0]
+	signature := xp.Query(context, "ds:Signature[1]")[0]
+	signatureValue := xp.Query1(signature, "ds:SignatureValue")
+	signedInfo := xp.Query(signature, "ds:SignedInfo")[0]
 	signedInfoC14n := xp.c14n(signedInfo)
-	digestValue := xp.Q1("ds:Reference/ds:DigestValue", signedInfo)
-	ID := xp.Q1("@ID", context)
-	URI := xp.Q1("ds:Reference/@URI", signedInfo)
+	digestValue := xp.Query1(signedInfo, "ds:Reference/ds:DigestValue")
+	ID := xp.Query1(context, "@ID")
+	URI := xp.Query1(signedInfo, "ds:Reference/@URI")
 	isvalid = "#"+ID == URI
 
-	digestMethod := xp.Q1("ds:Reference/ds:DigestMethod/@Algorithm", signedInfo)
+	digestMethod := xp.Query1(signedInfo, "ds:Reference/ds:DigestMethod/@Algorithm")
 
 	C.xmlUnlinkNode(signature)
 	contextDigest := hash(algos[digestMethod].algo, xp.c14n(context))
 	contextDigestValueComputed := base64.StdEncoding.EncodeToString(contextDigest)
 	isvalid = isvalid && contextDigestValueComputed == digestValue
 
-	signatureMethod := xp.Q1("ds:SignatureMethod/@Algorithm", signedInfo)
+	signatureMethod := xp.Query1(signedInfo, "ds:SignatureMethod/@Algorithm")
 	signedInfoDigest := hash(algos[signatureMethod].algo, signedInfoC14n)
 	ds, _ := base64.StdEncoding.DecodeString(signatureValue)
 	err := rsa.VerifyPKCS1v15(pub, algos[signatureMethod].algo, signedInfoDigest[:], ds)
@@ -399,7 +408,7 @@ func (xp *Xp) Sign(context *C.xmlNode, priv *rsa.PrivateKey, algo string) (isval
 	C.xmlAddChildList(signature, res)
 	C.xmlAddNextSibling(C.xmlFirstElementChild(context), signature)
 
-	id := xp.Q1("@ID", context)
+	id := xp.Query1(context, "@ID")
 
 	signedInfo := xp.QueryDashP(signature, `ds:Signature/ds:SignedInfo[1]`, "", nil)
 	xp.QueryDashP(signedInfo, `ds:SignatureMethod[1]/@Algorithm`, algos[algo].signature, nil)
@@ -463,9 +472,9 @@ func NewAuthnRequest(spmd *Xp, idpmd *Xp) (request *Xp) {
 	request = NewXp(template)
 	request.QueryDashP(nil, "./@ID", id(), nil)
 	request.QueryDashP(nil, "./@IssueInstant", time.Now().Format(xsDateTime), nil)
-	request.QueryDashP(nil, "./@Destination", idpmd.Q1(`md:SingleSignOnService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"]/@Location`, nil), nil)
-	request.QueryDashP(nil, "./@AssertionConsumerURL", spmd.Q1(`md:AssertionConsumerService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"]/@Location`, nil), nil)
-	request.QueryDashP(nil, "./saml:Issuer", spmd.Q1(`/md:EntitiesDescriptor/md:EntityDescriptor/@entityID`, nil), nil)
+	request.QueryDashP(nil, "./@Destination", idpmd.Query1(nil, `md:SingleSignOnService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"]/@Location`), nil)
+	request.QueryDashP(nil, "./@AssertionConsumerURL", spmd.Query1(nil, `md:AssertionConsumerService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"]/@Location`), nil)
+	request.QueryDashP(nil, "./saml:Issuer", spmd.Query1(nil, `/md:EntitiesDescriptor/md:EntityDescriptor/@entityID`), nil)
 	return
 }
 
@@ -516,7 +525,7 @@ func NewResponse(idpmd, spmd, authnrequest, sourceResponse *Xp) (response *Xp) {
                              SessionIndex=""
                              >
             <saml:AuthnContext>
-                <saml:AuthnContextClassRef>missing</saml:AuthnContextClassRef>
+                <saml:AuthnContextClassRef></saml:AuthnContextClassRef>
             </saml:AuthnContext>
         </saml:AuthnStatement>
         <saml:AttributeStatement>
@@ -530,61 +539,66 @@ func NewResponse(idpmd, spmd, authnrequest, sourceResponse *Xp) (response *Xp) {
     notOnOrAfter := time.Now().Add(5 * time.Minute).Format(xsDateTime)
     sessionNotOnOrAfter := time.Now().Add(5 * time.Hour).Format(xsDateTime)
 
-    spEntityID :=spmd.Q1(`/md:EntitiesDescriptor/md:EntityDescriptor/@entityID`, nil)
-    idpEntityID := idpmd.Q1(`/md:EntitiesDescriptor/md:EntityDescriptor/@entityID`, nil)
+    spEntityID :=spmd.Query1(nil, `/md:EntitiesDescriptor/md:EntityDescriptor/@entityID`)
+    idpEntityID := idpmd.Query1(nil, `/md:EntitiesDescriptor/md:EntityDescriptor/@entityID`)
 
 	response.QueryDashP(nil, "./@ID", ID, nil)
 	response.QueryDashP(nil, "./@IssueInstant", now, nil)
-	response.QueryDashP(nil, "./@InResponseTo", authnrequest.Q1("@ID", nil), nil)
-	response.QueryDashP(nil, "./@Destination", authnrequest.Q1("@AssertionConsumerURL", nil), nil)
+	response.QueryDashP(nil, "./@InResponseTo", authnrequest.Query1(nil, "@ID"), nil)
+	response.QueryDashP(nil, "./@Destination", authnrequest.Query1(nil, "@AssertionConsumerURL"), nil)
 	response.QueryDashP(nil, "./saml:Issuer", idpEntityID, nil)
 
-	response.QueryDashP(nil, "./saml:Assertion/@ID", id(), nil)
-	response.QueryDashP(nil, "./saml:Assertion/saml:Issuer", idpEntityID, nil)
-	response.QueryDashP(nil, "./saml:Assertion/@IssueInstant", now, nil)
+    assertion := response.Query(nil, "saml:Assertion")[0]
+	response.QueryDashP(assertion, "@ID", id(), nil)
+	response.QueryDashP(assertion, "@IssueInstant", now, nil)
+	response.QueryDashP(assertion, "saml:Issuer", idpEntityID, nil)
 
-	response.QueryDashP(nil, "./saml:Assertion/saml:Subject/saml:NameID/@SPNameQualifier", spEntityID, nil)
-	response.QueryDashP(nil, "./saml:Assertion/saml:Subject/saml:NameID/@Format", "NameID@Format", nil)
-	response.QueryDashP(nil, "./saml:Assertion/saml:Subject/saml:NameID", "Subject", nil)
+    nameid := response.Query(assertion, "saml:Subject/saml:NameID")[0]
+	response.QueryDashP(nameid, "@SPNameQualifier", spEntityID, nil)
+	response.QueryDashP(nameid, "@Format", "NameID@Format", nil)
+	response.QueryDashP(nameid, ".", "Subject", nil)
 
+    subjectconfirmationdata := response.Query(assertion, "saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData")[0]
+	response.QueryDashP(subjectconfirmationdata, "@NotOnOrAfter", now, nil)
+	response.QueryDashP(subjectconfirmationdata, "@Recipient", spEntityID, nil)
+	response.QueryDashP(subjectconfirmationdata, "@InResponseTo", authnrequest.Query1(nil, "@ID"), nil)
 
-	response.QueryDashP(nil, "./saml:Assertion/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@NotOnOrAfter", now, nil)
-	response.QueryDashP(nil, "./saml:Assertion/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@Recipient", spEntityID, nil)
-	response.QueryDashP(nil, "./saml:Assertion/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@InResponseTo", authnrequest.Q1("@ID", nil), nil)
+    conditions := response.Query(assertion, "saml:Conditions")[0]
+	response.QueryDashP(conditions, "@NotBefore", now, nil)
+	response.QueryDashP(conditions, "@NotOnOrAfter", notOnOrAfter, nil)
+	response.QueryDashP(conditions, "saml:AudienceRestriction/saml:Audience", spEntityID, nil)
 
-	response.QueryDashP(nil, "./saml:Assertion/saml:Conditions/@NotBefore", now, nil)
-	response.QueryDashP(nil, "./saml:Assertion/saml:Conditions/@NotOnOrAfter", notOnOrAfter, nil)
-	response.QueryDashP(nil, "./saml:Assertion/saml:Conditions/saml:AudienceRestriction/saml:Audience", spEntityID, nil)
+    authstatement := response.Query(assertion, "saml:AuthnStatement")[0]
+	response.QueryDashP(authstatement, "@AuthnInstant", now, nil)
+	response.QueryDashP(authstatement, "@SessionNotOnOrAfter", sessionNotOnOrAfter, nil)
+	response.QueryDashP(authstatement, "@SessionIndex", "missing", nil)
+	response.QueryDashP(authstatement, "saml:AuthnContext/saml:AuthnContextClassRef", "missing", nil)
 
+	requestedAttributes := spmd.Query(nil, `//md:RequestedAttribute[@isRequired="true"]`)
+    sourceAttributes := sourceResponse.Query(nil, `//saml:AttributeStatement`)[0]
+    destinationAttributes := response.Query(nil, `//saml:AttributeStatement`)[0]
 
-	response.QueryDashP(nil, "./saml:Assertion/saml:AuthnStatement/@AuthnInstant", now, nil)
-	response.QueryDashP(nil, "./saml:Assertion/saml:AuthnStatement/@SessionNotOnOrAfter", sessionNotOnOrAfter, nil)
-	response.QueryDashP(nil, "./saml:Assertion/saml:AuthnStatement/@SessionIndex", "missing", nil)
-
-	response.QueryDashP(nil, "./saml:Assertion/saml:AttributeStatement", "missing", nil)
-
-
-	requestedAttributes := spmd.Query(`//md:RequestedAttribute[@isRequired="true"]`, nil)
-    // <md:RequestedAttribute FriendlyName="preferredLanguage" Name="urn:oid:2.16.840.1.113730.3.1.39" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-    sourceAttributes := sourceResponse.Query(`//saml:AttributeStatement`, nil)[0]
-	log.Printf("srcatt: %v\n", sourceAttributes)
-
-
-	for _, attribute := range requestedAttributes {
-	    name := GetAttr(attribute, "Name")
-	    nameFormat := GetAttr(attribute, "NameFormat")
-	    friendlyName := GetAttr(attribute, "FriendlyName")
+	for _, requestedAttribute := range requestedAttributes {
+	    name := GetAttr(requestedAttribute, "Name")
+	    nameFormat := GetAttr(requestedAttribute, "NameFormat")
 	    // look for a requested attribute with the requested nameformat
 	    // TO-DO - xpath escape name and nameFormat
-	    attributeValue := sourceResponse.Query(`saml:Attribute[@Name="` + name + `" and @NameFormat="` + nameFormat + `"]`, sourceAttributes)
-	    if len(attributeValue) < 1 {
-	        // did not find a value - try with
-
+	    // TO-Do - value filtering
+	    attributes := sourceResponse.Query(sourceAttributes, `saml:Attribute[@Name="` + name + `" and @NameFormat="` + nameFormat + `"]`)
+	    for _, attribute := range attributes {
+            newAttribute := C.xmlAddChild(destinationAttributes, C.xmlDocCopyNode(attribute, response.doc, 2))
+            allowedValues := spmd.Query(requestedAttribute, `saml:AttributeValue`)
+            allowedValuesMap := make(map[string]bool)
+            for _, value :=  range allowedValues {
+                allowedValuesMap[spmd.nodeGetContent(value)] = true
+            }
+            for _, valueNode := range sourceResponse.Query(attribute, `saml:AttributeValue`) {
+                value := sourceResponse.nodeGetContent(valueNode)
+                if len(allowedValues) == 0 || allowedValuesMap[value] {
+                    C.xmlAddChild(newAttribute, C.xmlDocCopyNode(valueNode, response.doc, 1))
+                }
+            }
 	    }
-	    log.Printf("val: %s %s %s %v\n", friendlyName, name, nameFormat, attributeValue)
-
-	    //sourceresponse.Query(""
-	    log.Printf("attr: %s %s\n", name, nameFormat)
 	}
 
 	return

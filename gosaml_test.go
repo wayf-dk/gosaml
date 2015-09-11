@@ -66,7 +66,15 @@ var (
                             NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
                             >
                 <saml:AttributeValue xsi:type="xs:string">gikcaswid@orphanage.wayf.dk</saml:AttributeValue>
+                <saml:AttributeValue xsi:type="xs:string">only@thisone.example.com</saml:AttributeValue>
             </saml:Attribute>
+            <saml:Attribute Name="urn:oid:2.5.4.42"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+                            >
+                <saml:AttributeValue xsi:type="xs:string">anton</saml:AttributeValue>
+                <saml:AttributeValue xsi:type="xs:string">banton</saml:AttributeValue>
+            </saml:Attribute>
+
         </saml:AttributeStatement>
     </saml:Assertion>
 </samlp:Response>`)
@@ -160,7 +168,7 @@ UDgBXcQzpXHOg7ks4xbcEPCe0gaQhOKyWjMDALDCmiA7f7/Rnam3CA==
     <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:PAOS" Location="https://attribute-viewer.aai.switch.ch/Shibboleth.sso/SAML2/ECP" index="3"/>
     <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:1.0:profiles:browser-post" Location="https://attribute-viewer.aai.switch.ch/Shibboleth.sso/SAML/POST" index="4"/>
     <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:1.0:profiles:artifact-01" Location="https://attribute-viewer.aai.switch.ch/Shibboleth.sso/SAML/Artifact" index="5"/>
-    <md:AttributeConsumingService index="1">
+    <md:AttributeConsumingService index="1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
       <md:ServiceName xml:lang="de">AAI Attributes Viewer</md:ServiceName>
       <md:ServiceName xml:lang="en">AAI Attributes Viewer</md:ServiceName>
       <md:ServiceName xml:lang="fr">AAI Attributes Viewer</md:ServiceName>
@@ -185,7 +193,9 @@ UDgBXcQzpXHOg7ks4xbcEPCe0gaQhOKyWjMDALDCmiA7f7/Rnam3CA==
       <md:RequestedAttribute FriendlyName="uid" Name="urn:oid:0.9.2342.19200300.100.1.1" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
       <md:RequestedAttribute FriendlyName="employeeNumber" Name="urn:oid:2.16.840.1.113730.3.1.3" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
       <md:RequestedAttribute FriendlyName="ou" Name="urn:oid:2.5.4.11" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="eduPersonPrincipalName" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.6" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
+      <md:RequestedAttribute FriendlyName="eduPersonPrincipalName" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.6" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true">
+      <saml:AttributeValue xsi:type="xs:string">only@thisone.example.com</saml:AttributeValue>
+      </md:RequestedAttribute>
       <md:RequestedAttribute FriendlyName="eduPersonAssurance" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.11" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
       <md:RequestedAttribute FriendlyName="eduPersonTargetedID" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.10" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
       <md:RequestedAttribute FriendlyName="eduPersonPrimaryOrgUnitDN" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.8" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
@@ -406,15 +416,15 @@ func ExampleSignAndValidate() {
 	priv, _ := x509.ParsePKCS1PrivateKey(block.Bytes)
 
 	xp := NewXp(response)
-	assertion := xp.Query("saml:Assertion[1]", nil)[0]
+	assertion := xp.Query(nil, "saml:Assertion[1]")[0]
 	xp.Sign(assertion, priv, "sha256")
 
 	xp = NewXp([]byte(xp.Pp()))
 
-	fmt.Println(xp.Q1("saml:Assertion/ds:Signature/ds:SignedInfo/ds:Reference/ds:DigestMethod/@Algorithm", nil))
-	fmt.Println(xp.Q1("/samlp:Response/saml:Assertion/ds:Signature/ds:SignedInfo/ds:SignatureMethod/@Algorithm", nil))
+	fmt.Println(xp.Query1(nil, "saml:Assertion/ds:Signature/ds:SignedInfo/ds:Reference/ds:DigestMethod/@Algorithm"))
+	fmt.Println(xp.Query1(nil, "/samlp:Response/saml:Assertion/ds:Signature/ds:SignedInfo/ds:SignatureMethod/@Algorithm"))
 
-	assertion = xp.Query("saml:Assertion[1]", nil)[0]
+	assertion = xp.Query(nil, "saml:Assertion[1]")[0]
 
 	pub := &priv.PublicKey
 
@@ -426,10 +436,10 @@ func ExampleSignAndValidate() {
 
 	xp = NewXp([]byte(xp.Pp()))
 
-	fmt.Println(xp.Q1("saml:Assertion/ds:Signature/ds:SignedInfo/ds:Reference/ds:DigestMethod/@Algorithm", nil))
-	fmt.Println(xp.Q1("saml:Assertion/ds:Signature/ds:SignedInfo/ds:SignatureMethod/@Algorithm", nil))
-	fmt.Println(xp.Q1("saml:Assertion/ds:Signature/ds:SignedInfo/ds:Reference/ds:DigestValue", nil))
-	fmt.Println(xp.Q1("saml:Assertion/ds:Signature/ds:SignatureValue", nil))
+	fmt.Println(xp.Query1(nil, "saml:Assertion/ds:Signature/ds:SignedInfo/ds:Reference/ds:DigestMethod/@Algorithm"))
+	fmt.Println(xp.Query1(nil, "saml:Assertion/ds:Signature/ds:SignedInfo/ds:SignatureMethod/@Algorithm"))
+	fmt.Println(xp.Query1(nil, "saml:Assertion/ds:Signature/ds:SignedInfo/ds:Reference/ds:DigestValue"))
+	fmt.Println(xp.Query1(nil, "saml:Assertion/ds:Signature/ds:SignatureValue"))
 	// Output:
 	// http://www.w3.org/2001/04/xmlenc#sha256
 	// http://www.w3.org/2001/04/xmldsig-more#rsa-sha256
@@ -442,8 +452,8 @@ func ExampleSignAndValidate() {
 
 func ExampleMetadata() {
 	md := NewXp(idpmetadata)
-	fmt.Println(md.Q1("//md:EntityDescriptor/@entityID", nil))
-	fmt.Println(md.Q1("//md:EntityDescriptor/md:IDPSSODescriptor/md:NameIDFormat", nil))
+	fmt.Println(md.Query1(nil, "//md:EntityDescriptor/@entityID"))
+	fmt.Println(md.Query1(nil, "//md:EntityDescriptor/md:IDPSSODescriptor/md:NameIDFormat"))
 	// Output:
 	// https://aai-logon.switch.ch/idp/shibboleth
 	// urn:mace:shibboleth:1.0:nameIdentifier
@@ -454,9 +464,9 @@ func ExampleQueryDashP_1() {
 	xp.QueryDashP(nil, `saml:Assertion/saml:AuthnStatement/saml:AuthnContext/saml:AuthenticatingAuthority[1]`, "anton", nil)
 	xp.QueryDashP(nil, `saml:Assertion/saml:AuthnStatement/saml:AuthnContext/saml:AuthenticatingAuthority[3]`, "banton", nil)
 
-	fmt.Println(xp.Q1(`saml:Assertion/saml:AuthnStatement/saml:AuthnContext/saml:AuthenticatingAuthority[3]`, nil))
-	fmt.Println(xp.Q1(`saml:Assertion/saml:AuthnStatement/saml:AuthnContext/saml:AuthenticatingAuthority[2]`, nil))
-	fmt.Println(xp.Q1(`saml:Assertion/saml:AuthnStatement/saml:AuthnContext/saml:AuthenticatingAuthority[1]`, nil))
+	fmt.Println(xp.Query1(nil, `saml:Assertion/saml:AuthnStatement/saml:AuthnContext/saml:AuthenticatingAuthority[3]`))
+	fmt.Println(xp.Query1(nil, `saml:Assertion/saml:AuthnStatement/saml:AuthnContext/saml:AuthenticatingAuthority[2]`))
+	fmt.Println(xp.Query1(nil, `saml:Assertion/saml:AuthnStatement/saml:AuthnContext/saml:AuthenticatingAuthority[1]`))
 	// Output:
 	// banton
 	// https://wayf.wayf.dk
@@ -469,7 +479,7 @@ func ExampleQueryDashP_2() {
 	xp.QueryDashP(nil, `saml:Assertion/saml:AuthnStatement/saml:AuthnContext/saml:AuthenticatingAuthority[3]`, "banton", nil)
 
 	fmt.Print(xp.Pp())
-	fmt.Println(xp.Q1(`saml:Assertion/saml:AuthnStatement/saml:AuthnContext/saml:AuthenticatingAuthority[3]`, nil))
+	fmt.Println(xp.Query1(nil, `saml:Assertion/saml:AuthnStatement/saml:AuthnContext/saml:AuthenticatingAuthority[3]`))
 	// Output:
 	// <?xml version="1.0"?>
 	// <samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="zf0de122f115e3bb7e0c2eebcc4537ac44189c6dc">
@@ -489,8 +499,8 @@ func ExampleQueryDashP_2() {
 func ExampleAuthnRequest() {
 	spmd := NewXp(spmetadata)
 	idpmd := NewXp(idpmetadata)
-	spmd.context = spmd.Query(`//md:SPSSODescriptor`, nil)[0]
-	idpmd.context = idpmd.Query(`//md:IDPSSODescriptor`, nil)[0]
+	spmd.context = spmd.Query(nil, `//md:SPSSODescriptor`)[0]
+	idpmd.context = idpmd.Query(nil, `//md:IDPSSODescriptor`)[0]
 	request := NewAuthnRequest(spmd, idpmd)
 	// fixate the IssueInstant and ID for testing ....
 	request.QueryDashP(nil, "./@IssueInstant", "2015-09-03T14:15:16Z", nil)
@@ -508,8 +518,8 @@ func ExampleAuthnRequest() {
 func ExampleResponse() {
 	idpmd := NewXp(idpmetadata)
 	spmd := NewXp(spmetadata)
-	idpmd.context = idpmd.Query(`//md:IDPSSODescriptor`, nil)[0]
-	spmd.context = spmd.Query(`//md:SPSSODescriptor`, nil)[0]
+	idpmd.context = idpmd.Query(nil, `//md:IDPSSODescriptor`)[0]
+	spmd.context = spmd.Query(nil, `//md:SPSSODescriptor`)[0]
 
 	sourceResponse := NewXp(response)
 
