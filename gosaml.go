@@ -52,6 +52,8 @@ type Xp struct {
 	context  *C.xmlNode
 }
 
+// IdAndTiming is a type that allows to client to pass the ids and timing used when making
+// new requests and responses - also use for fixed ids and timings when testing
 type IdAndTiming struct {
 	now                    Time
 	slack, sessionduration Duration
