@@ -33,11 +33,11 @@ import (
 	"html"
 	"io"
 	"io/ioutil"
-//	"log"
+	//	"log"
 	"regexp"
 	"runtime"
 	"strconv"
-	"time"
+.	"time"
 	"unsafe"
 )
 
@@ -50,6 +50,12 @@ type Xp struct {
 	doc      *C.xmlDoc
 	xpathCtx *C.xmlXPathContext
 	context  *C.xmlNode
+}
+
+type IdAndTiming struct {
+	now                    Time
+	slack, sessionduration Duration
+	id, assertionid        string
 }
 
 // NamespaceMap is namespace struct (in *C.char format) from ns prefix to urn/url
@@ -239,10 +245,10 @@ func (xp *Xp) nodeSetContent(node *C.xmlNode, content string) {
 
 // nodeGetContent  Set the content of a node (or attribute)
 func (xp *Xp) nodeGetContent(node *C.xmlNode) (res string) {
-    content := C.xmlNodeGetContent(node)
-    res = C.GoString((*C.char)(unsafe.Pointer(content)))
-    C.free(unsafe.Pointer(content))
-    return
+	content := C.xmlNodeGetContent(node)
+	res = C.GoString((*C.char)(unsafe.Pointer(content)))
+	C.free(unsafe.Pointer(content))
+	return
 }
 
 // GetAttr gets the value of the non-namespaced attribute attr
@@ -349,11 +355,10 @@ func hash(h crypto.Hash, data string) []byte {
 }
 
 func id() (id string) {
-    b := make([]byte, 21) // 168 bits - just over the 160 bit recomendation without base64 padding
-    rand.Read(b)
-    return "_" + base64.StdEncoding.EncodeToString(b)
+	b := make([]byte, 21) // 168 bits - just over the 160 bit recomendation without base64 padding
+	rand.Read(b)
+	return "_" + base64.StdEncoding.EncodeToString(b)
 }
-
 
 // VerifySignature Verify a signature for the given context and public key
 func (xp *Xp) VerifySignature(context *C.xmlNode, pub *rsa.PublicKey) (isvalid bool) {
@@ -455,7 +460,7 @@ func PublicKeysFromMD(certs []*C.xmlNode) (pub []*rsa.PublicKey) {
     - The Issuer is the entityID ín the idpmetadata
     - The NameID defaults to transient
 */
-func NewAuthnRequest(spmd *Xp, idpmd *Xp) (request *Xp) {
+func NewAuthnRequest(params IdAndTiming, spmd *Xp, idpmd *Xp) (request *Xp) {
 	template := []byte(`<samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
                     xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
                     Version="2.0"
@@ -469,9 +474,15 @@ func NewAuthnRequest(spmd *Xp, idpmd *Xp) (request *Xp) {
 <samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" AllowCreate="true" />
 </samlp:AuthnRequest>`)
 
+	issueInstant := params.now.Format(xsDateTime)
+	msgid := params.id
+	if msgid == "" {
+		msgid = id()
+	}
+
 	request = NewXp(template)
-	request.QueryDashP(nil, "./@ID", id(), nil)
-	request.QueryDashP(nil, "./@IssueInstant", time.Now().Format(xsDateTime), nil)
+	request.QueryDashP(nil, "./@ID", msgid, nil)
+	request.QueryDashP(nil, "./@IssueInstant", issueInstant, nil)
 	request.QueryDashP(nil, "./@Destination", idpmd.Query1(nil, `md:SingleSignOnService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"]/@Location`), nil)
 	request.QueryDashP(nil, "./@AssertionConsumerURL", spmd.Query1(nil, `md:AssertionConsumerService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"]/@Location`), nil)
 	request.QueryDashP(nil, "./saml:Issuer", spmd.Query1(nil, `/md:EntitiesDescriptor/md:EntityDescriptor/@entityID`), nil)
@@ -481,7 +492,7 @@ func NewAuthnRequest(spmd *Xp, idpmd *Xp) (request *Xp) {
 /*  NewResponse - create a new response using the supplied metadata and resp. authnrequest and response for filling out the fields
     The response is primarily for the attributes, but other fields is eg. the AuthnContextClassRef is also drawn from it
 */
-func NewResponse(idpmd, spmd, authnrequest, sourceResponse *Xp) (response *Xp) {
+func NewResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *Xp) (response *Xp) {
 	template := []byte(`<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
                 ID=""
                 Version="2.0"
@@ -534,73 +545,81 @@ func NewResponse(idpmd, spmd, authnrequest, sourceResponse *Xp) (response *Xp) {
 </samlp:Response>`)
 
 	response = NewXp(template)
-	ID := id()
-	now := time.Now().Format(xsDateTime)
-    notOnOrAfter := time.Now().Add(5 * time.Minute).Format(xsDateTime)
-    sessionNotOnOrAfter := time.Now().Add(5 * time.Hour).Format(xsDateTime)
 
-    spEntityID :=spmd.Query1(nil, `/md:EntitiesDescriptor/md:EntityDescriptor/@entityID`)
-    idpEntityID := idpmd.Query1(nil, `/md:EntitiesDescriptor/md:EntityDescriptor/@entityID`)
+	issueInstant := params.now.Format(xsDateTime)
+	assertionIssueInstant := params.now.Format(xsDateTime)
+	assertionNotOnOrAfter := params.now.Add(params.slack).Format(xsDateTime)
+	sessionNotOnOrAfter := params.now.Add(params.sessionduration).Format(xsDateTime)
+	msgid := params.id
+	if msgid == "" {
+		msgid = id()
+	}
+	assertionID := params.assertionid
+	if assertionID == "" {
+		assertionID = id()
+	}
 
-	response.QueryDashP(nil, "./@ID", ID, nil)
-	response.QueryDashP(nil, "./@IssueInstant", now, nil)
+	spEntityID := spmd.Query1(nil, `/md:EntitiesDescriptor/md:EntityDescriptor/@entityID`)
+	idpEntityID := idpmd.Query1(nil, `/md:EntitiesDescriptor/md:EntityDescriptor/@entityID`)
+
+	response.QueryDashP(nil, "./@ID", msgid, nil)
+	response.QueryDashP(nil, "./@IssueInstant", issueInstant, nil)
 	response.QueryDashP(nil, "./@InResponseTo", authnrequest.Query1(nil, "@ID"), nil)
 	response.QueryDashP(nil, "./@Destination", authnrequest.Query1(nil, "@AssertionConsumerURL"), nil)
 	response.QueryDashP(nil, "./saml:Issuer", idpEntityID, nil)
 
-    assertion := response.Query(nil, "saml:Assertion")[0]
-	response.QueryDashP(assertion, "@ID", id(), nil)
-	response.QueryDashP(assertion, "@IssueInstant", now, nil)
+	assertion := response.Query(nil, "saml:Assertion")[0]
+	response.QueryDashP(assertion, "@ID", assertionID, nil)
+	response.QueryDashP(assertion, "@IssueInstant", assertionIssueInstant, nil)
 	response.QueryDashP(assertion, "saml:Issuer", idpEntityID, nil)
 
-    nameid := response.Query(assertion, "saml:Subject/saml:NameID")[0]
+	nameid := response.Query(assertion, "saml:Subject/saml:NameID")[0]
 	response.QueryDashP(nameid, "@SPNameQualifier", spEntityID, nil)
 	response.QueryDashP(nameid, "@Format", "NameID@Format", nil)
 	response.QueryDashP(nameid, ".", "Subject", nil)
 
-    subjectconfirmationdata := response.Query(assertion, "saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData")[0]
-	response.QueryDashP(subjectconfirmationdata, "@NotOnOrAfter", now, nil)
+	subjectconfirmationdata := response.Query(assertion, "saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData")[0]
+	response.QueryDashP(subjectconfirmationdata, "@NotOnOrAfter", assertionNotOnOrAfter, nil)
 	response.QueryDashP(subjectconfirmationdata, "@Recipient", spEntityID, nil)
 	response.QueryDashP(subjectconfirmationdata, "@InResponseTo", authnrequest.Query1(nil, "@ID"), nil)
 
-    conditions := response.Query(assertion, "saml:Conditions")[0]
-	response.QueryDashP(conditions, "@NotBefore", now, nil)
-	response.QueryDashP(conditions, "@NotOnOrAfter", notOnOrAfter, nil)
+	conditions := response.Query(assertion, "saml:Conditions")[0]
+	response.QueryDashP(conditions, "@NotBefore", assertionIssueInstant, nil)
+	response.QueryDashP(conditions, "@NotOnOrAfter", assertionNotOnOrAfter, nil)
 	response.QueryDashP(conditions, "saml:AudienceRestriction/saml:Audience", spEntityID, nil)
 
-    authstatement := response.Query(assertion, "saml:AuthnStatement")[0]
-	response.QueryDashP(authstatement, "@AuthnInstant", now, nil)
+	authstatement := response.Query(assertion, "saml:AuthnStatement")[0]
+	response.QueryDashP(authstatement, "@AuthnInstant", assertionIssueInstant, nil)
 	response.QueryDashP(authstatement, "@SessionNotOnOrAfter", sessionNotOnOrAfter, nil)
 	response.QueryDashP(authstatement, "@SessionIndex", "missing", nil)
 	response.QueryDashP(authstatement, "saml:AuthnContext/saml:AuthnContextClassRef", "missing", nil)
 
 	requestedAttributes := spmd.Query(nil, `//md:RequestedAttribute[@isRequired="true"]`)
-    sourceAttributes := sourceResponse.Query(nil, `//saml:AttributeStatement`)[0]
-    destinationAttributes := response.Query(nil, `//saml:AttributeStatement`)[0]
+	sourceAttributes := sourceResponse.Query(nil, `//saml:AttributeStatement`)[0]
+	destinationAttributes := response.Query(nil, `//saml:AttributeStatement`)[0]
 
 	for _, requestedAttribute := range requestedAttributes {
-	    name := GetAttr(requestedAttribute, "Name")
-	    nameFormat := GetAttr(requestedAttribute, "NameFormat")
-	    // look for a requested attribute with the requested nameformat
-	    // TO-DO - xpath escape name and nameFormat
-	    // TO-Do - value filtering
-	    attributes := sourceResponse.Query(sourceAttributes, `saml:Attribute[@Name="` + name + `" and @NameFormat="` + nameFormat + `"]`)
-	    for _, attribute := range attributes {
-            newAttribute := C.xmlAddChild(destinationAttributes, C.xmlDocCopyNode(attribute, response.doc, 2))
-            allowedValues := spmd.Query(requestedAttribute, `saml:AttributeValue`)
-            allowedValuesMap := make(map[string]bool)
-            for _, value :=  range allowedValues {
-                allowedValuesMap[spmd.nodeGetContent(value)] = true
-            }
-            for _, valueNode := range sourceResponse.Query(attribute, `saml:AttributeValue`) {
-                value := sourceResponse.nodeGetContent(valueNode)
-                if len(allowedValues) == 0 || allowedValuesMap[value] {
-                    C.xmlAddChild(newAttribute, C.xmlDocCopyNode(valueNode, response.doc, 1))
-                }
-            }
-	    }
+		name := GetAttr(requestedAttribute, "Name")
+		nameFormat := GetAttr(requestedAttribute, "NameFormat")
+		// look for a requested attribute with the requested nameformat
+		// TO-DO - xpath escape name and nameFormat
+		// TO-Do - value filtering
+		attributes := sourceResponse.Query(sourceAttributes, `saml:Attribute[@Name="`+name+`" and @NameFormat="`+nameFormat+`"]`)
+		for _, attribute := range attributes {
+			newAttribute := C.xmlAddChild(destinationAttributes, C.xmlDocCopyNode(attribute, response.doc, 2))
+			allowedValues := spmd.Query(requestedAttribute, `saml:AttributeValue`)
+			allowedValuesMap := make(map[string]bool)
+			for _, value := range allowedValues {
+				allowedValuesMap[spmd.nodeGetContent(value)] = true
+			}
+			for _, valueNode := range sourceResponse.Query(attribute, `saml:AttributeValue`) {
+				value := sourceResponse.nodeGetContent(valueNode)
+				if len(allowedValues) == 0 || allowedValuesMap[value] {
+					C.xmlAddChild(newAttribute, C.xmlDocCopyNode(valueNode, response.doc, 1))
+				}
+			}
+		}
 	}
 
 	return
 }
-

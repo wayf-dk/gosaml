@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	//    "testing"
+  . "time"
 )
 
 var (
@@ -446,8 +447,8 @@ func ExampleSignAndValidate() {
 	// verify: true
 	// http://www.w3.org/2000/09/xmldsig#sha1
 	// http://www.w3.org/2000/09/xmldsig#rsa-sha1
-	// PpfypKN3QeBy3DTjzZx3cgA6KfA=
-	// LlDp6BWKMiQZOapOaUKH2rwrk3tU5xLqLh5cb8LdgZ4z3nFn0Ok0+AC+9kHCHtIxmdyGYwrIg35MsSM/y1FZ1il65bMufHwBY4D8rXWqO2wEKNRYq01n1pb/g74AMFkBjtasfPMXl7CF6jl+dZw7yiSf8dRfXTLLHTkT1MAGp6A=
+	// qsO7ZLDcPcICBcxUAM7BGfi49dg=
+	// MspQt4VY+49td+ubVcY9HOAQRULqFPTAcPIuQoZgeUU7hPbJniTAzwoh+BDnAdaqxlMt5biaIWAM/s50sLDm0c7fyoe7iVkKokVjGe7gO28/RTo2KYMOyDFTT6HDJVfLWC68E8Q2XV2+Sa4gtWfbq6HlmMZXN3g+Z1rOqTCht3Y=
 }
 
 func ExampleMetadata() {
@@ -501,12 +502,11 @@ func ExampleAuthnRequest() {
 	idpmd := NewXp(idpmetadata)
 	spmd.context = spmd.Query(nil, `//md:SPSSODescriptor`)[0]
 	idpmd.context = idpmd.Query(nil, `//md:IDPSSODescriptor`)[0]
-	request := NewAuthnRequest(spmd, idpmd)
+	request := NewAuthnRequest(IdAndTiming{Time{}, 0, 0, "ID", ""}, spmd, idpmd)
 	// fixate the IssueInstant and ID for testing ....
 	request.QueryDashP(nil, "./@IssueInstant", "2015-09-03T14:15:16Z", nil)
 	request.QueryDashP(nil, "./@ID", "fixed id", nil)
 	fmt.Print(request.Pp())
-	log.Print(request.Pp())
 	// Output:
 	// <?xml version="1.0"?>
 	// <samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" ID="fixed id" IssueInstant="2015-09-03T14:15:16Z" Destination="https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO" AssertionConsumerServiceURL="x" ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" AssertionConsumerURL="https://attribute-viewer.aai.switch.ch/Shibboleth.sso/SAML2/POST">
@@ -523,16 +523,40 @@ func ExampleResponse() {
 
 	sourceResponse := NewXp(response)
 
-	request := NewAuthnRequest(spmd, idpmd)
-	response := NewResponse(idpmd, spmd, request, sourceResponse)
-	//log.Print(response.Pp())
+	request := NewAuthnRequest(IdAndTiming{Time{}, 0, 0, "ID", ""}, spmd, idpmd)
+	response := NewResponse(IdAndTiming{Time{}, 4 * Minute, 4 * Hour, "ID", "AssertionID"}, idpmd, spmd, request, sourceResponse)
 
-	// fixate the IssueInstant and ID for testing ....
-	response.QueryDashP(nil, "./@IssueInstant", "2015-09-03T14:15:16Z", nil)
-	response.QueryDashP(nil, "./@ID", "fixed id", nil)
 	fmt.Print(response.Pp())
 	// Output:
-	// <?xml version="1.0"?>
+    // <?xml version="1.0"?>
+    // <samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="ID" Version="2.0" IssueInstant="0001-01-01T00:00:00Z" InResponseTo="ID" Destination="https://attribute-viewer.aai.switch.ch/Shibboleth.sso/SAML2/POST">
+    //     <saml:Issuer xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"/>
+    //     <samlp:Status>
+    //         <samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
+    //     </samlp:Status>
+    //     <saml:Assertion xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="AssertionID" Version="2.0" IssueInstant="0001-01-01T00:00:00Z">
+    //         <saml:Issuer/>
+    //         <ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#"/>
+    //         <saml:Subject>
+    //             <saml:NameID SPNameQualifier="https://birk.wayf.dk/birk.php/metadata.wayf.dk/PHPh-proxy" Format="NameID@Format">Subject</saml:NameID>
+    //             <saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
+    //                 <saml:SubjectConfirmationData NotOnOrAfter="0001-01-01T00:04:00Z" Recipient="" InResponseTo="ID"/>
+    //             </saml:SubjectConfirmation>
+    //         </saml:Subject>
+    //         <saml:Conditions NotBefore="0001-01-01T00:00:00Z" NotOnOrAfter="0001-01-01T00:04:00Z">
+    //             <saml:AudienceRestriction>
+    //                 <saml:Audience/>
+    //             </saml:AudienceRestriction>
+    //         </saml:Conditions>
+    //         <saml:AuthnStatement AuthnInstant="0001-01-01T00:00:00Z" SessionNotOnOrAfter="0001-01-01T04:00:00Z" SessionIndex="missing">
+    //             <saml:AuthnContext>
+    //                 <saml:AuthnContextClassRef>missing</saml:AuthnContextClassRef>
+    //             </saml:AuthnContext>
+    //         </saml:AuthnStatement>
+    //         <saml:AttributeStatement>
+    //         <saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="urn:oid:2.5.4.42" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">anton</saml:AttributeValue><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">banton</saml:AttributeValue></saml:Attribute><saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.6" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">only@thisone.example.com</saml:AttributeValue></saml:Attribute></saml:AttributeStatement>
+    //     </saml:Assertion>
+    // </samlp:Response>
 }
 
 func ExampleJustForKeepingLogImported() {
