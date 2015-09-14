@@ -11,6 +11,7 @@ package gosaml
 #cgo pkg-config: libxml-2.0
 #include <stdlib.h>
 #include <libxml2/libxml/tree.h>
+#include <libxml2/libxml/HTMLparser.h>
 #include <libxml2/libxml/xmlsave.h>
 #include <libxml2/libxml/c14n.h>
 #include <libxml2/libxml/xpath.h>
@@ -37,7 +38,7 @@ import (
 	"regexp"
 	"runtime"
 	"strconv"
-.	"time"
+	. "time"
 	"unsafe"
 )
 
@@ -50,6 +51,11 @@ type Xp struct {
 	doc      *C.xmlDoc
 	xpathCtx *C.xmlXPathContext
 	context  *C.xmlNode
+}
+
+type HtmlXp struct {
+    doc *C.xmlDoc
+	xpathCtx *C.xmlXPathContext
 }
 
 // IdAndTiming is a type that allows to client to pass the ids and timing used when making
@@ -140,6 +146,24 @@ func GetMetaData(path string) *Xp {
 	}
 	return NewXp(md)
 }
+
+// Parse html object with doc - used in testing for "forwarding" samlresponses from html to http
+func NewHtmlXp(html []byte) *Xp {
+	x := new(Xp)
+	x.doc = C.htmlParseDoc((*C.xmlChar)(unsafe.Pointer(&html[0])), nil)
+	x.xpathCtx = C.xmlXPathNewContext(x.doc)
+	runtime.SetFinalizer(x, (*Xp).free)
+	return x
+}
+
+// Free the libxml2 allocated objects
+func (xp *HtmlXp) free() {
+	C.xmlXPathFreeContext(xp.xpathCtx)
+	xp.xpathCtx = nil
+	C.xmlFreeDoc(xp.doc)
+	xp.doc = nil
+}
+
 
 // Parse SAML xml to Xp object with doc and xpath with relevant namespaces registered
 func NewXp(xml []byte) *Xp {
@@ -487,7 +511,7 @@ func NewAuthnRequest(params IdAndTiming, spmd *Xp, idpmd *Xp) (request *Xp) {
 	request.QueryDashP(nil, "./@IssueInstant", issueInstant, nil)
 	request.QueryDashP(nil, "./@Destination", idpmd.Query1(nil, `md:SingleSignOnService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"]/@Location`), nil)
 	request.QueryDashP(nil, "./@AssertionConsumerURL", spmd.Query1(nil, `md:AssertionConsumerService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"]/@Location`), nil)
-	request.QueryDashP(nil, "./saml:Issuer", spmd.Query1(nil, `/md:EntitiesDescriptor/md:EntityDescriptor/@entityID`), nil)
+	request.QueryDashP(nil, "./saml:Issuer", spmd.Query1(nil, `/md:EntityDescriptor/@entityID`), nil)
 	return
 }
 
@@ -561,8 +585,8 @@ func NewResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *
 		assertionID = id()
 	}
 
-	spEntityID := spmd.Query1(nil, `/md:EntitiesDescriptor/md:EntityDescriptor/@entityID`)
-	idpEntityID := idpmd.Query1(nil, `/md:EntitiesDescriptor/md:EntityDescriptor/@entityID`)
+	spEntityID := spmd.Query1(nil, `/md:EntityDescriptor/@entityID`)
+	idpEntityID := idpmd.Query1(nil, `/md:EntityDescriptor/@entityID`)
 
 	response.QueryDashP(nil, "./@ID", msgid, nil)
 	response.QueryDashP(nil, "./@IssueInstant", issueInstant, nil)
