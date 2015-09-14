@@ -1,12 +1,25 @@
 package gosaml
 
 import (
+    "bytes"
+	"compress/flate"
+	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/pem"
+	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"log"
+	"net"
+	"net/http"
+	"net/url"
+	"os"
+	"strings"
+	"strconv"
 	//    "testing"
-  . "time"
+	. "time"
 )
 
 var (
@@ -97,14 +110,15 @@ G6aFKaqQfOXKCyWoUiVknQJAXrlgySFci/2ueKlIE1QqIiLSZ8V8OlpFLRnb1pzI
 -----END RSA PRIVATE KEY-----`)
 
 	spmetadata = []byte(`<?xml version="1.0"?>
-<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:mdrpi="urn:oasis:names:tc:SAML:metadata:rpi" xmlns:mdattr="urn:oasis:names:tc:SAML:metadata:attribute" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" xmlns:mdui="urn:oasis:names:tc:SAML:metadata:ui" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="https://attribute-viewer.aai.switch.ch/shibboleth">
+<md:EntityDescriptor xmlns:mdrpi="urn:oasis:names:tc:SAML:metadata:rpi" xmlns:mdattr="urn:oasis:names:tc:SAML:metadata:attribute" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" xmlns:mdui="urn:oasis:names:tc:SAML:metadata:ui" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth">
   <md:Extensions>
-    <mdrpi:RegistrationInfo registrationAuthority="http://rr.aai.switch.ch/" registrationInstant="2015-08-21T10:35:34Z">
+    <mdrpi:RegistrationInfo registrationAuthority="http://rr.aai.switch.ch/" registrationInstant="2014-12-23T09:55:00Z">
       <mdrpi:RegistrationPolicy xml:lang="en">https://www.switch.ch/aai/federation/switchaai/metadata-registration-practice-statement-20110711.txt</mdrpi:RegistrationPolicy>
     </mdrpi:RegistrationInfo>
     <mdattr:EntityAttributes>
       <saml:Attribute Name="http://macedir.org/entity-category" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">
-				</saml:Attribute>
+        <saml:AttributeValue>http://www.geant.net/uri/dataprotection-code-of-conduct/v1</saml:AttributeValue>
+      </saml:Attribute>
       <saml:Attribute FriendlyName="swissEduPersonHomeOrganization" Name="urn:oid:2.16.756.1.2.5.1.1.4" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">
         <saml:AttributeValue>switch.ch</saml:AttributeValue>
       </saml:Attribute>
@@ -116,100 +130,60 @@ G6aFKaqQfOXKCyWoUiVknQJAXrlgySFci/2ueKlIE1QqIiLSZ8V8OlpFLRnb1pzI
   <md:SPSSODescriptor errorURL="http://www.switch.ch/aai/support/help" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol urn:oasis:names:tc:SAML:1.1:protocol">
     <md:Extensions>
       <mdui:UIInfo>
-        <mdui:DisplayName xml:lang="de">AAI Attributes Viewer</mdui:DisplayName>
-        <mdui:DisplayName xml:lang="en">AAI Attributes Viewer</mdui:DisplayName>
-        <mdui:DisplayName xml:lang="fr">AAI Attributes Viewer</mdui:DisplayName>
-        <mdui:DisplayName xml:lang="it">AAI Attributes Viewer</mdui:DisplayName>
-        <mdui:Description xml:lang="de">Zeigt zu Test und Informationszwecken alle Attribute eines Benutzers.</mdui:Description>
-        <mdui:Description xml:lang="en">Displays all available attributes of a user for debugging and informational purposes.</mdui:Description>
-        <mdui:Description xml:lang="fr">Pr&#xE9;sente tous les attributs d'un utilisateur pour tester et pour obtenir des renseignements.</mdui:Description>
-        <mdui:Description xml:lang="it">Ha tutti gli attributi di un utente per testare e per ottenere informazioni.</mdui:Description>
+        <mdui:DisplayName xml:lang="en">AAI Viewer Interfederation Test</mdui:DisplayName>
+        <mdui:Description xml:lang="en">This service is used to test the interfederation readiness of SWITCHaai Identity Providers.</mdui:Description>
         <mdui:Logo height="16" width="16">data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAAXNSR0IArs4c6QAAACF0RVh0U29mdHdhcmUAR3JhcGhpY0NvbnZlcnRlciAoSW50ZWwpd4f6GQAAAZJJREFUeJyUk08og2Ecx5+SHNSW/DtQlHKg1MhByjIpLRNx0NZKk0kbbSStHXZdHOVP4bCi5swuXNxQLjiN5UBNc1AzbeR936/39zz7c7B/Dt+e31PP9/P8ft/3eRkARpKPnVDuQsjsy1W2kA8skKwM8tEsEH8tG5QDqEZpqZILdgblbB34+igJygG2RrlRWqsXcqi1pwXKdaAoJLehtk99kJa1wkxrupb9OihPl3lBf6kqiPLg3ThER3BVCRDl8/aI4oC0lFhYGOyiG9nTKIAECjqzQZdMmVqnEbBaAfi0gLeaQ6grGrkkIPqexJjFi+E+PSZGTDANGjHQq8dQdz8CPndhY+Q5hjnPPlirGazDBta5CNakrrVmmGybiETj+UegG3cOz8Gap4V6FgSgYRLthhXcP7zkDzH1/cONmjYrP8xNXXZea9Q6dHELOlPwM1pX98BqxoWRpLZep5uHf/cEic9UwceULaZc22LetGj+eCJZ/lOmYBgzwDizAQrw3z+T2x/E1U24bGNGvwAAAP//AwCkGcs+iePLFQAAAABJRU5ErkJggg==</mdui:Logo>
         <mdui:Logo height="60" width="80">data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAAA8CAIAAAB+RarbAAAC0GlDQ1BJQ0NQcm9maWxlAAB4nI2Uz0sUYRjHv7ONGChBYGZ7iKFDSKhMFmVE5a6/2LRtWX+UEsTs7Lu7k7Oz08zsmiIRXjpm0T0qDx76Azx46JSXwsAsAuluUUSCl5LteWfG3RHtxwsz83mfH9/ned/hfYEaWTFNPSQBecOxkn1R6fromFT7ESEcQR3CqFNU24wkEgOgwWOxa2y+h8C/K617+/866tK2mgeE/UDoR5rZKrDvF9kLWWoEELlew4RjOsT3OFue/THnlMfzrn0o2UW8SHxANS0e/5q4Q80paaBGJG7JBmJSAc7rRdXv5yA99cwYHqTvcerpLrN7fBZm0kp3P3Eb8ec06+7hmsTzGa03RtxMz1rG6h32WDihObEhj0Mjhh4f8LnJSMWv+pqi6UST2/p2abBn235LuZwgDhMnxwv9PKaRcjunckPXPBb0qVxX3Od3VjHJ6x6jmDlTd/8X9RZ6hVHoYNBg0NuAhCT6EEUrTFgoIEMejSI0sjI3xiK2Mb5npI5EgCXyr1POuptzG0XK5lkjiMYx01JRkOQP8ld5VX4qz8lfZsPF5qpnxrqpqcsPvpMur7yt63v9njx9lepGyKsjS9Z8ZU12oNNAdxljNlxV4jXY/fhmYJUsUKkVKVdp3K1Ucn02vSOBan/aPYpdml5sqtZaFRdurNQvTe/Yq8KuVbHKqnbOq3HBfCYeFU+KMbFDPAdJvCR2ihfFbpqdFwcqGcOkomHCVbKhUJaBSfKaO/6ZFwvvrLmjoY8ZzNJUiZ//hFXIaDoLHNF/uP9z8HvFo7Ei8MIGDp+u2jaS7h0iNC5Xbc4V4MI3ug/eVm3NdB4OPQEWzqhFq+RLC8IbimZ3HD7pKpiTlpbNOVK7LJ+VInQlMSlmqG0tkqLrkuuyJYvZzCqxdBvszKl2T6WedqXmU7m8Qeev9hGw9bBc/vmsXN56Tj2sAS/138C8/UXN/ALEAAAJI2lUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4KPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iWE1QIENvcmUgNC40LjAiPgogICA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5bnRheC1ucyMiPgogICAgICA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIi8+CiAgIDwvcmRmOlJERj4KPC94OnhtcG1ldGE+CiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIAogICAgICAgICAgICAgICAgICAgICAgICAgICAKPD94cGFja2V0IGVuZD0idyI/Pqfd9JIAAAAhdEVYdFNvZnR3YXJlAEdyYXBoaWNDb252ZXJ0ZXIgKEludGVsKXeH+hkAAAaRSURBVHic7JZpUFNXFMf92A+dsR8ECrQ6Fq2tlVVELVQEZLNaoSwV1FEsy6CMuyJhFRAQQiAJEBCIiCigaAUFFARZlE0EAReoiiCgLGUnJIQktyc8GpKXSPnUzjzefzKZ9+4979z7u/fcc+4StMi05P+ewH8tEpjoIoGJLhKY6CKBiS4SmOgigYkuEpjoIoGJLhKY6CKBia5FDMyZnLpT/Nzl+FXbgykObmw719TopLKe3hHoEolE2bkN9NTy8XGe9Me37zUHUQu7P4pt0EgHqo5EnRUy7qd56CkLteXBo0AovJRZc7f4BdbTNzAenfgwKqEkGn6sUkZKGS3pYRSrlMoqjaAX5z94Ie3mz/Z+WkrZbs/LtgdT7VzZ9m7snPxnXN60xIA/LUjOqCoqb5UnnOTykzKrwLMM8NgEz9krfc2WsF0uKY4elxzg535J35q63opa19gJBtl5jUqavuysGmlfj2rffrb8hBclR/xSehrRl6G+JpnRXuUg2lL0Oh8ep/gCw12xHt7XsZ62t31We1iWzizrPYnmTqyVm4MNdtC270uycmaZOcZFJpTMrphAeJ5e9K1RqJFNrL27GNXBnf2LS7LGjyFup7N4U9MSKj3LqFMhufLAg8McGHfpGm8ZYFjdlZuCi8tbBQKhxLS98y/tbRfcz2RjA8MCw+uHvlFpdyfP3f58tU99eSliqaOSkzJD8UZR2kZ0yw4JhdgmGNsxvHxzsE6hSARbxOXxebzpzu4hLbMLjNRyWBRogR8YY2aFZa/U1wcw2RVDIxyJY5hkes4TNV3/ipo3EmCDn6O9z+cpBDa2Y6rrBcgAw/Js+ZU5OsbFWZ8Nu+PpcwN7rn/2/iv9QL/IfGkD4FfXjzhmswOlrUGjnTIf1zMR7QvUXYW94YBxTtaZRsRcfCjfFRxzD7rGJ3i49o6uQY3NwUlXZp1zuPwN8wEz8MBGtnSIXtzugSBmpI/KmdC8FRuDnrd+lLahJtd4WpqipxHSjSLOAErUQAVukpZ5gCFTiIGTFAAHUAuM7ZmSDZcItjS/5Pnr9n7J64bt0ZSIO/IexiemTOzjVHX9ZYAhXcHuuRy/llfUUv30XW1jR/PLnvc9w9NSEQ7q6hleaxJ+8ESmSCiSNA6M8K/QqIjbK20pqAwRMVTRYNscMF8MfJiieIe1tl1QuMOB1AITxzh5YJy4XP6mnTG/n8x80tQJk5f8IAGVVLZt3hmjrOkrAwzKvd8CWcHQhg5faptH6phH/mASbr47obahQ9p1fNojFR2/4oq5fMgXoJrCXNHU+JwRcDJVURlF+sP5Qrp3RNMsgqYI2D+qwHQBwLDDP9nSVxmG6lqIZ65jESl+mHkGllWGIV/rB+KB0Uz5gS+HRyY/9o3CIamsfQvwkEVhcyQ2E5wpM8d4C6cEKGNYy+PG3qD99ujV5TlHxUdErFVorGuhwDM7HK0opAOphaaO8QsB3riDdjTg1sDgRO/AWG//GPbfNzDW+qYP1gK/w4+ftDe2dPOnhThHUCchMw8OT0g33n3wUlnbDytRsEZ7j988tssCXd2AuEPi7v5mxFAV1DFwruY/w5/a4aDoQghI4MG1Q6KGip2V24C9cmbOsE+4gjM8PDq51V4uSytr+ULuhj6cNTO1HIBh2XCDOR1K17WIgliorn+nph+SwWCgBGVUFwMrgHKdEVsP8YYWDoyFtMKkFRp7/3vjMMi0uHZILlBZvPxmvc2WpTAFwFhZUsMlLbhvrDYKrW2QqSucSf5vnmmmDnHSIY2pvun9CoMgmM2ew+lwbRBn8gJXxNJAzWmIoYKa2PID/2tI0xQB3y9rVdMLyLhZh2uvqn+33CAoPq1SFnjBZamza8h6byKcctdTWYd8bnh4Z3ucybZwZsEqZN1ukPeCZkr0lzr+yw3OQYYXvw+9RqxvEF0FXdsmvnLICS4VRjb0Q/9UdWlBSK/dGhadWCrfBWsNdxuYBlwEYVZwC4KJ7TuSsXZrOOSRrg/DmBmEtJ5V1OlP3LRg3GXrKDLA4gmPcJipFbqWkUpaFGUtP0jFTofTG5q75F1ggqJ14NhVmM1cRqlnirKtUXuRQnswOxH0R2xyuXwXHJn9RzOu5yleWaFQlHuv5TvjMCVNioq2n9I6CgQ5hMOQVJzDfcHz7PWLGdXyn4+N847637Q5kIwHXiQigYkuEpjoIoGJLhKY6CKBiS4SmOgigYkuEpjoIoGJLhKY6CKBia5FB/w3AAAA//8DABFh2N/+esWhAAAAAElFTkSuQmCC</mdui:Logo>
-        <mdui:InformationURL xml:lang="en">https://attribute-viewer.aai.switch.ch/</mdui:InformationURL>
-        <mdui:InformationURL xml:lang="fr">https://attribute-viewer.aai.switch.ch/?lang=fr</mdui:InformationURL>
-        <mdui:InformationURL xml:lang="it">https://attribute-viewer.aai.switch.ch/?lang=it</mdui:InformationURL>
-        <mdui:InformationURL xml:lang="de">https://attribute-viewer.aai.switch.ch/?lang=de</mdui:InformationURL>
-        <mdui:PrivacyStatementURL xml:lang="it">https://attribute-viewer.aai.switch.ch/privacy_statement.php?lang=it</mdui:PrivacyStatementURL>
-        <mdui:PrivacyStatementURL xml:lang="fr">https://attribute-viewer.aai.switch.ch/privacy_statement.php?lang=fr</mdui:PrivacyStatementURL>
-        <mdui:PrivacyStatementURL xml:lang="en">https://attribute-viewer.aai.switch.ch/privacy_statement.php</mdui:PrivacyStatementURL>
-        <mdui:PrivacyStatementURL xml:lang="de">https://attribute-viewer.aai.switch.ch/privacy_statement.php?lang=de</mdui:PrivacyStatementURL>
+        <mdui:InformationURL xml:lang="en">https://attribute-viewer.aai.switch.ch/interfederation-test/</mdui:InformationURL>
+        <mdui:PrivacyStatementURL xml:lang="en">https://attribute-viewer.aai.switch.ch/interfederation-test/privacy-statement.html</mdui:PrivacyStatementURL>
       </mdui:UIInfo>
     </md:Extensions>
     <md:KeyDescriptor>
       <ds:KeyInfo>
         <ds:X509Data>
           <ds:X509Certificate>
-MIIDVDCCAjygAwIBAgIJAKGvh4Rjh+jgMA0GCSqGSIb3DQEBBQUAMCkxJzAlBgNV
-BAMTHmF0dHJpYnV0ZS12aWV3ZXIuYWFpLnN3aXRjaC5jaDAeFw0xNDA1MTQxNDQ1
-MzhaFw0xNzA1MTMxNDQ1MzhaMCkxJzAlBgNVBAMTHmF0dHJpYnV0ZS12aWV3ZXIu
-YWFpLnN3aXRjaC5jaDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAK7w
-bFh51f8XC/y1CJiXg32dC1TojB6F7RHxRuxpPuNh/zp9/7kWStnddGaaOtw9e2fU
-Q/BOe+ztIT5njJ34lKJqfY4mFj3SbuKjDEBk24o/M15IWTLR+0qx5l0uc/U/CSqu
-2wqS6H6u0BMfuRVGFM8NWXJ55SeKBLXbKJVyboweP2pO5AyRBXZHsM8ZEue9hKbn
-qTrXCMS//OfzLarQ7baYtHr+nRbcihJWa2xa+5swiOuf5vEG6sKJT7NbtVbI5b1v
-tzPiCH36ACSHaKkDMsPGCeu5ectunqxQWbufLijzvurKf7EHilIhNvfT+63CIfCp
-t5ViglqeiMJ1tDqham8CAwEAAaN/MH0wXAYDVR0RBFUwU4IeYXR0cmlidXRlLXZp
-ZXdlci5hYWkuc3dpdGNoLmNohjFodHRwczovL2F0dHJpYnV0ZS12aWV3ZXIuYWFp
-LnN3aXRjaC5jaC9zaGliYm9sZXRoMB0GA1UdDgQWBBSDmwCkWamUzbmbv6h8wpic
-9PoE7jANBgkqhkiG9w0BAQUFAAOCAQEAms0jw2xzz2dsT+y1sG6Omc9idxl2ffzf
-Km6t4tEACaDFWxGhP1xGZ9omE+UyuiftW8Tj/8+c4bVUTd/UhhiIdkmhld5M7awF
-8xtzM979p+uL5abezo5D/8O4IYFWpHZdQ+VSl/Wr9tc9N6dmB5c0xzUm4/YzCaNz
-anih2XoBQzYD8ZpxYWopH/Uwt6KiUf9TV92rR2EkmZloH3HyfxdmaOIxQU1boi8e
-GCyqkxNBftgYk65n7Yn5UVBeUr7IBTmzXLFmluhpNYmcslYf/ClArFLNGhHpI5F0
-UDgBXcQzpXHOg7ks4xbcEPCe0gaQhOKyWjMDALDCmiA7f7/Rnam3CA==
+MIIDazCCAlOgAwIBAgIJAInsS/34xVwWMA0GCSqGSIb3DQEBBQUAMCkxJzAlBgNV
+BAMTHmF0dHJpYnV0ZS12aWV3ZXIuYWFpLnN3aXRjaC5jaDAeFw0xNDA1MTQxNDQ4
+MzVaFw0xNzA1MTMxNDQ4MzVaMCkxJzAlBgNVBAMTHmF0dHJpYnV0ZS12aWV3ZXIu
+YWFpLnN3aXRjaC5jaDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAMYE
+foYKQreiAh1ULU3g5YxUJeU3HHOk3AfWEKj2fQTA9UpPk2GIlXapEoAnbE4qpOoO
++LR4HEijEXlOdB8DIFIr+7r/lp0yIqM4rF9PIw+yz+bvUgnjLzAy+38QmQsrW1Zn
+xoJs+2tZ0JQ3HZMlGQsDXfJvhfwl5awgbyyKFq5BCIVI8NYqBsj8dbToh/cKJK5L
+7LyPxcU4nqQEgWBLD4ZOdcbTvjRb4EQuMeZL22iYPKIhk+7kLBO3riPP4QZiI8Kv
+bNeLjwbYXCEJ3GfWdIgIwEireu4f4gP6r1ZSegflyYyi4A4XFm56BF9gdyTsjp2Y
+vYAXlQLTMlJPsanyLdUCAwEAAaOBlTCBkjBxBgNVHREEajBogh5hdHRyaWJ1dGUt
+dmlld2VyLmFhaS5zd2l0Y2guY2iGRmh0dHBzOi8vYXR0cmlidXRlLXZpZXdlci5h
+YWkuc3dpdGNoLmNoL2ludGVyZmVkZXJhdGlvbi10ZXN0L3NoaWJib2xldGgwHQYD
+VR0OBBYEFKtMQ76UJ2imKPdoMOiGDQ7EgSfQMA0GCSqGSIb3DQEBBQUAA4IBAQB6
+lHFWlu87yTXTUpr5DTOcaXgsXqaguQBve9QWj39sylbbdNe7qlhfrkP4J4Y1Ye8G
+cQMM3yvHPOqX2yVIwc9lf/mwyhS3EYKS9A6xlGZBfWVAwIV193Lqyj9JgQAFsZV9
+i0w4/AIfJPTTPNNvBoXyLSGNjiDgddcOPbFpvcXmc2huQgafnpPUpHRvzftSqQct
+iJHJIIW6oKr6j3x3iEdvfCgxvjC97Cz2eSxYbaGrO2eBoqWZd46bgtCXE3ODksGX
+DfJWmpOBDWhAdKUZ7CAl9fCH4ztaREeTDK6z0WU3U3T8Q8BBV/jbFeav+tOqMhNH
+jCyyjtF4f+udUgUZm2Jt
 						</ds:X509Certificate>
         </ds:X509Data>
       </ds:KeyInfo>
     </md:KeyDescriptor>
-    <md:NameIDFormat>urn:mace:shibboleth:1.0:nameIdentifier</md:NameIDFormat>
     <md:NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:transient</md:NameIDFormat>
-    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://attribute-viewer.aai.switch.ch/Shibboleth.sso/SAML2/POST" index="1"/>
-    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Artifact" Location="https://attribute-viewer.aai.switch.ch/Shibboleth.sso/SAML2/Artifact" index="2"/>
-    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:PAOS" Location="https://attribute-viewer.aai.switch.ch/Shibboleth.sso/SAML2/ECP" index="3"/>
-    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:1.0:profiles:browser-post" Location="https://attribute-viewer.aai.switch.ch/Shibboleth.sso/SAML/POST" index="4"/>
-    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:1.0:profiles:artifact-01" Location="https://attribute-viewer.aai.switch.ch/Shibboleth.sso/SAML/Artifact" index="5"/>
-    <md:AttributeConsumingService index="1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-      <md:ServiceName xml:lang="de">AAI Attributes Viewer</md:ServiceName>
-      <md:ServiceName xml:lang="en">AAI Attributes Viewer</md:ServiceName>
-      <md:ServiceName xml:lang="fr">AAI Attributes Viewer</md:ServiceName>
-      <md:ServiceName xml:lang="it">AAI Attributes Viewer</md:ServiceName>
-      <md:ServiceDescription xml:lang="de">Zeigt zu Test und Informationszwecken alle Attribute eines Benutzers.</md:ServiceDescription>
-      <md:ServiceDescription xml:lang="en">Displays all available attributes of a user for debugging and informational purposes.</md:ServiceDescription>
-      <md:ServiceDescription xml:lang="fr">Pr&#xE9;sente tous les attributs d'un utilisateur pour tester et pour obtenir des renseignements.</md:ServiceDescription>
-      <md:ServiceDescription xml:lang="it">Ha tutti gli attributi di un utente per testare e per ottenere informazioni.</md:ServiceDescription>
-      <md:RequestedAttribute FriendlyName="preferredLanguage" Name="urn:oid:2.16.840.1.113730.3.1.39" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST" index="1"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST-SimpleSign" Location="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST-SimpleSign" index="2"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Artifact" Location="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/Artifact" index="3"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:PAOS" Location="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/ECP" index="4"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:1.0:profiles:browser-post" Location="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML/POST" index="5"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:1.0:profiles:artifact-01" Location="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML/Artifact" index="6"/>
+    <md:AttributeConsumingService index="1">
+      <md:ServiceName xml:lang="en">AAI Viewer Interfederation Test</md:ServiceName>
+      <md:ServiceDescription xml:lang="en">This service is used to test the interfederation readiness of SWITCHaai Identity Providers.</md:ServiceDescription>
       <md:RequestedAttribute FriendlyName="email" Name="urn:oid:0.9.2342.19200300.100.1.3" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="homePostalAddress" Name="urn:oid:0.9.2342.19200300.100.1.39" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="postalAddress" Name="urn:oid:2.5.4.16" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="homePhone" Name="urn:oid:0.9.2342.19200300.100.1.20" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="telephoneNumber" Name="urn:oid:2.5.4.20" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="mobile" Name="urn:oid:0.9.2342.19200300.100.1.41" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
       <md:RequestedAttribute FriendlyName="eduPersonAffiliation" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.1" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="eduPersonOrgDN" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.3" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="eduPersonOrgUnitDN" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.4" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="eduPersonEntitlement" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.7" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="surname" Name="urn:oid:2.5.4.4" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="givenName" Name="urn:oid:2.5.4.42" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="uid" Name="urn:oid:0.9.2342.19200300.100.1.1" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="employeeNumber" Name="urn:oid:2.16.840.1.113730.3.1.3" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="ou" Name="urn:oid:2.5.4.11" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="eduPersonPrincipalName" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.6" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true">
-      <saml:AttributeValue xsi:type="xs:string">only@thisone.example.com</saml:AttributeValue>
-      </md:RequestedAttribute>
-      <md:RequestedAttribute FriendlyName="eduPersonAssurance" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.11" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
+      <md:RequestedAttribute FriendlyName="eduPersonPrincipalName" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.6" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
       <md:RequestedAttribute FriendlyName="eduPersonTargetedID" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.10" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="eduPersonPrimaryOrgUnitDN" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.8" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="primaryGroupID" Name="urn:oid:1.3.6.1.4.1.7165.2.1.15" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="isMemberOf" Name="urn:oid:1.3.6.1.4.1.5923.1.5.1.1" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="eduPersonNickname" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.2" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
       <md:RequestedAttribute FriendlyName="eduPersonScopedAffiliation" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.9" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="eduPersonPrimaryAffiliation" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.5" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
       <md:RequestedAttribute FriendlyName="displayName" Name="urn:oid:2.16.840.1.113730.3.1.241" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
       <md:RequestedAttribute FriendlyName="commonName" Name="urn:oid:2.5.4.3" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
       <md:RequestedAttribute FriendlyName="schacHomeOrganization" Name="urn:oid:1.3.6.1.4.1.25178.1.2.9" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
       <md:RequestedAttribute FriendlyName="schacHomeOrganizationType" Name="urn:oid:1.3.6.1.4.1.25178.1.2.10" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="eduPersonUniqueId" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.13" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
     </md:AttributeConsumingService>
   </md:SPSSODescriptor>
   <md:Organization>
@@ -224,13 +198,13 @@ UDgBXcQzpXHOg7ks4xbcEPCe0gaQhOKyWjMDALDCmiA7f7/Rnam3CA==
     <md:OrganizationURL xml:lang="it">http://www.switch.ch/</md:OrganizationURL>
   </md:Organization>
   <md:ContactPerson contactType="support">
-    <md:GivenName>SWITCHaai</md:GivenName>
+    <md:GivenName>AAI</md:GivenName>
     <md:SurName>Team</md:SurName>
     <md:EmailAddress>mailto:aai@switch.ch</md:EmailAddress>
     <md:TelephoneNumber>+41 44 268 15 05</md:TelephoneNumber>
   </md:ContactPerson>
   <md:ContactPerson contactType="technical">
-    <md:GivenName>SWITCHaai</md:GivenName>
+    <md:GivenName>AAI</md:GivenName>
     <md:SurName>Team</md:SurName>
     <md:EmailAddress>mailto:aai@switch.ch</md:EmailAddress>
     <md:TelephoneNumber>+41 44 268 15 05</md:TelephoneNumber>
@@ -410,6 +384,168 @@ pSfkm5o6j1ysHdGdoojvd+BikyPR7hGEs1lukWxump98WxdIHzmo5ErBr770nWRR
     <md:TelephoneNumber>+41 44 268 1505</md:TelephoneNumber>
   </md:ContactPerson>
 </md:EntityDescriptor>`)
+
+	wayfmetadata = []byte(`<?xml version="1.0"?>
+<md:EntityDescriptor xmlns:shibmd="urn:mace:shibboleth:metadata:1.0" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdui="urn:oasis:names:tc:SAML:metadata:ui" xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="https://wayf.wayf.dk">
+  <md:SPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <md:KeyDescriptor use="signing">
+      <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+        <ds:X509Data>
+          <ds:X509Certificate>MIIE3TCCA8WgAwIBAgISESFgDbqp6YXwPvILGKAnrUDtMA0GCSqGSIb3DQEBBQUAMFcxCzAJBgNVBAYTAkJFMRkwFwYDVQQKExBHbG9iYWxTaWduIG52LXNhMS0wKwYDVQQDEyRHbG9iYWxTaWduIERvbWFpbiBWYWxpZGF0aW9uIENBIC0gRzIwHhcNMTIwMTA0MDkzNTU0WhcNMTcwMTAzMDkzNTU0WjBHMQswCQYDVQQGEwJESzEhMB8GA1UECxMYRG9tYWluIENvbnRyb2wgVmFsaWRhdGVkMRUwEwYDVQQDEwx3YXlmLndheWYuZGswggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDAosqmcujXhA49vHQLLTKZxFTz3guMRnwHvUxz5vvuMPYVTGl+fXPdq9ULhkNc1jlCr4+pFOwLdy9zkuAn8dK7grQEaU58K0uF4MTyKixFnPvU3806roL8PnrmUQ2t8y76U9jzsk/B3Ggi5pVqhOktHpZyzz1yBpE14R+/DPzHrpKIFJY4N2uzoBrcEAsJY6aTUfIaB/NEpe4BY8sDZ3CTuU3tWUfhdlZESYsmngdnHD6k0HUKti9F43UM6JyN6fz7T70JlHAcTHzYKhjtPLcWG8lWFqNtry7fCYC5SlKn4zmyifoASxRoH3EuxtE/Fmmt+M6I83kg3H0R1b8PHimfAgMBAAGjggGxMIIBrTAOBgNVHQ8BAf8EBAMCBaAwTAYDVR0gBEUwQzBBBgkrBgEEAaAyAQowNDAyBggrBgEFBQcCARYmaHR0cHM6Ly93d3cuZ2xvYmFsc2lnbi5jb20vcmVwb3NpdG9yeS8wFwYDVR0RBBAwDoIMd2F5Zi53YXlmLmRrMAkGA1UdEwQCMAAwHQYDVR0lBBYwFAYIKwYBBQUHAwEGCCsGAQUFBwMCMD8GA1UdHwQ4MDYwNKAyoDCGLmh0dHA6Ly9jcmwuZ2xvYmFsc2lnbi5jb20vZ3MvZ3Nkb21haW52YWxnMi5jcmwwgYgGCCsGAQUFBwEBBHwwejBBBggrBgEFBQcwAoY1aHR0cDovL3NlY3VyZS5nbG9iYWxzaWduLmNvbS9jYWNlcnQvZ3Nkb21haW52YWxnMi5jcnQwNQYIKwYBBQUHMAGGKWh0dHA6Ly9vY3NwMi5nbG9iYWxzaWduLmNvbS9nc2RvbWFpbnZhbGcyMB0GA1UdDgQWBBS44PHFNUdj1NTiqkjShHfvW50SIzAfBgNVHSMEGDAWgBSWrfqwW7mDZCp2whyKadpC3P79KDANBgkqhkiG9w0BAQUFAAOCAQEAjqwtcRjT+gYKMhgwpJ4MNpL6W80efrcMDdWnZUJzN081ht0dcQqvdAVjkWylEQbbS1LXc9OZecRJGR1vxBzS7bq0lRauPuYodzOsDzP4cEW/W+PvWIEIpm5yIBZ31P7VnRpaRwmeff8OlhDOvM4+wdovRvIpLgyeyW05R2i4DenI8juCaWXNG+CATj35gW3uh/LD9DBzpZDoQ41/5yJPZUuiHfZtnW0M7oVnhidn5sT319Xiag3Jlqe7dx1D+b0oZVDTbwrECOdROTcbOkbGsr4VleBcTtL5RoF4cDokYB6LpIDmSMiBV6DztPcrPC/ERS/tEBMbfMWVAus4f0SvdQ==</ds:X509Certificate>
+        </ds:X509Data>
+      </ds:KeyInfo>
+    </md:KeyDescriptor>
+    <md:KeyDescriptor use="encryption">
+      <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+        <ds:X509Data>
+          <ds:X509Certificate>MIIE3TCCA8WgAwIBAgISESFgDbqp6YXwPvILGKAnrUDtMA0GCSqGSIb3DQEBBQUAMFcxCzAJBgNVBAYTAkJFMRkwFwYDVQQKExBHbG9iYWxTaWduIG52LXNhMS0wKwYDVQQDEyRHbG9iYWxTaWduIERvbWFpbiBWYWxpZGF0aW9uIENBIC0gRzIwHhcNMTIwMTA0MDkzNTU0WhcNMTcwMTAzMDkzNTU0WjBHMQswCQYDVQQGEwJESzEhMB8GA1UECxMYRG9tYWluIENvbnRyb2wgVmFsaWRhdGVkMRUwEwYDVQQDEwx3YXlmLndheWYuZGswggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDAosqmcujXhA49vHQLLTKZxFTz3guMRnwHvUxz5vvuMPYVTGl+fXPdq9ULhkNc1jlCr4+pFOwLdy9zkuAn8dK7grQEaU58K0uF4MTyKixFnPvU3806roL8PnrmUQ2t8y76U9jzsk/B3Ggi5pVqhOktHpZyzz1yBpE14R+/DPzHrpKIFJY4N2uzoBrcEAsJY6aTUfIaB/NEpe4BY8sDZ3CTuU3tWUfhdlZESYsmngdnHD6k0HUKti9F43UM6JyN6fz7T70JlHAcTHzYKhjtPLcWG8lWFqNtry7fCYC5SlKn4zmyifoASxRoH3EuxtE/Fmmt+M6I83kg3H0R1b8PHimfAgMBAAGjggGxMIIBrTAOBgNVHQ8BAf8EBAMCBaAwTAYDVR0gBEUwQzBBBgkrBgEEAaAyAQowNDAyBggrBgEFBQcCARYmaHR0cHM6Ly93d3cuZ2xvYmFsc2lnbi5jb20vcmVwb3NpdG9yeS8wFwYDVR0RBBAwDoIMd2F5Zi53YXlmLmRrMAkGA1UdEwQCMAAwHQYDVR0lBBYwFAYIKwYBBQUHAwEGCCsGAQUFBwMCMD8GA1UdHwQ4MDYwNKAyoDCGLmh0dHA6Ly9jcmwuZ2xvYmFsc2lnbi5jb20vZ3MvZ3Nkb21haW52YWxnMi5jcmwwgYgGCCsGAQUFBwEBBHwwejBBBggrBgEFBQcwAoY1aHR0cDovL3NlY3VyZS5nbG9iYWxzaWduLmNvbS9jYWNlcnQvZ3Nkb21haW52YWxnMi5jcnQwNQYIKwYBBQUHMAGGKWh0dHA6Ly9vY3NwMi5nbG9iYWxzaWduLmNvbS9nc2RvbWFpbnZhbGcyMB0GA1UdDgQWBBS44PHFNUdj1NTiqkjShHfvW50SIzAfBgNVHSMEGDAWgBSWrfqwW7mDZCp2whyKadpC3P79KDANBgkqhkiG9w0BAQUFAAOCAQEAjqwtcRjT+gYKMhgwpJ4MNpL6W80efrcMDdWnZUJzN081ht0dcQqvdAVjkWylEQbbS1LXc9OZecRJGR1vxBzS7bq0lRauPuYodzOsDzP4cEW/W+PvWIEIpm5yIBZ31P7VnRpaRwmeff8OlhDOvM4+wdovRvIpLgyeyW05R2i4DenI8juCaWXNG+CATj35gW3uh/LD9DBzpZDoQ41/5yJPZUuiHfZtnW0M7oVnhidn5sT319Xiag3Jlqe7dx1D+b0oZVDTbwrECOdROTcbOkbGsr4VleBcTtL5RoF4cDokYB6LpIDmSMiBV6DztPcrPC/ERS/tEBMbfMWVAus4f0SvdQ==</ds:X509Certificate>
+        </ds:X509Data>
+      </ds:KeyInfo>
+    </md:KeyDescriptor>
+    <md:SingleLogoutService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://wayf.wayf.dk/saml2/sp/SingleLogoutService.php"/>
+    <md:NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:transient</md:NameIDFormat>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://wayf.wayf.dk/saml2/sp/AssertionConsumerService.php" index="0"/>
+  </md:SPSSODescriptor>
+  <md:IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <md:Extensions>
+      <mdui:UIInfo xmlns:mdui="urn:oasis:names:tc:SAML:metadata:ui">
+        <mdui:Description xml:lang="da">WAYF - den danske identitetsfederation for forskning og uddannelse</mdui:Description>
+        <mdui:Description xml:lang="en">WAYF - The Danish identity federation for research and higher education</mdui:Description>
+        <mdui:DisplayName xml:lang="da">WAYF - Where Are You From</mdui:DisplayName>
+        <mdui:DisplayName xml:lang="en">WAYF - Where Are You From</mdui:DisplayName>
+      </mdui:UIInfo>
+      <shibmd:Scope regexp="false">adm.aau.dk@aau.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">aub.aau.dk@aau.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">civil.aau.dk@aau.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">create.aau.dk@aau.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">es.aau.dk@aau.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">hst.aau.dk@aau.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">id.aau.dk@aau.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">its.aau.dk@aau.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">learning.aau.dk@aau.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">m-tech.aau.dk@aau.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">plan.aau.dk@aau.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">sbi.aau.dk@aau.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">staff.aau.dk@aau.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">student.aau.dk@aau.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">kb.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">hi.is</shibmd:Scope>
+      <shibmd:Scope regexp="false">ruc.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">orphanage.wayf.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">ucl.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">aau.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">viauc.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">ucc.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">drlund-gym.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">iha.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">sdu.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">itu.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">aip.itsf.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">gg.itsf.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">lg.itsf.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">mg.itsf.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">sosur.itsf.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">sska.itsf.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">sss.itsf.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">its.itsf.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">sikker-adgang.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">ibc.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">natmus.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">rungsted-gym.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">ucsj.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">sosuc.cphwest.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">dab.minibib.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">ism.minibib.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">fbo.minibib.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">fsv.minibib.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">vfc.minibib.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">dsl.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">zbc.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">frsgym.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">cbs.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">uniit.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">dskd.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">ku.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">kristne-gym.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">dsn.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">vordingborg-gym.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">dmjx.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">hasseris-gym.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">apoteket.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">erhvervsakademiaarhus.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">kadk.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">dtu.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">ucn.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">frhavn-gym.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">sde.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">eal.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">hrs.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">sceu.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">vgtgym.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">odense.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">au.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">knord.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">vibkat.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">vghf.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">eucnord.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">phmetropol.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">handelsskolen.com</shibmd:Scope>
+      <shibmd:Scope regexp="false">cphbusiness.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">kea.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">nybuni.dans.kmd.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">eadania.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">dansidp.stads.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">umit.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">campusvejle.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">rosborg-gym.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">fhavnhs.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">ah.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">basyd.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">statsbiblioteket.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">eamv.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">aams.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">regionsjaelland.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">fms.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">smk.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">msk.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">drcmr.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">simac.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">ucsyd.dk</shibmd:Scope>
+      <shibmd:Scope regexp="false">smu.edu.sg</shibmd:Scope>
+    </md:Extensions>
+    <md:KeyDescriptor use="signing">
+      <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+        <ds:X509Data>
+          <ds:X509Certificate>MIIE3TCCA8WgAwIBAgISESFgDbqp6YXwPvILGKAnrUDtMA0GCSqGSIb3DQEBBQUAMFcxCzAJBgNVBAYTAkJFMRkwFwYDVQQKExBHbG9iYWxTaWduIG52LXNhMS0wKwYDVQQDEyRHbG9iYWxTaWduIERvbWFpbiBWYWxpZGF0aW9uIENBIC0gRzIwHhcNMTIwMTA0MDkzNTU0WhcNMTcwMTAzMDkzNTU0WjBHMQswCQYDVQQGEwJESzEhMB8GA1UECxMYRG9tYWluIENvbnRyb2wgVmFsaWRhdGVkMRUwEwYDVQQDEwx3YXlmLndheWYuZGswggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDAosqmcujXhA49vHQLLTKZxFTz3guMRnwHvUxz5vvuMPYVTGl+fXPdq9ULhkNc1jlCr4+pFOwLdy9zkuAn8dK7grQEaU58K0uF4MTyKixFnPvU3806roL8PnrmUQ2t8y76U9jzsk/B3Ggi5pVqhOktHpZyzz1yBpE14R+/DPzHrpKIFJY4N2uzoBrcEAsJY6aTUfIaB/NEpe4BY8sDZ3CTuU3tWUfhdlZESYsmngdnHD6k0HUKti9F43UM6JyN6fz7T70JlHAcTHzYKhjtPLcWG8lWFqNtry7fCYC5SlKn4zmyifoASxRoH3EuxtE/Fmmt+M6I83kg3H0R1b8PHimfAgMBAAGjggGxMIIBrTAOBgNVHQ8BAf8EBAMCBaAwTAYDVR0gBEUwQzBBBgkrBgEEAaAyAQowNDAyBggrBgEFBQcCARYmaHR0cHM6Ly93d3cuZ2xvYmFsc2lnbi5jb20vcmVwb3NpdG9yeS8wFwYDVR0RBBAwDoIMd2F5Zi53YXlmLmRrMAkGA1UdEwQCMAAwHQYDVR0lBBYwFAYIKwYBBQUHAwEGCCsGAQUFBwMCMD8GA1UdHwQ4MDYwNKAyoDCGLmh0dHA6Ly9jcmwuZ2xvYmFsc2lnbi5jb20vZ3MvZ3Nkb21haW52YWxnMi5jcmwwgYgGCCsGAQUFBwEBBHwwejBBBggrBgEFBQcwAoY1aHR0cDovL3NlY3VyZS5nbG9iYWxzaWduLmNvbS9jYWNlcnQvZ3Nkb21haW52YWxnMi5jcnQwNQYIKwYBBQUHMAGGKWh0dHA6Ly9vY3NwMi5nbG9iYWxzaWduLmNvbS9nc2RvbWFpbnZhbGcyMB0GA1UdDgQWBBS44PHFNUdj1NTiqkjShHfvW50SIzAfBgNVHSMEGDAWgBSWrfqwW7mDZCp2whyKadpC3P79KDANBgkqhkiG9w0BAQUFAAOCAQEAjqwtcRjT+gYKMhgwpJ4MNpL6W80efrcMDdWnZUJzN081ht0dcQqvdAVjkWylEQbbS1LXc9OZecRJGR1vxBzS7bq0lRauPuYodzOsDzP4cEW/W+PvWIEIpm5yIBZ31P7VnRpaRwmeff8OlhDOvM4+wdovRvIpLgyeyW05R2i4DenI8juCaWXNG+CATj35gW3uh/LD9DBzpZDoQ41/5yJPZUuiHfZtnW0M7oVnhidn5sT319Xiag3Jlqe7dx1D+b0oZVDTbwrECOdROTcbOkbGsr4VleBcTtL5RoF4cDokYB6LpIDmSMiBV6DztPcrPC/ERS/tEBMbfMWVAus4f0SvdQ==</ds:X509Certificate>
+        </ds:X509Data>
+      </ds:KeyInfo>
+    </md:KeyDescriptor>
+    <md:KeyDescriptor use="encryption">
+      <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+        <ds:X509Data>
+          <ds:X509Certificate>MIIE3TCCA8WgAwIBAgISESFgDbqp6YXwPvILGKAnrUDtMA0GCSqGSIb3DQEBBQUAMFcxCzAJBgNVBAYTAkJFMRkwFwYDVQQKExBHbG9iYWxTaWduIG52LXNhMS0wKwYDVQQDEyRHbG9iYWxTaWduIERvbWFpbiBWYWxpZGF0aW9uIENBIC0gRzIwHhcNMTIwMTA0MDkzNTU0WhcNMTcwMTAzMDkzNTU0WjBHMQswCQYDVQQGEwJESzEhMB8GA1UECxMYRG9tYWluIENvbnRyb2wgVmFsaWRhdGVkMRUwEwYDVQQDEwx3YXlmLndheWYuZGswggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDAosqmcujXhA49vHQLLTKZxFTz3guMRnwHvUxz5vvuMPYVTGl+fXPdq9ULhkNc1jlCr4+pFOwLdy9zkuAn8dK7grQEaU58K0uF4MTyKixFnPvU3806roL8PnrmUQ2t8y76U9jzsk/B3Ggi5pVqhOktHpZyzz1yBpE14R+/DPzHrpKIFJY4N2uzoBrcEAsJY6aTUfIaB/NEpe4BY8sDZ3CTuU3tWUfhdlZESYsmngdnHD6k0HUKti9F43UM6JyN6fz7T70JlHAcTHzYKhjtPLcWG8lWFqNtry7fCYC5SlKn4zmyifoASxRoH3EuxtE/Fmmt+M6I83kg3H0R1b8PHimfAgMBAAGjggGxMIIBrTAOBgNVHQ8BAf8EBAMCBaAwTAYDVR0gBEUwQzBBBgkrBgEEAaAyAQowNDAyBggrBgEFBQcCARYmaHR0cHM6Ly93d3cuZ2xvYmFsc2lnbi5jb20vcmVwb3NpdG9yeS8wFwYDVR0RBBAwDoIMd2F5Zi53YXlmLmRrMAkGA1UdEwQCMAAwHQYDVR0lBBYwFAYIKwYBBQUHAwEGCCsGAQUFBwMCMD8GA1UdHwQ4MDYwNKAyoDCGLmh0dHA6Ly9jcmwuZ2xvYmFsc2lnbi5jb20vZ3MvZ3Nkb21haW52YWxnMi5jcmwwgYgGCCsGAQUFBwEBBHwwejBBBggrBgEFBQcwAoY1aHR0cDovL3NlY3VyZS5nbG9iYWxzaWduLmNvbS9jYWNlcnQvZ3Nkb21haW52YWxnMi5jcnQwNQYIKwYBBQUHMAGGKWh0dHA6Ly9vY3NwMi5nbG9iYWxzaWduLmNvbS9nc2RvbWFpbnZhbGcyMB0GA1UdDgQWBBS44PHFNUdj1NTiqkjShHfvW50SIzAfBgNVHSMEGDAWgBSWrfqwW7mDZCp2whyKadpC3P79KDANBgkqhkiG9w0BAQUFAAOCAQEAjqwtcRjT+gYKMhgwpJ4MNpL6W80efrcMDdWnZUJzN081ht0dcQqvdAVjkWylEQbbS1LXc9OZecRJGR1vxBzS7bq0lRauPuYodzOsDzP4cEW/W+PvWIEIpm5yIBZ31P7VnRpaRwmeff8OlhDOvM4+wdovRvIpLgyeyW05R2i4DenI8juCaWXNG+CATj35gW3uh/LD9DBzpZDoQ41/5yJPZUuiHfZtnW0M7oVnhidn5sT319Xiag3Jlqe7dx1D+b0oZVDTbwrECOdROTcbOkbGsr4VleBcTtL5RoF4cDokYB6LpIDmSMiBV6DztPcrPC/ERS/tEBMbfMWVAus4f0SvdQ==</ds:X509Certificate>
+        </ds:X509Data>
+      </ds:KeyInfo>
+    </md:KeyDescriptor>
+    <md:SingleLogoutService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://wayf.wayf.dk/saml2/idp/SingleLogoutService.php"/>
+    <md:NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:transient</md:NameIDFormat>
+    <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://wayf.wayf.dk/saml2/idp/SSOService.php"/>
+  </md:IDPSSODescriptor>
+  <md:Organization>
+    <md:OrganizationName xml:lang="en">WAYF - Where are you from</md:OrganizationName>
+    <md:OrganizationName xml:lang="da">WAYF - Where are you from</md:OrganizationName>
+    <md:OrganizationDisplayName xml:lang="en">WAYF - Where are you from</md:OrganizationDisplayName>
+    <md:OrganizationDisplayName xml:lang="da">WAYF - Where are you from</md:OrganizationDisplayName>
+    <md:OrganizationURL xml:lang="da">http://wayf.dk/index.php/da</md:OrganizationURL>
+    <md:OrganizationURL xml:lang="en">http://wayf.dk/index.php/en</md:OrganizationURL>
+  </md:Organization>
+  <md:ContactPerson contactType="technical">
+    <md:GivenName>WAYF</md:GivenName>
+    <md:SurName>Operations</md:SurName>
+    <md:EmailAddress>drift@wayf.dk</md:EmailAddress>
+  </md:ContactPerson>
+</md:EntityDescriptor>
+`)
 )
 
 func ExampleSignAndValidate() {
@@ -503,14 +639,11 @@ func ExampleAuthnRequest() {
 	spmd.context = spmd.Query(nil, `//md:SPSSODescriptor`)[0]
 	idpmd.context = idpmd.Query(nil, `//md:IDPSSODescriptor`)[0]
 	request := NewAuthnRequest(IdAndTiming{Time{}, 0, 0, "ID", ""}, spmd, idpmd)
-	// fixate the IssueInstant and ID for testing ....
-	request.QueryDashP(nil, "./@IssueInstant", "2015-09-03T14:15:16Z", nil)
-	request.QueryDashP(nil, "./@ID", "fixed id", nil)
 	fmt.Print(request.Pp())
 	// Output:
 	// <?xml version="1.0"?>
-	// <samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" ID="fixed id" IssueInstant="2015-09-03T14:15:16Z" Destination="https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO" AssertionConsumerServiceURL="x" ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" AssertionConsumerURL="https://attribute-viewer.aai.switch.ch/Shibboleth.sso/SAML2/POST">
-	// <saml:Issuer>x</saml:Issuer>
+	// <samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" ID="ID" IssueInstant="0001-01-01T00:00:00Z" Destination="https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO" AssertionConsumerServiceURL="x" ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" AssertionConsumerURL="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
+	// <saml:Issuer>https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth</saml:Issuer>
 	// <samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" AllowCreate="true"/>
 	// </samlp:AuthnRequest>
 }
@@ -528,35 +661,176 @@ func ExampleResponse() {
 
 	fmt.Print(response.Pp())
 	// Output:
-    // <?xml version="1.0"?>
-    // <samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="ID" Version="2.0" IssueInstant="0001-01-01T00:00:00Z" InResponseTo="ID" Destination="https://attribute-viewer.aai.switch.ch/Shibboleth.sso/SAML2/POST">
-    //     <saml:Issuer xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"/>
-    //     <samlp:Status>
-    //         <samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
-    //     </samlp:Status>
-    //     <saml:Assertion xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="AssertionID" Version="2.0" IssueInstant="0001-01-01T00:00:00Z">
-    //         <saml:Issuer/>
-    //         <ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#"/>
-    //         <saml:Subject>
-    //             <saml:NameID SPNameQualifier="https://birk.wayf.dk/birk.php/metadata.wayf.dk/PHPh-proxy" Format="NameID@Format">Subject</saml:NameID>
-    //             <saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
-    //                 <saml:SubjectConfirmationData NotOnOrAfter="0001-01-01T00:04:00Z" Recipient="" InResponseTo="ID"/>
-    //             </saml:SubjectConfirmation>
-    //         </saml:Subject>
-    //         <saml:Conditions NotBefore="0001-01-01T00:00:00Z" NotOnOrAfter="0001-01-01T00:04:00Z">
-    //             <saml:AudienceRestriction>
-    //                 <saml:Audience/>
-    //             </saml:AudienceRestriction>
-    //         </saml:Conditions>
-    //         <saml:AuthnStatement AuthnInstant="0001-01-01T00:00:00Z" SessionNotOnOrAfter="0001-01-01T04:00:00Z" SessionIndex="missing">
-    //             <saml:AuthnContext>
-    //                 <saml:AuthnContextClassRef>missing</saml:AuthnContextClassRef>
-    //             </saml:AuthnContext>
-    //         </saml:AuthnStatement>
-    //         <saml:AttributeStatement>
-    //         <saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="urn:oid:2.5.4.42" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">anton</saml:AttributeValue><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">banton</saml:AttributeValue></saml:Attribute><saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.6" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">only@thisone.example.com</saml:AttributeValue></saml:Attribute></saml:AttributeStatement>
-    //     </saml:Assertion>
-    // </samlp:Response>
+	// <?xml version="1.0"?>
+	// <samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="ID" Version="2.0" IssueInstant="0001-01-01T00:00:00Z" InResponseTo="ID" Destination="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
+	//     <saml:Issuer xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">https://aai-logon.switch.ch/idp/shibboleth</saml:Issuer>
+	//     <samlp:Status>
+	//         <samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
+	//     </samlp:Status>
+	//     <saml:Assertion xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="AssertionID" Version="2.0" IssueInstant="0001-01-01T00:00:00Z">
+	//         <saml:Issuer>https://aai-logon.switch.ch/idp/shibboleth</saml:Issuer>
+	//         <ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#"/>
+	//         <saml:Subject>
+	//             <saml:NameID SPNameQualifier="https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth" Format="NameID@Format">Subject</saml:NameID>
+	//             <saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
+	//                 <saml:SubjectConfirmationData NotOnOrAfter="0001-01-01T00:04:00Z" Recipient="https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth" InResponseTo="ID"/>
+	//             </saml:SubjectConfirmation>
+	//         </saml:Subject>
+	//         <saml:Conditions NotBefore="0001-01-01T00:00:00Z" NotOnOrAfter="0001-01-01T00:04:00Z">
+	//             <saml:AudienceRestriction>
+	//                 <saml:Audience>https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth</saml:Audience>
+	//             </saml:AudienceRestriction>
+	//         </saml:Conditions>
+	//         <saml:AuthnStatement AuthnInstant="0001-01-01T00:00:00Z" SessionNotOnOrAfter="0001-01-01T04:00:00Z" SessionIndex="missing">
+	//             <saml:AuthnContext>
+	//                 <saml:AuthnContextClassRef>missing</saml:AuthnContextClassRef>
+	//             </saml:AuthnContext>
+	//         </saml:AuthnStatement>
+	//         <saml:AttributeStatement>
+	//         <saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.6" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">gikcaswid@orphanage.wayf.dk</saml:AttributeValue><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">only@thisone.example.com</saml:AttributeValue></saml:Attribute></saml:AttributeStatement>
+	//     </saml:Assertion>
+	// </samlp:Response>
+}
+
+func ExampleUsingHost() {
+
+    resolv := make(map[string]string)
+
+    resolv["wayf.wayf.dk"] = "wayf-03.wayf.dk:443"
+
+	spmd := NewXp(spmetadata)
+	idpmd := NewXp(wayfmetadata)
+	spmd.context = spmd.Query(nil, `//md:SPSSODescriptor`)[0]
+	idpmd.context = idpmd.Query(nil, `//md:IDPSSODescriptor`)[0]
+	request := NewAuthnRequest(IdAndTiming{Now(), 4 * Minute, 4 * Hour, "", ""}, spmd, idpmd)
+
+    request.QueryDashP(nil, "./samlp:Scoping/samlp:IDPList/samlp:IDPEntry/@ProviderID", "https://orphanage.wayf.dk", nil)
+    //log.Println(request.Pp())
+
+	var b bytes.Buffer
+	w, _ := flate.NewWriter(&b, -1)
+	w.Write([]byte(request.Pp()))
+	w.Close()
+	samlrequest := base64.StdEncoding.EncodeToString(b.Bytes())
+
+	destination := request.Query1(nil, "@Destination")
+	u, _:= url.Parse(destination)
+	q := u.Query()
+	q.Set("SAMLRequest", samlrequest)
+	u.RawQuery = q.Encode()
+
+    cookiejar := make(map[string]map[string]*http.Cookie)
+    // initial request - scoped to orphanage
+    resp, err := sendRequest(u, resolv[u.Host], "GET", "", cookiejar)
+    log.Printf("%v\n\n%v\n\n%v\n\n", u, resp, err)
+    u, _ = resp.Location()
+
+    // hopefully redirected to orphanage
+    resp, err = sendRequest(u, resolv[u.Host], "GET", "", cookiejar)
+    log.Printf("%v\n\n%v\n\n%v\n\n", u, resp, err)
+
+    if resp.StatusCode != 302 {
+        //defer resp.Body.Close()
+        //body, _ := ioutil.ReadAll(resp.Body)
+        //log.Printf("%s\n\n", body)
+    }
+
+    // POST username / pw to orphanage
+    data := url.Values{}
+    data.Set("username", "freek@wayf.dk")
+    data.Add("password", os.Getenv("PW"))
+    data.Add("login", "Login")
+
+    u.Path = `/idporto`
+    u.RawQuery = ""
+
+    resp, err = sendRequest(u, resolv[u.Host], "POST", data.Encode(), cookiejar)
+    log.Printf("%v\n\n%v\n\n%v\n\n", u, resp, err)
+
+    if resp.StatusCode != 302 {
+        body, _ := ioutil.ReadAll(resp.Body)
+        log.Printf("%s\n\n", body)
+        resp.Body.Close()
+        samlresponse := NewHtmlXp([]byte(body))
+        action := samlresponse.Query1(nil, "//@action")
+        samlresponsevalue := samlresponse.Query1(nil, `//input[@name="SAMLResponse"]/@value`)
+        log.Printf("action %s\n\nxxx: %s\n\n", action, samlresponsevalue)
+
+        // POST saml response to hub
+        data := url.Values{}
+        data.Set("SAMLResponse", samlresponsevalue)
+        u, _ = url.Parse(action)
+        resp, err = sendRequest(u, resolv[u.Host], "POST", data.Encode(), cookiejar)
+        log.Printf("%v\n\n%v\n\n%v\n\n", u, resp, err)
+
+        u, _ = resp.Location()
+
+        u.RawQuery = u.RawQuery + "&yes="
+
+        resp, err = sendRequest(u, resolv[u.Host], "GET", "", cookiejar)
+        log.Printf("%v\n\n%v\n\n%v\n\n", u, resp, err)
+
+        body, _ = ioutil.ReadAll(resp.Body)
+        log.Printf("%s\n\n", body)
+        resp.Body.Close()
+
+        samlresponse = NewHtmlXp([]byte(body))
+        action = samlresponse.Query1(nil, "//@action")
+        samlresponsevalue = samlresponse.Query1(nil, `//input[@name="SAMLResponse"]/@value`)
+        log.Printf("action %s\n\nsamlresponsevalue: %s\n\n", action, samlresponsevalue)
+
+        samlresponsexml, _ := base64.StdEncoding.DecodeString(samlresponsevalue)
+        srxp := NewXp(samlresponsexml)
+        log.Println(srxp.Pp())
+    }
+
+	// Output:
+	// anton
+}
+
+func sendRequest(url *url.URL, server, method, body string, cookies map[string]map[string]*http.Cookie) (resp *http.Response, err error) {
+    if server == "" {
+        server = url.Host + ":443"
+    }
+	tr := &http.Transport{
+		TLSClientConfig:    &tls.Config{InsecureSkipVerify: true},
+		Dial: func(network, addr string) (net.Conn, error) {return net.Dial("tcp", server); },
+		DisableCompression: true,
+	}
+	client := &http.Client{
+		Transport:     tr,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error { return errors.New("redirect not supported") },
+	}
+
+    var payload io.Reader
+    if method == "POST" {
+        payload = strings.NewReader(body)
+    }
+
+	host := url.Host
+	//url.Host = server
+	req, err := http.NewRequest(method, url.String(), payload)
+
+	for _, cookie := range cookies[host] {
+	    req.AddCookie(cookie)
+	}
+
+    if method == "POST" {
+        req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+        req.Header.Add("Content-Length", strconv.Itoa(len(body)))
+    }
+
+	req.Header.Add("Host", host)
+	resp, err = client.Do(req)
+    setcookies := resp.Cookies()
+    for _ ,cookie := range setcookies {
+        log.Printf("cookie: %s=%s\n", cookie.Name, cookie.Value)
+        if cookies[url.Host] == nil {
+            cookies[url.Host] = make(map[string]*http.Cookie)
+        }
+        cookies[url.Host][cookie.Name] = cookie
+    }
+	return
 }
 
 func ExampleJustForKeepingLogImported() {
