@@ -28,17 +28,26 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
+	"encoding/pem"
+	"errors"
 	"fmt"
 	"html"
 	"io"
 	"io/ioutil"
-	//	"log"
+	"log"
+	"net"
+	"net/http"
+	"net/url"
 	"regexp"
 	"runtime"
 	"strconv"
-	. "time"
+	"strings"
+	"time"
 	"unsafe"
 )
 
@@ -54,15 +63,15 @@ type Xp struct {
 }
 
 type HtmlXp struct {
-    doc *C.xmlDoc
+	doc      *C.xmlDoc
 	xpathCtx *C.xmlXPathContext
 }
 
 // IdAndTiming is a type that allows to client to pass the ids and timing used when making
 // new requests and responses - also use for fixed ids and timings when testing
 type IdAndTiming struct {
-	now                    Time
-	slack, sessionduration Duration
+	now                    time.Time
+	slack, sessionduration time.Duration
 	id, assertionid        string
 }
 
@@ -80,27 +89,27 @@ var exclc14nxpath *C.xmlChar = (*C.xmlChar)(unsafe.Pointer(C.CString("(.//. | ./
 
 // m map of prefix to uri for namespaces
 var m = map[string]string{
-	"samlp":      "urn:oasis:names:tc:SAML:2.0:protocol",
-	"saml":       "urn:oasis:names:tc:SAML:2.0:assertion",
-	"shibmd":     "urn:mace:shibboleth:metadata:1.0",
-	"md":         "urn:oasis:names:tc:SAML:2.0:metadata",
-	"mdrpi":      "urn:oasis:names:tc:SAML:metadata:rpi",
-	"mdui":       "urn:oasis:names:tc:SAML:metadata:ui",
-	"mdattr":     "urn:oasis:names:tc:SAML:metadata:attribute",
+	"algsupport": "urn:oasis:names:tc:SAML:metadata:algsupport",
+	"corto":      "http://corto.wayf.dk",
+	"ds":         "http://www.w3.org/2000/09/xmldsig#",
 	"idpdisc":    "urn:oasis:names:tc:SAML:profiles:SSO:idp-discovery-protocol",
 	"init":       "urn:oasis:names:tc:SAML:profiles:SSO:request-init",
-	"xsi":        "http://www.w3.org/2001/XMLSchema-instance",
-	"xs":         "http://www.w3.org/2001/XMLSchema",
-	"xsl":        "http://www.w3.org/1999/XSL/Transform",
-	"xml":        "http://www.w3.org/XML/1998/namespace",
-	"SOAP-ENV":   "http://schemas.xmlsoap.org/soap/envelope/",
-	"ds":         "http://www.w3.org/2000/09/xmldsig#",
-	"xenc":       "http://www.w3.org/2001/04/xmlenc#",
-	"algsupport": "urn:oasis:names:tc:SAML:metadata:algsupport",
-	"ukfedlabel": "http://ukfederation.org.uk/2006/11/label",
+	"md":         "urn:oasis:names:tc:SAML:2.0:metadata",
+	"mdattr":     "urn:oasis:names:tc:SAML:metadata:attribute",
+	"mdrpi":      "urn:oasis:names:tc:SAML:metadata:rpi",
+	"mdui":       "urn:oasis:names:tc:SAML:metadata:ui",
+	"saml":       "urn:oasis:names:tc:SAML:2.0:assertion",
+	"samlp":      "urn:oasis:names:tc:SAML:2.0:protocol",
 	"sdss":       "http://sdss.ac.uk/2006/06/WAYF",
+	"shibmd":     "urn:mace:shibboleth:metadata:1.0",
+	"SOAP-ENV":   "http://schemas.xmlsoap.org/soap/envelope/",
+	"ukfedlabel": "http://ukfederation.org.uk/2006/11/label",
 	"wayf":       "http://wayf.dk/2014/08/wayf",
-	"corto":      "http://corto.wayf.dk",
+	"xenc":       "http://www.w3.org/2001/04/xmlenc#",
+	"xml":        "http://www.w3.org/XML/1998/namespace",
+	"xs":         "http://www.w3.org/2001/XMLSchema",
+	"xsi":        "http://www.w3.org/2001/XMLSchema-instance",
+	"xsl":        "http://www.w3.org/1999/XSL/Transform",
 }
 
 // algo xmlsec digest and signature algorith and their Go name
@@ -108,12 +117,13 @@ type algo struct {
 	digest    string
 	signature string
 	algo      crypto.Hash
+	derprefix string
 }
 
 // algos from shorthand to xmlsec and golang defs of digest and signature algorithms
 var algos = map[string]algo{
-	"sha1":   algo{"http://www.w3.org/2000/09/xmldsig#sha1", "http://www.w3.org/2000/09/xmldsig#rsa-sha1", crypto.SHA1},
-	"sha256": algo{"http://www.w3.org/2001/04/xmlenc#sha256", "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256", crypto.SHA256},
+	"sha1":   algo{"http://www.w3.org/2000/09/xmldsig#sha1", "http://www.w3.org/2000/09/xmldsig#rsa-sha1", crypto.SHA1, "\x30\x21\x30\x09\x06\x05\x2b\x0e\x03\x02\x1a\x05\x00\x04\x14" },
+	"sha256": algo{"http://www.w3.org/2001/04/xmlenc#sha256", "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256", crypto.SHA256, "\x30\x31\x30\x0d\x06\x09\x60\x86\x48\x01\x65\x03\x04\x02\x01\x05\x00\x04\x20" },
 }
 
 // init the library
@@ -133,37 +143,10 @@ func init() {
 
 	// from xmlsec idents to golang defs of digest algorithms
 	for _, a := range algos {
-		algos[a.digest] = algo{"", "", a.algo}
-		algos[a.signature] = algo{"", "", a.algo}
+		algos[a.digest] = algo{"", "", a.algo, a.derprefix}
+		algos[a.signature] = algo{"", "", a.algo, a.derprefix}
 	}
 }
-
-// GetMetaData - read a single entity xml metadata from a file
-func GetMetaData(path string) *Xp {
-	md, err := ioutil.ReadFile(path)
-	if err != nil {
-		return nil //, errors.New("no md available")
-	}
-	return NewXp(md)
-}
-
-// Parse html object with doc - used in testing for "forwarding" samlresponses from html to http
-func NewHtmlXp(html []byte) *Xp {
-	x := new(Xp)
-	x.doc = C.htmlParseDoc((*C.xmlChar)(unsafe.Pointer(&html[0])), nil)
-	x.xpathCtx = C.xmlXPathNewContext(x.doc)
-	runtime.SetFinalizer(x, (*Xp).free)
-	return x
-}
-
-// Free the libxml2 allocated objects
-func (xp *HtmlXp) free() {
-	C.xmlXPathFreeContext(xp.xpathCtx)
-	xp.xpathCtx = nil
-	C.xmlFreeDoc(xp.doc)
-	xp.doc = nil
-}
-
 
 // Parse SAML xml to Xp object with doc and xpath with relevant namespaces registered
 func NewXp(xml []byte) *Xp {
@@ -184,6 +167,65 @@ func (xp *Xp) free() {
 	xp.xpathCtx = nil
 	C.xmlFreeDoc(xp.doc)
 	xp.doc = nil
+}
+
+/* Parse html object with doc - used in testing for "forwarding" samlresponses from html to http
+   Disables error reporting - libxml2 complains about html5 elements
+*/
+func NewHtmlXp(html []byte) *Xp {
+	x := new(Xp)
+	//x.doc = C.htmlParseDoc((*C.xmlChar)(unsafe.Pointer(&html[0])), nil)
+	ctxt := C.htmlCreateMemoryParserCtxt((*C.char)(unsafe.Pointer(&html[0])), C.int(len(html)))
+	C.htmlCtxtUseOptions(ctxt, C.HTML_PARSE_NOERROR)
+	C.htmlParseDocument(ctxt)
+	x.doc = ctxt.myDoc
+	C.htmlFreeParserCtxt(ctxt)
+	x.xpathCtx = C.xmlXPathNewContext(x.doc)
+	runtime.SetFinalizer(x, (*Xp).free)
+	return x
+}
+
+// Free the libxml2 allocated objects
+func (xp *HtmlXp) free() {
+	C.xmlXPathFreeContext(xp.xpathCtx)
+	xp.xpathCtx = nil
+	C.xmlFreeDoc(xp.doc)
+	xp.doc = nil
+}
+
+// NewMetaData - read a single entity xml metadata from an MDQ server
+// key is either en entityID or an endpoint - allows lookup entity by endpoints
+// Currently only supported by the phph.wayf.dk/MDQ
+func NewMD(mdq, feed, key string) *Xp {
+	sha1key := hex.EncodeToString(hash(crypto.SHA1, key))
+	url, _ := url.Parse(mdq + feed + "/entities/{sha1}" + sha1key)
+
+	tr := &http.Transport{
+		TLSClientConfig:    &tls.Config{InsecureSkipVerify: true},
+		Dial:               func(network, addr string) (net.Conn, error) { return net.Dial("tcp", addr) },
+		DisableCompression: true,
+	}
+	client := &http.Client{
+		Transport:     tr,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error { return errors.New("redirect not supported") },
+	}
+
+	req, err := http.NewRequest("GET", url.String(), nil)
+	if err != nil {
+		log.Fatalf("Error: %v\n", err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Fatalf("Error: %v\n", err)
+	}
+	if resp.StatusCode != 200 {
+		log.Fatalf("looking for: '%s' using: '%s' MDQ said: %s\n", key, url.String(), resp.Status)
+	}
+	md, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatalf("Error: %v\n", err)
+	}
+	return NewXp(md)
 }
 
 // C14n Canonicalise the node using the SAML specified exclusive method
@@ -383,7 +425,7 @@ func hash(h crypto.Hash, data string) []byte {
 func id() (id string) {
 	b := make([]byte, 21) // 168 bits - just over the 160 bit recomendation without base64 padding
 	rand.Read(b)
-	return "_" + base64.StdEncoding.EncodeToString(b)
+	return "_" + hex.EncodeToString(b)
 }
 
 // VerifySignature Verify a signature for the given context and public key
@@ -413,7 +455,7 @@ func (xp *Xp) VerifySignature(context *C.xmlNode, pub *rsa.PublicKey) (isvalid b
 }
 
 // Sign the given context with the given private key
-func (xp *Xp) Sign(context *C.xmlNode, priv *rsa.PrivateKey, algo string) (isvalid bool, err error) {
+func (xp *Xp) Sign(context *C.xmlNode, privatekey, pw, algo string) (derr error) {
 	contextHash := hash(algos[algo].algo, xp.c14n(context))
 	contextDigest := base64.StdEncoding.EncodeToString(contextHash)
 	signaturexml := `<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
@@ -448,14 +490,70 @@ func (xp *Xp) Sign(context *C.xmlNode, priv *rsa.PrivateKey, algo string) (isval
 	xp.QueryDashP(signedInfo, `ds:Reference/ds:DigestValue[1]`, contextDigest, nil)
 
 	signedInfoC14n := xp.c14n(signedInfo)
+	digest := hash(algos[algo].algo, signedInfoC14n)
 
-	d := hash(algos[algo].algo, signedInfoC14n)
-	sig, _ := rsa.SignPKCS1v15(rand.Reader, priv, algos[algo].algo, d)
-
-	sigvalue := base64.StdEncoding.EncodeToString(sig)
-	xp.QueryDashP(signature, `ds:Signature/ds:SignatureValue`, sigvalue, nil)
+    var signaturevalue []byte
+	if strings.HasPrefix(privatekey, "hsm:") {
+	    signaturevalue, _ = signGoEleven(digest, privatekey, algo)
+	} else {
+	    signaturevalue, _ = signGo(digest, privatekey, pw, algo)
+	}
+    signatureval := base64.StdEncoding.EncodeToString(signaturevalue)
+    xp.QueryDashP(signature, `ds:Signature/ds:SignatureValue`, signatureval, nil)
 	return
 }
+
+func signGo(digest []byte, privatekey, pw, algo string ) (signaturevalue []byte, err error) {
+	var priv *rsa.PrivateKey
+	block, _ := pem.Decode([]byte(privatekey))
+	if pw != "" {
+	    privbytes, _ := x509.DecryptPEMBlock(block, []byte(pw))
+	    priv, _ = x509.ParsePKCS1PrivateKey(privbytes)
+	} else {
+		priv, _ = x509.ParsePKCS1PrivateKey(block.Bytes)
+    }
+	signaturevalue, _ = rsa.SignPKCS1v15(rand.Reader, priv, algos[algo].algo, digest)
+	return
+}
+
+func signGoEleven(digest []byte, privatekey, algo string ) (signaturevalue []byte, err error) {
+
+	type req struct {
+		Data      string `json:"data"`
+		Mech      string `json:"mech"`
+		Sharedkey string `json:"sharedkey"`
+	}
+
+	var res struct {
+		Slot   string `json:"slot"`
+		Mech   string `json:"mech"`
+		Signed []byte `json:"signed"`
+	}
+
+    parts := strings.SplitN(privatekey, ":", 3)
+
+	payload := req{
+	    Data: base64.StdEncoding.EncodeToString(append([]byte(algos[algo].derprefix), digest ...)),
+	    Mech: "CKM_RSA_PKCS",
+	    Sharedkey: parts[1],
+	}
+
+	jsontxt, err := json.Marshal(payload)
+
+    resp, err := http.Post(parts[2], "application/json", bytes.NewBuffer(jsontxt))
+    if err != nil {
+        return
+    }
+    defer resp.Body.Close()
+    body, err := ioutil.ReadAll(resp.Body)
+
+    err = json.Unmarshal(body, &res)
+
+    signaturevalue = res.Signed
+    return
+}
+
+
 
 // PublicKeysFromMD extract the public keys from certs - typically some ds:X509Certificate elements
 func PublicKeysFromMD(certs []*C.xmlNode) (pub []*rsa.PublicKey) {
@@ -491,12 +589,12 @@ func NewAuthnRequest(params IdAndTiming, spmd *Xp, idpmd *Xp) (request *Xp) {
                     xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
                     Version="2.0"
                     ID="x"
-                    IssueInstant="x"
-                    Destination="x"
-                    AssertionConsumerServiceURL="x"
+                    IssueInstant="IssueInstant"
+                    Destination="Destination"
+                    AssertionConsumerServiceURL="ACSURL"
                     ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
                     >
-<saml:Issuer>x</saml:Issuer>
+<saml:Issuer>Issuer</saml:Issuer>
 <samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" AllowCreate="true" />
 </samlp:AuthnRequest>`)
 
@@ -509,8 +607,8 @@ func NewAuthnRequest(params IdAndTiming, spmd *Xp, idpmd *Xp) (request *Xp) {
 	request = NewXp(template)
 	request.QueryDashP(nil, "./@ID", msgid, nil)
 	request.QueryDashP(nil, "./@IssueInstant", issueInstant, nil)
-	request.QueryDashP(nil, "./@Destination", idpmd.Query1(nil, `md:SingleSignOnService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"]/@Location`), nil)
-	request.QueryDashP(nil, "./@AssertionConsumerURL", spmd.Query1(nil, `md:AssertionConsumerService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"]/@Location`), nil)
+	request.QueryDashP(nil, "./@Destination", idpmd.Query1(nil, `//md:SingleSignOnService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"]/@Location`), nil)
+	request.QueryDashP(nil, "./@AssertionConsumerServiceURL", spmd.Query1(nil, `//md:AssertionConsumerService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"]/@Location`), nil)
 	request.QueryDashP(nil, "./saml:Issuer", spmd.Query1(nil, `/md:EntityDescriptor/@entityID`), nil)
 	return
 }
@@ -524,7 +622,7 @@ func NewResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *
                 Version="2.0"
                 IssueInstant=""
                 InResponseTo=""
-                Destination="https://phph.wayf.dk"
+                Destination=""
                 >
     <saml:Issuer xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"></saml:Issuer>
     <samlp:Status>
@@ -538,7 +636,6 @@ func NewResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *
                     IssueInstant=""
                     >
         <saml:Issuer></saml:Issuer>
-        <ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#"></ds:Signature>
         <saml:Subject>
             <saml:NameID SPNameQualifier="https://birk.wayf.dk/birk.php/metadata.wayf.dk/PHPh-proxy"
                          Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
@@ -588,10 +685,11 @@ func NewResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *
 	spEntityID := spmd.Query1(nil, `/md:EntityDescriptor/@entityID`)
 	idpEntityID := idpmd.Query1(nil, `/md:EntityDescriptor/@entityID`)
 
+    acs := authnrequest.Query1(nil, "@AssertionConsumerServiceURL")
 	response.QueryDashP(nil, "./@ID", msgid, nil)
 	response.QueryDashP(nil, "./@IssueInstant", issueInstant, nil)
 	response.QueryDashP(nil, "./@InResponseTo", authnrequest.Query1(nil, "@ID"), nil)
-	response.QueryDashP(nil, "./@Destination", authnrequest.Query1(nil, "@AssertionConsumerURL"), nil)
+	response.QueryDashP(nil, "./@Destination", acs, nil)
 	response.QueryDashP(nil, "./saml:Issuer", idpEntityID, nil)
 
 	assertion := response.Query(nil, "saml:Assertion")[0]
@@ -606,7 +704,7 @@ func NewResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *
 
 	subjectconfirmationdata := response.Query(assertion, "saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData")[0]
 	response.QueryDashP(subjectconfirmationdata, "@NotOnOrAfter", assertionNotOnOrAfter, nil)
-	response.QueryDashP(subjectconfirmationdata, "@Recipient", spEntityID, nil)
+	response.QueryDashP(subjectconfirmationdata, "@Recipient", acs, nil)
 	response.QueryDashP(subjectconfirmationdata, "@InResponseTo", authnrequest.Query1(nil, "@ID"), nil)
 
 	conditions := response.Query(assertion, "saml:Conditions")[0]
@@ -646,6 +744,6 @@ func NewResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *
 			}
 		}
 	}
-
 	return
 }
+
