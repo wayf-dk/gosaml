@@ -29,7 +29,7 @@ var (
 
 	mdq = "https://phph.wayf.dk/MDQ/"
 
-	spmetadata, idpmetadata, wayfmetadata, testidpmetadata, testidpviabirkmetadata *Xp
+	spmetadata, idpmetadata, hubmetadata, testidpmetadata, testidpviabirkmetadata *Xp
 
 	attributestmt = []byte(`<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
                 xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
@@ -442,7 +442,7 @@ func TestMain(m *testing.M) {
 	spmetadata = NewMD(mdq, "EDUGAIN", "https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth")
 	idpmetadata = NewMD(mdq, "EDUGAIN", "https://aai-logon.switch.ch/idp/shibboleth")
 	//wayfmetadata = NewMD(mdq, "wayf-hub-public", "https://wayf.wayf.dk")
-	wayfmetadata = NewXp(wayfmdxml)
+	hubmetadata = NewXp(wayfmdxml)
 	testidpmetadata = NewMD(mdq, "HUB-OPS", "https://this.is.not.a.valid.idp")
 	testidpviabirkmetadata = NewMD(mdq, "BIRK-OPS", "https://birk.wayf.dk/birk.php/this.is.not.a.valid.idp")
 	os.Exit(m.Run())
@@ -610,7 +610,7 @@ func xExampleUsingHost() {
 }
 */
 
-func xxExamplePerformance() {
+func ExamplePerformance() {
     concurrent := 100
 	for j := 0; j < concurrent; j++ {
 		//go sign()
@@ -623,15 +623,14 @@ func xxExamplePerformance() {
 }
 
 func xExamplePerformance(j int) {
-    requests := 100
-
-   	spmetadata := NewMD(mdq, "EDUGAIN", "https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth")
-	wayfmetadata := NewXp(wayfmdxml)
-	testidpmetadata := NewMD(mdq, "HUB-OPS", "https://this.is.not.a.valid.idp")
+    requests := 5
+    spmd := spmetadata.CpXp()
+    testmd := testidpmetadata.CpXp()
+    hubmd := hubmetadata.CpXp()
 
 	resolv := map[string]string{"wayf.wayf.dk": "wayf-new.wayf.dk:443"}
 	for i := 0; i < requests; i++ {
-    	ssotest(spmetadata, testidpmetadata, wayfmetadata, true, resolv, j, i)
+    	ssotest(spmd, testmd, hubmd, true, resolv, j, i)
 	}
 	wg.Done()
 }
@@ -652,35 +651,10 @@ func inflate(deflated []byte) []byte {
 	return b.Bytes()
 }
 
-/*
-Testing SSO https://synnefo.sky.deic.dk/astakos/ui/login/shibboleth/ via proxy https://birk.wayf.dk [birk-03.wayf.dk]:
-GET  birk.wayf.dk/birk.php/orphanage.wayf.dk/saml2/idp/SSOService.php       HTTP/1.1 302 Found      wayf.wayf.dk/saml2/idp/SSOService.php
-GET  wayf.wayf.dk/saml2/idp/SSOService.php                                  HTTP/1.1 302 Found      orphanage.wayf.dk/saml2/idp/SSOService.php
-POST wayf.wayf.dk/module.php/saml/sp/saml2-acs.php/wayf.wayf.dk             HTTP/1.1 303 See Other  wayf.wayf.dk/module.php/consent/getconsent.php
-GET  wayf.wayf.dk/module.php/consent/getconsent.php                         HTTP/1.1 200 OK
-GET  wayf.wayf.dk/module.php/consent/getconsent.php                         HTTP/1.1 200 OK
-POST birk.wayf.dk/birk.php/synnefo.sky.deic.dk/Shibboleth.sso/SAML2/POST    HTTP/1.1 200 OK
-POST synnefo.sky.deic.dk/Shibboleth.sso/SAML2/POST
-
-
-Testing SSO https://synnefo.sky.deic.dk/astakos/ui/login/shibboleth/ via proxy https://birk.wayf.dk [birk-03.wayf.dk]:
-OK  Full attributeset
-OK  Request Schema Error
-OK  Signature Error
-OK  No eppn ERROR
-OK  Unknown sp ERROR
-OK  Scoping failure in eppn ERROR OBS
-OK  No localpart in eppn ERROR OBS
-OK  No domain in eppn ERROR OBS
-OK There were 0 errors
-
-
-*/
-
 func ssotest(
 	spmd *Xp, // metadata for originating sp
 	idpmd *Xp, // metadata for idp, if birk idp - final idp is de-birkifyed idp
-	wayfmd *Xp, // may be nil if idpmd is a birk entity
+	hubmd *Xp, // may be nil if idpmd is a birk entity
 	usescope bool, // using scoped request - otherwise use discoveryanswer
 	resolv map[string]string, // resolver map name to 'real' host:port
 	j, i int,
@@ -694,14 +668,12 @@ func ssotest(
 	log.Printf("starting %d %d\n", j, i)
 
 	idpentityID := idpmd.Query1(nil, "@entityID")
-	usebirk := strings.HasPrefix(idpentityID, "https://birk")
+	usedoubleproxy := strings.HasPrefix(idpentityID, "https://birk")
 
-	if !usebirk {
-		idpmd = wayfmd
+	if !usedoubleproxy {
+		idpmd = hubmd
 	}
 
-	//spmd.context = spmd.Query(nil, `//md:SPSSODescriptor`)[0]
-	//idpmd.context = idpmd.Query(nil, `//md:IDPSSODescriptor`)[0]
 	request := NewAuthnRequest(IdAndTiming{time.Now(), 4 * time.Minute, 4 * time.Hour, "", ""}, spmd, idpmd)
 
     // add scoping element if we want to bypass discovery
@@ -732,7 +704,7 @@ func ssotest(
 	}
 
     // if going via birk we now got a scoped request to the hub
-	if usebirk {
+	if usedoubleproxy {
 		u, _ = resp.Location()
 		resp, _, _ = sendRequest(u, resolv[u.Host], "GET", "", cookiejar)
 	}
@@ -750,7 +722,7 @@ func ssotest(
 	sourceresponse := NewXp(attributestmt)
 
     // create a response
-    response := NewResponse(IdAndTiming{time.Now(), 4 * time.Minute, 4 * time.Hour, "", ""}, testidpmetadata, wayfmd, authnrequest, sourceresponse)
+    response := NewResponse(IdAndTiming{time.Now(), 4 * time.Minute, 4 * time.Hour, "", ""}, testidpmetadata, hubmd, authnrequest, sourceresponse)
 
     // and sign it
     assertion := response.Query(nil, "saml:Assertion[1]")[0]
@@ -775,7 +747,7 @@ func ssotest(
     action := samlresponse.Query1(nil, "//@action")
     samlresponsevalue := samlresponse.Query1(nil, `//input[@name="SAMLResponse"]/@value`)
 
-    if usebirk {
+    if usedoubleproxy {
         // if going via birk we have to POST it again
         data := url.Values{}
         data.Set("SAMLResponse", samlresponsevalue)
@@ -829,6 +801,7 @@ func sendRequest(url *url.URL, server, method, body string, cookies map[string]m
 	req.Header.Add("Host", host)
 
 	resp, err = client.Do(req)
+	defer     resp.Body.Close()
 	location, _ := resp.Location()
 //	loc := ""
 	if location != nil {
@@ -856,7 +829,6 @@ func sendRequest(url *url.URL, server, method, body string, cookies map[string]m
 		}
 	}
     //time.Sleep(1 * time.Second)
-    resp.Body.Close()
 	return
 }
 

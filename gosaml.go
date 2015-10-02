@@ -161,11 +161,33 @@ func NewXp(xml []byte) *Xp {
 	return x
 }
 
+// Make a copy of the Xp object - shares the document with the source, but allocates a new xmlXPathContext because
+// they are not thread/gorutine safe as the context is set for each query call
+// Only the document "owning" Xp releases the C level document
+func (src *Xp) CpXp() *Xp {
+	x := new(Xp)
+	x.doc = src.doc
+	x.xpathCtx = C.xmlXPathNewContext(x.doc)
+	runtime.SetFinalizer(x, (*Xp).freexpathCtx)
+
+	for _, ns := range namespaces {
+		C.xmlXPathRegisterNs(x.xpathCtx, ns.prefix, ns.ns_uri)
+	}
+	return x
+}
+
 // Free the libxml2 allocated objects
 func (xp *Xp) free() {
 	C.xmlXPathFreeContext(xp.xpathCtx)
 	xp.xpathCtx = nil
 	C.xmlFreeDoc(xp.doc)
+	xp.doc = nil
+}
+
+// Free a xmlPathContext, but not the document
+func (xp *Xp) freexpathCtx() {
+	C.xmlXPathFreeContext(xp.xpathCtx)
+	xp.xpathCtx = nil
 	xp.doc = nil
 }
 
