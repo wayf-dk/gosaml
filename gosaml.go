@@ -83,6 +83,7 @@ type namespaceMap struct {
 
 // namespaces maps between a ns prefix and the urn/url
 var namespaces map[string]namespaceMap
+var metadatacache = make(map[string]*Xp)
 
 // exclc14nxpath is the xpath used for node based exclusive canonicalisation
 var exclc14nxpath *C.xmlChar = (*C.xmlChar)(unsafe.Pointer(C.CString("(.//. | .//@* | .//namespace::*)")))
@@ -218,9 +219,13 @@ func (xp *HtmlXp) free() {
 // NewMetaData - read a single entity xml metadata from an MDQ server
 // key is either en entityID or an endpoint - allows lookup entity by endpoints
 // Currently only supported by the phph.wayf.dk/MDQ
-func NewMD(mdq, feed, key string) *Xp {
+func NewMD(mdq, feed, key string) (mdxp *Xp) {
 	sha1key := hex.EncodeToString(hash(crypto.SHA1, key))
 	url, _ := url.Parse(mdq + feed + "/entities/{sha1}" + sha1key)
+	cachedmd := metadatacache[sha1key]
+	if cachedmd != nil {
+	    return cachedmd.CpXp()
+	}
 
 	tr := &http.Transport{
 		TLSClientConfig:    &tls.Config{InsecureSkipVerify: true},
@@ -283,9 +288,6 @@ func (xp *Xp) Pp() string {
 // Query Do a xpath query with the given context
 // returns a slice of nodes
 func (xp *Xp) Query(context *C.xmlNode, path string) (nodes []*C.xmlNode) {
-	if context == nil {
-		context = xp.context
-	}
 	if context == nil {
 		context = C.xmlDocGetRootElement(xp.doc)
 	}
