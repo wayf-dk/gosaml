@@ -1,8 +1,6 @@
 package gosaml
 
 import (
-	"bytes"
-	"compress/flate"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
@@ -23,6 +21,21 @@ import (
 	"time"
 
 )
+
+type Testparams struct{
+    spmd, idpmd, hubmd, testidpmd *Xp
+    cookiejar map[string]map[string]*http.Cookie
+    idpentityID string
+    usescope bool
+    usedoubleproxy bool
+    resolv map[string]string
+    initialrequest *Xp
+    newresponse *Xp
+    resp *http.Response
+    responsebody []byte
+    err error
+    logredirects bool
+}
 
 var (
     wg sync.WaitGroup
@@ -449,7 +462,6 @@ func TestMain(m *testing.M) {
 }
 
 func ExampleMetadata() {
-	idpmetadata.context = nil
 	fmt.Println(idpmetadata.Query1(nil, "/md:EntityDescriptor/@entityID"))
 	fmt.Println(idpmetadata.Query1(nil, "/md:EntityDescriptor/md:IDPSSODescriptor/md:NameIDFormat"))
 	// Output:
@@ -536,8 +548,6 @@ func ExampleAuthnRequest() {
 	spmd := spmetadata
 	idpmd := idpmetadata
 
-	spmd.context = spmd.Query(nil, `//md:SPSSODescriptor`)[0]
-	idpmd.context = idpmd.Query(nil, `//md:IDPSSODescriptor`)[0]
 	request := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, spmd, idpmd)
 	fmt.Print(request.Pp())
 	// Output:
@@ -552,11 +562,7 @@ func ExampleResponse() {
 	idpmd := idpmetadata
 	spmd := spmetadata
 
-	idpmd.context = idpmd.Query(nil, `//md:IDPSSODescriptor`)[0]
-	spmd.context = spmd.Query(nil, `//md:SPSSODescriptor`)[0]
-
 	sourceResponse := NewXp(response)
-
 	request := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, spmd, idpmd)
 	response := NewResponse(IdAndTiming{time.Time{}, 4 * time.Minute, 4 * time.Hour, "ID", "AssertionID"}, idpmd, spmd, request, sourceResponse)
 
@@ -610,7 +616,90 @@ func xExampleUsingHost() {
 }
 */
 
-func ExamplePerformance() {
+
+func xExampleError1() {
+    tp := new(Testparams)
+    tp.spmd = spmetadata.CpXp()
+    tp.idpmd = testidpmetadata.CpXp()
+    tp.testidpmd = testidpmetadata.CpXp()
+//    tp.idpmd = testidpviabirkmetadata.CpXp()
+    tp.hubmd = hubmetadata.CpXp()
+    tp.resolv = map[string]string{"wayf.wayf.dk": "wayf-03.wayf.dk:443"}
+
+    tp.SSOCreateInitialRequest()
+    tp.SSOSendRequest()
+    tp.SSOSendResponse()
+    response := NewHtmlXp(tp.responsebody)
+    action := response.Query1(nil, "//@action")
+    //responsebodyvalue := response.Query1(nil, `//input[@name="SAMLResponse"]/@value`)
+    log.Printf("POST: %s\n", action);
+
+    tp.SSOCreateInitialRequest()
+    tp.SSOSendRequest()
+    tp.newresponse.QueryDashP(nil, "/samlp:Response/saml:Assertion/saml:Issuer", "anton", nil);
+    tp.SSOSendResponse()
+    errorpage := NewHtmlXp(tp.responsebody);
+    error := errorpage.Query1(nil, `//a[@id="errormsg"]`)
+    log.Printf("Error: %s\n", error);
+
+    tp.SSOCreateInitialRequest()
+    // modify tp.request
+    tp.initialrequest.QueryDashP(nil, "./saml:Issuer[1]", "anton", nil)
+    tp.SSOSendRequest()
+    errorpage = NewHtmlXp(tp.responsebody);
+    error = errorpage.Query1(nil, `//a[@id="errormsg"]`)
+    log.Printf("ExampleError: %s\n", error);
+
+    // handle tp.resp, tp.responsebody, tp.error
+    // or just modify tp.newresponse
+    // tp.SSOSendResponse()
+    // handle tp.resp ...
+
+    tp.idpmd = testidpviabirkmetadata.CpXp()
+    tp.SSOCreateInitialRequest()
+    tp.initialrequest.QueryDashP(nil, "./saml:Issuer[1]", "anton", nil)
+    tp.SSOSendRequest()
+    log.Printf("ExampleError: %s\n", tp.responsebody);
+	// Output:
+	// anton
+}
+
+type mod struct {
+    path, value string
+}
+
+type mods []mod
+
+func ExampleError2() {
+    tp := new(Testparams)
+    tp.spmd = spmetadata.CpXp()
+    tp.testidpmd = testidpmetadata.CpXp()
+    tp.hubmd = hubmetadata.CpXp()
+    tp.resolv = map[string]string{"wayf.wayf.dk": "wayf-03.wayf.dk:443"}
+    metadata := []*Xp{testidpmetadata, testidpviabirkmetadata}
+    persistentmods := mods{mod{"/samlp:AuthnRequest/samlp:NameIDPolicy[1]/@Format", "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"}}
+
+    for _, md := range metadata {
+        tp.idpmd = md.CpXp()
+        tp.SSOCreateInitialRequest()
+        for _, change := range persistentmods {
+            tp.initialrequest.QueryDashP(nil, change.path, change.value, nil)
+        }
+        tp.SSOSendRequest()
+        tp.SSOSendResponse()
+        samlresponse := Html2SAMLResponse(tp.responsebody)
+        nameidformat := samlresponse.Query1(nil, "//saml:NameID/@Format")
+        nameid := samlresponse.Query1(nil, "//saml:NameID")
+        eptid := samlresponse.Query1(nil, "//saml:Attribute[@Name='urn:oid:1.3.6.1.4.1.5923.1.1.1.10']/saml:AttributeValue")
+
+        log.Printf("via HUB:  %s %s %s\n", nameidformat, nameid, eptid)
+        //log.Printf("%s\n", samlresponse.Pp())
+    }
+	// Output:
+	// anton
+}
+
+func xxExamplePerformance() {
     concurrent := 100
 	for j := 0; j < concurrent; j++ {
 		//go sign()
@@ -623,151 +712,143 @@ func ExamplePerformance() {
 }
 
 func xExamplePerformance(j int) {
-    requests := 5
-    spmd := spmetadata.CpXp()
-    testmd := testidpmetadata.CpXp()
-    hubmd := hubmetadata.CpXp()
+    requests := 10
+    tp := new(Testparams)
+    tp.spmd = spmetadata.CpXp()
+    tp.idpmd = testidpmetadata.CpXp()
+    tp.testidpmd = testidpmetadata.CpXp()
 
-	resolv := map[string]string{"wayf.wayf.dk": "wayf-new.wayf.dk:443"}
+//    tp.idpmd = testidpviabirkmetadata.CpXp()
+    tp.hubmd = hubmetadata.CpXp()
+    tp.resolv = map[string]string{"wayf.wayf.dk": "wayf-03.wayf.dk:443"}
 	for i := 0; i < requests; i++ {
-    	ssotest(spmd, testmd, hubmd, true, resolv, j, i)
+        tp.SSOCreateInitialRequest()
+        tp.SSOSendRequest()
+        tp.SSOSendResponse()
 	}
 	wg.Done()
 }
 
-func deflate(inflated string) []byte {
-	var b bytes.Buffer
-	w, _ := flate.NewWriter(&b, -1)
-	w.Write([]byte(inflated))
-	w.Close()
-	return b.Bytes()
-}
+func (tp *Testparams) SSOCreateInitialRequest() {
 
-func inflate(deflated []byte) []byte {
-	var b bytes.Buffer
-	r := flate.NewReader(bytes.NewReader(deflated))
-	b.ReadFrom(r);
-    r.Close()
-	return b.Bytes()
-}
+	tp.idpentityID = tp.idpmd.Query1(nil, "@entityID")
+	tp.usedoubleproxy = strings.HasPrefix(tp.idpentityID, "https://birk")
 
-func ssotest(
-	spmd *Xp, // metadata for originating sp
-	idpmd *Xp, // metadata for idp, if birk idp - final idp is de-birkifyed idp
-	hubmd *Xp, // may be nil if idpmd is a birk entity
-	usescope bool, // using scoped request - otherwise use discoveryanswer
-	resolv map[string]string, // resolver map name to 'real' host:port
-	j, i int,
-) *Xp {
-
-	var (
-		resp         *http.Response
-		samlresponse *Xp
-//		err          error
-	)
-	log.Printf("starting %d %d\n", j, i)
-
-	idpentityID := idpmd.Query1(nil, "@entityID")
-	usedoubleproxy := strings.HasPrefix(idpentityID, "https://birk")
-
-	if !usedoubleproxy {
-		idpmd = hubmd
+    firstidpmd := tp.idpmd
+	if !tp.usedoubleproxy {
+		firstidpmd = tp.hubmd
 	}
 
-	request := NewAuthnRequest(IdAndTiming{time.Now(), 4 * time.Minute, 4 * time.Hour, "", ""}, spmd, idpmd)
+	tp.initialrequest = NewAuthnRequest(IdAndTiming{time.Now(), 4 * time.Minute, 4 * time.Hour, "", ""}, tp.spmd, firstidpmd)
 
     // add scoping element if we want to bypass discovery
-	if usescope {
-		request.QueryDashP(nil, "./samlp:Scoping/samlp:IDPList/samlp:IDPEntry/@ProviderID", idpentityID, nil)
+	if tp.usescope {
+		tp.initialrequest.QueryDashP(nil, "./samlp:Scoping/samlp:IDPList/samlp:IDPEntry/@ProviderID", tp.idpentityID, nil)
 	}
+	return
+}
 
-	samlrequest := base64.StdEncoding.EncodeToString(deflate(request.Pp()))
+func (tp *Testparams) SSOSendRequest() {
 
-	u, _ := url.Parse(request.Query1(nil, "@Destination"))
+	tp.cookiejar = make(map[string]map[string]*http.Cookie)
+	samlrequest := base64.StdEncoding.EncodeToString(Deflate(tp.initialrequest.Pp()))
+
+	u, _ := url.Parse(tp.initialrequest.Query1(nil, "@Destination"))
 	q := u.Query()
 	q.Set("SAMLRequest", samlrequest)
 	u.RawQuery = q.Encode()
 
-	cookiejar := make(map[string]map[string]*http.Cookie)
 	// initial request - to hub or birk
-	resp, _, _ = sendRequest(u, resolv[u.Host], "GET", "", cookiejar)
-	u, _ = resp.Location()
+	tp.resp, tp.responsebody, tp.err = sendRequest(u, tp.resolv[u.Host], "GET", "", tp.cookiejar)
+	// Errors from BIRK is 500 + text/plain
+	if tp.err != nil || tp.resp.StatusCode == 500 {
+	    return
+	}
+
+	u, _ = tp.resp.Location()
 
 	query := u.Query()
 	// we got to a discoveryservice - choose our testidp
 	if len(query["return"]) > 0 && len(query["returnIDParam"]) > 0 {
 		u, _ = url.Parse(query["return"][0])
 		q := u.Query()
-		q.Set(query["returnIDParam"][0], idpentityID)
+		q.Set(query["returnIDParam"][0], tp.idpentityID)
 		u.RawQuery = q.Encode()
-		resp, _, _ = sendRequest(u, resolv[u.Host], "GET", "", cookiejar)
+		tp.resp, _, _ = sendRequest(u, tp.resolv[u.Host], "GET", "", tp.cookiejar)
 	}
+
 
     // if going via birk we now got a scoped request to the hub
-	if usedoubleproxy {
-		u, _ = resp.Location()
-		resp, _, _ = sendRequest(u, resolv[u.Host], "GET", "", cookiejar)
+	if tp.usedoubleproxy {
+		u, _ = tp.resp.Location()
+		tp.resp, _, _ = sendRequest(u, tp.resolv[u.Host], "GET", "", tp.cookiejar)
 	}
 
-	u, _ = resp.Location()
+    // We still expect to be redirected
+	u, _ = tp.resp.Location()
 	// if we are not at our final IdP something is rotten
 	if u.Host != "this.is.not.a.valid.idp" {
-        log.Panic("not at this.is.not.a.valid.idp")
+		// Errors from HUB is 302 to https://wayf.wayf.dk/displayerror.php ... which is a 500 with html content
+		u, _ = tp.resp.Location()
+		tp.resp, tp.responsebody, tp.err = sendRequest(u, tp.resolv[u.Host], "GET", "", tp.cookiejar)
+		return
 	}
 
     // get the SAMLRequest
 	query = u.Query()
     req, _ := base64.StdEncoding.DecodeString(query["SAMLRequest"][0])
-	authnrequest := NewXp(inflate(req))
+	authnrequest := NewXp(Inflate(req))
 	sourceresponse := NewXp(attributestmt)
 
     // create a response
-    response := NewResponse(IdAndTiming{time.Now(), 4 * time.Minute, 4 * time.Hour, "", ""}, testidpmetadata, hubmd, authnrequest, sourceresponse)
+    tp.newresponse = NewResponse(IdAndTiming{time.Now(), 4 * time.Minute, 4 * time.Hour, "", ""}, tp.testidpmd, tp.hubmd, authnrequest, sourceresponse)
 
     // and sign it
-    assertion := response.Query(nil, "saml:Assertion[1]")[0]
+    assertion := tp.newresponse.Query(nil, "saml:Assertion[1]")[0]
     privatekey, _ := ioutil.ReadFile("/etc/ssl/wayf/signing/this.is.not.a.valid.idp.key")
 
-	response.Sign(assertion, string(privatekey), os.Getenv("PW"),  "sha1")
+	tp.newresponse.Sign(assertion, string(privatekey), os.Getenv("PW"),  "sha1")
 
-    // and POST it to the hub
-	acs := response.Query1(nil, "@Destination")
-    data := url.Values{}
-    data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Pp())))
-
-    u, _ = url.Parse(acs)
-    resp, samlresponse, _ = sendRequest(u, resolv[u.Host], "POST", data.Encode(), cookiejar)
-
-    // and now for some consent
-    u, _ = resp.Location()
-    u.RawQuery = u.RawQuery + "&yes=1"
-    resp, samlresponse, _ = sendRequest(u, resolv[u.Host], "GET", "", cookiejar)
-
-    // we are POST'ed to either birk or the originating SP
-    action := samlresponse.Query1(nil, "//@action")
-    samlresponsevalue := samlresponse.Query1(nil, `//input[@name="SAMLResponse"]/@value`)
-
-    if usedoubleproxy {
-        // if going via birk we have to POST it again
-        data := url.Values{}
-        data.Set("SAMLResponse", samlresponsevalue)
-        u, _ = url.Parse(action)
-        resp, samlresponse, _ = sendRequest(u, resolv[u.Host], "POST", data.Encode(), cookiejar)
-        action = samlresponse.Query1(nil, "//@action")
-        samlresponsevalue = samlresponse.Query1(nil, `//input[@name="SAMLResponse"]/@value`)
-    }
-
-    // last POST doesn't actually get POSTed - we don't have a real SP ...
-    log.Printf("POST %-70s\n", action)
-
-    // return the response
-    samlresponsexml, _ := base64.StdEncoding.DecodeString(samlresponsevalue)
-	log.Printf("ending %d %d\n", j, i)
-
-    return NewXp(samlresponsexml)
+    return
 }
 
-func sendRequest(url *url.URL, server, method, body string, cookies map[string]map[string]*http.Cookie) (resp *http.Response, samlresponse *Xp, err error) {
+func (tp *Testparams) SSOSendResponse() {
+
+    // and POST it to the hub
+	acs := tp.newresponse.Query1(nil, "@Destination")
+    data := url.Values{}
+    data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(tp.newresponse.Pp())))
+
+    u, _ := url.Parse(acs)
+    tp.resp, tp.responsebody, tp.err = sendRequest(u, tp.resolv[u.Host], "POST", data.Encode(), tp.cookiejar)
+
+    u, _ = tp.resp.Location()
+
+    if strings.Contains(u.Path, "displayerror.php") {
+        tp.resp, tp.responsebody, tp.err = sendRequest(u, tp.resolv[u.Host], "GET", "", tp.cookiejar)
+        return
+    }
+    // and now for some consent
+    if strings.Contains(u.Path, "getconsent.php") {
+        u.RawQuery = u.RawQuery + "&yes=1"
+        tp.resp, tp.responsebody, tp.err = sendRequest(u, tp.resolv[u.Host], "GET", "", tp.cookiejar)
+    }
+
+    // if going via birk we have to POST it again
+    if tp.usedoubleproxy {
+        response := NewHtmlXp(tp.responsebody)
+        action := response.Query1(nil, "//@action")
+        responsebodyvalue := response.Query1(nil, `//input[@name="SAMLResponse"]/@value`)
+        data := url.Values{}
+        data.Set("SAMLResponse", responsebodyvalue)
+        u, _ = url.Parse(action)
+        tp.resp, tp.responsebody, tp.err = sendRequest(u, tp.resolv[u.Host], "POST", data.Encode(), tp.cookiejar)
+    }
+    // last POST doesn't actually get POSTed - we don't have a real SP ...
+    return
+}
+
+func sendRequest(url *url.URL, server, method, body string, cookies map[string]map[string]*http.Cookie) (resp *http.Response, responsebody []byte, err error) {
 	if server == "" {
 		server = url.Host + ":443"
 	}
@@ -778,7 +859,7 @@ func sendRequest(url *url.URL, server, method, body string, cookies map[string]m
 	}
 	client := &http.Client{
 		Transport:     tr,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error { return errors.New("redirect not supported") },
+		CheckRedirect: func(req *http.Request, via []*http.Request) error { return errors.New("redirect-not-allowed") },
 	}
 
 	var payload io.Reader
@@ -801,34 +882,32 @@ func sendRequest(url *url.URL, server, method, body string, cookies map[string]m
 	req.Header.Add("Host", host)
 
 	resp, err = client.Do(req)
-	defer     resp.Body.Close()
-	location, _ := resp.Location()
-//	loc := ""
-	if location != nil {
-//		loc = location.Host + location.Path
+	if err != nil && !strings.HasSuffix(err.Error(), "redirect-not-allowed") {
+	    // we need to do the redirect ourselves so a self inflicted redirect "error" is not an error
+	    return
 	}
-	//log.Printf("%-4s %-70s %s %-15s %s\n", req.Method, req.URL.Host+req.URL.Path, resp.Proto, resp.Status, loc)
+
+	location, _ := resp.Location()
+	loc := ""
+	if location != nil {
+		loc = location.Host + location.Path
+	}
+	log.Printf("%-4s %-70s %s %-15s %s\n", req.Method, req.URL.Host+req.URL.Path, resp.Proto, resp.Status, loc)
 	setcookies := resp.Cookies()
 	for _, cookie := range setcookies {
-		//log.Printf("cookie: %s=%s\n", cookie.Name, cookie.Value)
 		if cookies[url.Host] == nil {
 			cookies[url.Host] = make(map[string]*http.Cookie)
 		}
 		cookies[url.Host][cookie.Name] = cookie
 	}
 
-	if resp.StatusCode == 500 {
-		body, _ := ioutil.ReadAll(resp.Body)
-		log.Println(string(body))
+    // We can't get to the body if we got a redirect pseudo error above
+    if err == nil {
+	    responsebody, err = ioutil.ReadAll(resp.Body)
+	    defer resp.Body.Close()
 	}
-
-	if resp.Header["Content-Type"][0] == "text/html" {
-		body, _ := ioutil.ReadAll(resp.Body)
-		if len(body) > 0 {
-			samlresponse = NewHtmlXp([]byte(body))
-		}
-	}
-    //time.Sleep(1 * time.Second)
+	// we need to nullify the damn redirec-not-allowed error from above
+	err = nil
 	return
 }
 
