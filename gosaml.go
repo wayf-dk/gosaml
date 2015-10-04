@@ -25,6 +25,7 @@ import "C"
 
 import (
 	"bytes"
+	"compress/flate"
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
@@ -59,7 +60,6 @@ const (
 type Xp struct {
 	doc      *C.xmlDoc
 	xpathCtx *C.xmlXPathContext
-	context  *C.xmlNode
 }
 
 type HtmlXp struct {
@@ -123,8 +123,8 @@ type algo struct {
 
 // algos from shorthand to xmlsec and golang defs of digest and signature algorithms
 var algos = map[string]algo{
-	"sha1":   algo{"http://www.w3.org/2000/09/xmldsig#sha1", "http://www.w3.org/2000/09/xmldsig#rsa-sha1", crypto.SHA1, "\x30\x21\x30\x09\x06\x05\x2b\x0e\x03\x02\x1a\x05\x00\x04\x14" },
-	"sha256": algo{"http://www.w3.org/2001/04/xmlenc#sha256", "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256", crypto.SHA256, "\x30\x31\x30\x0d\x06\x09\x60\x86\x48\x01\x65\x03\x04\x02\x01\x05\x00\x04\x20" },
+	"sha1":   algo{"http://www.w3.org/2000/09/xmldsig#sha1", "http://www.w3.org/2000/09/xmldsig#rsa-sha1", crypto.SHA1, "\x30\x21\x30\x09\x06\x05\x2b\x0e\x03\x02\x1a\x05\x00\x04\x14"},
+	"sha256": algo{"http://www.w3.org/2001/04/xmlenc#sha256", "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256", crypto.SHA256, "\x30\x31\x30\x0d\x06\x09\x60\x86\x48\x01\x65\x03\x04\x02\x01\x05\x00\x04\x20"},
 }
 
 // init the library
@@ -164,7 +164,8 @@ func NewXp(xml []byte) *Xp {
 
 // Make a copy of the Xp object - shares the document with the source, but allocates a new xmlXPathContext because
 // they are not thread/gorutine safe as the context is set for each query call
-// Only the document "owning" Xp releases the C level document
+// Only the document "owning" Xp releases the C level document and it needs be around as long as any copies - ie. do
+// not let the original document be garbage collected or havoc will be wreaked
 func (src *Xp) CpXp() *Xp {
 	x := new(Xp)
 	x.doc = src.doc
@@ -252,7 +253,9 @@ func NewMD(mdq, feed, key string) (mdxp *Xp) {
 	if err != nil {
 		log.Fatalf("Error: %v\n", err)
 	}
-	return NewXp(md)
+	mdxp = NewXp(md)
+	metadatacache[sha1key] = mdxp
+	return
 }
 
 // C14n Canonicalise the node using the SAML specified exclusive method
@@ -545,31 +548,31 @@ func (xp *Xp) Sign(context *C.xmlNode, privatekey, pw, algo string) (derr error)
 	signedInfoC14n := xp.c14n(signedInfo)
 	digest := hash(algos[algo].algo, signedInfoC14n)
 
-    var signaturevalue []byte
+	var signaturevalue []byte
 	if strings.HasPrefix(privatekey, "hsm:") {
-	    signaturevalue, _ = signGoEleven(digest, privatekey, algo)
+		signaturevalue, _ = signGoEleven(digest, privatekey, algo)
 	} else {
-	    signaturevalue, _ = signGo(digest, privatekey, pw, algo)
+		signaturevalue, _ = signGo(digest, privatekey, pw, algo)
 	}
-    signatureval := base64.StdEncoding.EncodeToString(signaturevalue)
-    xp.QueryDashP(signature, `ds:Signature/ds:SignatureValue`, signatureval, nil)
+	signatureval := base64.StdEncoding.EncodeToString(signaturevalue)
+	xp.QueryDashP(signature, `ds:Signature/ds:SignatureValue`, signatureval, nil)
 	return
 }
 
-func signGo(digest []byte, privatekey, pw, algo string ) (signaturevalue []byte, err error) {
+func signGo(digest []byte, privatekey, pw, algo string) (signaturevalue []byte, err error) {
 	var priv *rsa.PrivateKey
 	block, _ := pem.Decode([]byte(privatekey))
 	if pw != "" {
-	    privbytes, _ := x509.DecryptPEMBlock(block, []byte(pw))
-	    priv, _ = x509.ParsePKCS1PrivateKey(privbytes)
+		privbytes, _ := x509.DecryptPEMBlock(block, []byte(pw))
+		priv, _ = x509.ParsePKCS1PrivateKey(privbytes)
 	} else {
 		priv, _ = x509.ParsePKCS1PrivateKey(block.Bytes)
-    }
+	}
 	signaturevalue, _ = rsa.SignPKCS1v15(rand.Reader, priv, algos[algo].algo, digest)
 	return
 }
 
-func signGoEleven(digest []byte, privatekey, algo string ) (signaturevalue []byte, err error) {
+func signGoEleven(digest []byte, privatekey, algo string) (signaturevalue []byte, err error) {
 
 	type req struct {
 		Data      string `json:"data"`
@@ -583,30 +586,28 @@ func signGoEleven(digest []byte, privatekey, algo string ) (signaturevalue []byt
 		Signed []byte `json:"signed"`
 	}
 
-    parts := strings.SplitN(privatekey, ":", 3)
+	parts := strings.SplitN(privatekey, ":", 3)
 
 	payload := req{
-	    Data: base64.StdEncoding.EncodeToString(append([]byte(algos[algo].derprefix), digest ...)),
-	    Mech: "CKM_RSA_PKCS",
-	    Sharedkey: parts[1],
+		Data:      base64.StdEncoding.EncodeToString(append([]byte(algos[algo].derprefix), digest...)),
+		Mech:      "CKM_RSA_PKCS",
+		Sharedkey: parts[1],
 	}
 
 	jsontxt, err := json.Marshal(payload)
 
-    resp, err := http.Post(parts[2], "application/json", bytes.NewBuffer(jsontxt))
-    if err != nil {
-        return
-    }
-    defer resp.Body.Close()
-    body, err := ioutil.ReadAll(resp.Body)
+	resp, err := http.Post(parts[2], "application/json", bytes.NewBuffer(jsontxt))
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
 
-    err = json.Unmarshal(body, &res)
+	err = json.Unmarshal(body, &res)
 
-    signaturevalue = res.Signed
-    return
+	signaturevalue = res.Signed
+	return
 }
-
-
 
 // PublicKeysFromMD extract the public keys from certs - typically some ds:X509Certificate elements
 func PublicKeysFromMD(certs []*C.xmlNode) (pub []*rsa.PublicKey) {
@@ -738,7 +739,7 @@ func NewResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *
 	spEntityID := spmd.Query1(nil, `/md:EntityDescriptor/@entityID`)
 	idpEntityID := idpmd.Query1(nil, `/md:EntityDescriptor/@entityID`)
 
-    acs := authnrequest.Query1(nil, "@AssertionConsumerServiceURL")
+	acs := authnrequest.Query1(nil, "@AssertionConsumerServiceURL")
 	response.QueryDashP(nil, "./@ID", msgid, nil)
 	response.QueryDashP(nil, "./@IssueInstant", issueInstant, nil)
 	response.QueryDashP(nil, "./@InResponseTo", authnrequest.Query1(nil, "@ID"), nil)
@@ -799,4 +800,3 @@ func NewResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *
 	}
 	return
 }
-
