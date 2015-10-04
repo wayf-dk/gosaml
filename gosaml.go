@@ -444,10 +444,39 @@ func hash(h crypto.Hash, data string) []byte {
 	return digest.Sum(nil)
 }
 
+// Make a random id
 func id() (id string) {
 	b := make([]byte, 21) // 168 bits - just over the 160 bit recomendation without base64 padding
 	rand.Read(b)
 	return "_" + hex.EncodeToString(b)
+}
+
+// Deflate utility func that compresses a string using the flate algo
+func Deflate(inflated string) []byte {
+	var b bytes.Buffer
+	w, _ := flate.NewWriter(&b, -1)
+	w.Write([]byte(inflated))
+	w.Close()
+	return b.Bytes()
+}
+
+// Inflate utility func that decompresses a string using the flate algo
+func Inflate(deflated []byte) []byte {
+	var b bytes.Buffer
+	r := flate.NewReader(bytes.NewReader(deflated))
+	b.ReadFrom(r);
+    r.Close()
+	return b.Bytes()
+}
+
+
+// Html2SAMLResponse extracts the SAMLResponse from a html document
+func Html2SAMLResponse(html []byte) (samlresponse *Xp) {
+    response := NewHtmlXp(html)
+    samlbase64 := response.Query1(nil, `//input[@name="SAMLResponse"]/@value`)
+    samlxml, _ := base64.StdEncoding.DecodeString(samlbase64)
+    samlresponse = NewXp(samlxml)
+    return
 }
 
 // VerifySignature Verify a signature for the given context and public key
