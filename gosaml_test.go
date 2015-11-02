@@ -1,44 +1,35 @@
 package gosaml
 
 import (
-	"crypto/tls"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/pem"
-	"errors"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"log"
-	"net"
 	"net/http"
-	"net/url"
 	"os"
-	"strconv"
-	"strings"
 	"sync"
 	"testing"
 	"time"
-
 )
 
-type Testparams struct{
-    spmd, idpmd, hubmd, testidpmd *Xp
-    cookiejar map[string]map[string]*http.Cookie
-    idpentityID string
-    usescope bool
-    usedoubleproxy bool
-    resolv map[string]string
-    initialrequest *Xp
-    newresponse *Xp
-    resp *http.Response
-    responsebody []byte
-    err error
-    logredirects bool
+type Testparams struct {
+	spmd, idpmd, hubmd, testidpmd *Xp
+	cookiejar                     map[string]map[string]*http.Cookie
+	idpentityID                   string
+	usescope                      bool
+	usedoubleproxy                bool
+	resolv                        map[string]string
+	initialrequest                *Xp
+	newresponse                   *Xp
+	resp                          *http.Response
+	responsebody                  []byte
+	err                           error
+	logredirects                  bool
 }
 
 var (
-    wg sync.WaitGroup
+	_  = log.Printf // For debugging; delete when done.
+	wg sync.WaitGroup
 
 	mdq = "https://phph.wayf.dk/MDQ/"
 
@@ -273,7 +264,7 @@ G6aFKaqQfOXKCyWoUiVknQJAXrlgySFci/2ueKlIE1QqIiLSZ8V8OlpFLRnb1pzI
 7U1yQXnTAEFYM560yJlzUpOb1V4cScGd365tiSMvxLOvTA==
 -----END RSA PRIVATE KEY-----`
 
-wayfmdxml = []byte(`<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:shibmd="urn:mace:shibboleth:metadata:1.0" entityID="https://wayf.wayf.dk">
+	wayfmdxml = []byte(`<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:shibmd="urn:mace:shibboleth:metadata:1.0" entityID="https://wayf.wayf.dk">
   <md:IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
     <md:Extensions>
       <mdui:UIInfo xmlns:mdui="urn:oasis:names:tc:SAML:metadata:ui">
@@ -452,12 +443,12 @@ wayfmdxml = []byte(`<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:m
 )
 
 func TestMain(m *testing.M) {
-	spmetadata = NewMD(mdq, "EDUGAIN", "https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth")
-	idpmetadata = NewMD(mdq, "EDUGAIN", "https://aai-logon.switch.ch/idp/shibboleth")
+	spmetadata = NewMD(mdq+"EDUGAIN", "https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth")
+	idpmetadata = NewMD(mdq+"EDUGAIN", "https://aai-logon.switch.ch/idp/shibboleth")
 	//wayfmetadata = NewMD(mdq, "wayf-hub-public", "https://wayf.wayf.dk")
 	hubmetadata = NewXp(wayfmdxml)
-	testidpmetadata = NewMD(mdq, "HUB-OPS", "https://this.is.not.a.valid.idp")
-	testidpviabirkmetadata = NewMD(mdq, "BIRK-OPS", "https://birk.wayf.dk/birk.php/this.is.not.a.valid.idp")
+	testidpmetadata = NewMD(mdq+"HUB-OPS", "https://this.is.not.a.valid.idp")
+	testidpviabirkmetadata = NewMD(mdq+"BIRK-OPS", "https://birk.wayf.dk/birk.php/this.is.not.a.valid.idp")
 	os.Exit(m.Run())
 }
 
@@ -472,7 +463,7 @@ func ExampleMetadata() {
 func ExampleSignAndValidate() {
 	xp := NewXp(response)
 	assertion := xp.Query(nil, "saml:Assertion[1]")[0]
-	xp.Sign(assertion, privatekey, "",  "sha256")
+	xp.Sign(assertion, privatekey, "", "", "sha256")
 
 	xp = NewXp([]byte(xp.Pp()))
 	assertion = xp.Query(nil, "saml:Assertion[1]")[0]
@@ -487,7 +478,7 @@ func ExampleSignAndValidate() {
 	fmt.Printf("verify: %v\n", xp.VerifySignature(assertion, pub))
 	// Output:
 
-	xp.Sign(assertion, privatekey, "",  "sha1")
+	xp.Sign(assertion, privatekey, "", "", "sha1")
 
 	//log.Print(xp.C14n(nil))
 
@@ -598,319 +589,48 @@ func ExampleResponse() {
 	// </samlp:Response>
 }
 
-/*
-func xExampleUsingHost() {
-	resolv := map[string]string{"wayf.wayf.dk": "wayf-03.wayf.dk:443"}
-	ssotest(spmetadata, testidpmetadata, wayfmetadata, true, resolv)
-	println()
-	//  log.Println(response.Pp())
-	ssotest(spmetadata, testidpmetadata, wayfmetadata, false, resolv)
-	println()
-	//  log.Println(response.Pp())
-	ssotest(spmetadata, testidpviabirkmetadata, wayfmetadata, false, resolv)
-	println()
-	//    log.Println(response.Pp())
+func ExampleEncryptAndDecrypt() {
+	idpmd := idpmetadata
+	spmd := spmetadata
+
+	sourceResponse := NewXp(response)
+	request := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, spmd, idpmd)
+	response := NewResponse(IdAndTiming{time.Time{}, 4 * time.Minute, 4 * time.Hour, "ID", "AssertionID"}, idpmd, spmd, request, sourceResponse)
+	assertion := response.Query(nil, "saml:Assertion[1]")[0]
+
+    pk := Pem2PrivateKey(privatekey, "")
+	response.Encrypt(assertion, &pk.PublicKey)
+    assertion = response.Query(nil, "//saml:EncryptedAssertion")[0]
+    response.Decrypt(assertion, pk)
+	fmt.Print(response.Pp())
 
 	// Output:
-	// anton
-}
-*/
-
-
-func xExampleError1() {
-    tp := new(Testparams)
-    tp.spmd = spmetadata.CpXp()
-    tp.idpmd = testidpmetadata.CpXp()
-    tp.testidpmd = testidpmetadata.CpXp()
-//    tp.idpmd = testidpviabirkmetadata.CpXp()
-    tp.hubmd = hubmetadata.CpXp()
-    tp.resolv = map[string]string{"wayf.wayf.dk": "wayf-03.wayf.dk:443"}
-
-    tp.SSOCreateInitialRequest()
-    tp.SSOSendRequest()
-    tp.SSOSendResponse()
-    response := NewHtmlXp(tp.responsebody)
-    action := response.Query1(nil, "//@action")
-    //responsebodyvalue := response.Query1(nil, `//input[@name="SAMLResponse"]/@value`)
-    log.Printf("POST: %s\n", action);
-
-    tp.SSOCreateInitialRequest()
-    tp.SSOSendRequest()
-    tp.newresponse.QueryDashP(nil, "/samlp:Response/saml:Assertion/saml:Issuer", "anton", nil);
-    tp.SSOSendResponse()
-    errorpage := NewHtmlXp(tp.responsebody);
-    error := errorpage.Query1(nil, `//a[@id="errormsg"]`)
-    log.Printf("Error: %s\n", error);
-
-    tp.SSOCreateInitialRequest()
-    // modify tp.request
-    tp.initialrequest.QueryDashP(nil, "./saml:Issuer[1]", "anton", nil)
-    tp.SSOSendRequest()
-    errorpage = NewHtmlXp(tp.responsebody);
-    error = errorpage.Query1(nil, `//a[@id="errormsg"]`)
-    log.Printf("ExampleError: %s\n", error);
-
-    // handle tp.resp, tp.responsebody, tp.error
-    // or just modify tp.newresponse
-    // tp.SSOSendResponse()
-    // handle tp.resp ...
-
-    tp.idpmd = testidpviabirkmetadata.CpXp()
-    tp.SSOCreateInitialRequest()
-    tp.initialrequest.QueryDashP(nil, "./saml:Issuer[1]", "anton", nil)
-    tp.SSOSendRequest()
-    log.Printf("ExampleError: %s\n", tp.responsebody);
-	// Output:
-	// anton
-}
-
-type mod struct {
-    path, value string
-}
-
-type mods []mod
-
-func ExampleError2() {
-    tp := new(Testparams)
-    tp.spmd = spmetadata.CpXp()
-    tp.testidpmd = testidpmetadata.CpXp()
-    tp.hubmd = hubmetadata.CpXp()
-    tp.resolv = map[string]string{"wayf.wayf.dk": "wayf-03.wayf.dk:443"}
-    metadata := []*Xp{testidpmetadata, testidpviabirkmetadata}
-    persistentmods := mods{mod{"/samlp:AuthnRequest/samlp:NameIDPolicy[1]/@Format", "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"}}
-
-    for _, md := range metadata {
-        tp.idpmd = md.CpXp()
-        tp.SSOCreateInitialRequest()
-        for _, change := range persistentmods {
-            tp.initialrequest.QueryDashP(nil, change.path, change.value, nil)
-        }
-        tp.SSOSendRequest()
-        tp.SSOSendResponse()
-        samlresponse := Html2SAMLResponse(tp.responsebody)
-        nameidformat := samlresponse.Query1(nil, "//saml:NameID/@Format")
-        nameid := samlresponse.Query1(nil, "//saml:NameID")
-        eptid := samlresponse.Query1(nil, "//saml:Attribute[@Name='urn:oid:1.3.6.1.4.1.5923.1.1.1.10']/saml:AttributeValue")
-
-        log.Printf("via HUB:  %s %s %s\n", nameidformat, nameid, eptid)
-        //log.Printf("%s\n", samlresponse.Pp())
-    }
-	// Output:
-	// anton
-}
-
-func xxExamplePerformance() {
-    concurrent := 100
-	for j := 0; j < concurrent; j++ {
-		//go sign()
-        wg.Add(1)
-    	go xExamplePerformance(j)
-	}
-	wg.Wait()
-	// Output:
-	// anton
-}
-
-func xExamplePerformance(j int) {
-    requests := 10
-    tp := new(Testparams)
-    tp.spmd = spmetadata.CpXp()
-    tp.idpmd = testidpmetadata.CpXp()
-    tp.testidpmd = testidpmetadata.CpXp()
-
-//    tp.idpmd = testidpviabirkmetadata.CpXp()
-    tp.hubmd = hubmetadata.CpXp()
-    tp.resolv = map[string]string{"wayf.wayf.dk": "wayf-03.wayf.dk:443"}
-	for i := 0; i < requests; i++ {
-        tp.SSOCreateInitialRequest()
-        tp.SSOSendRequest()
-        tp.SSOSendResponse()
-	}
-	wg.Done()
-}
-
-func (tp *Testparams) SSOCreateInitialRequest() {
-
-	tp.idpentityID = tp.idpmd.Query1(nil, "@entityID")
-	tp.usedoubleproxy = strings.HasPrefix(tp.idpentityID, "https://birk")
-
-    firstidpmd := tp.idpmd
-	if !tp.usedoubleproxy {
-		firstidpmd = tp.hubmd
-	}
-
-	tp.initialrequest = NewAuthnRequest(IdAndTiming{time.Now(), 4 * time.Minute, 4 * time.Hour, "", ""}, tp.spmd, firstidpmd)
-
-    // add scoping element if we want to bypass discovery
-	if tp.usescope {
-		tp.initialrequest.QueryDashP(nil, "./samlp:Scoping/samlp:IDPList/samlp:IDPEntry/@ProviderID", tp.idpentityID, nil)
-	}
-	return
-}
-
-func (tp *Testparams) SSOSendRequest() {
-
-	tp.cookiejar = make(map[string]map[string]*http.Cookie)
-	samlrequest := base64.StdEncoding.EncodeToString(Deflate(tp.initialrequest.Pp()))
-
-	u, _ := url.Parse(tp.initialrequest.Query1(nil, "@Destination"))
-	q := u.Query()
-	q.Set("SAMLRequest", samlrequest)
-	u.RawQuery = q.Encode()
-
-	// initial request - to hub or birk
-	tp.resp, tp.responsebody, tp.err = sendRequest(u, tp.resolv[u.Host], "GET", "", tp.cookiejar)
-	// Errors from BIRK is 500 + text/plain
-	if tp.err != nil || tp.resp.StatusCode == 500 {
-	    return
-	}
-
-	u, _ = tp.resp.Location()
-
-	query := u.Query()
-	// we got to a discoveryservice - choose our testidp
-	if len(query["return"]) > 0 && len(query["returnIDParam"]) > 0 {
-		u, _ = url.Parse(query["return"][0])
-		q := u.Query()
-		q.Set(query["returnIDParam"][0], tp.idpentityID)
-		u.RawQuery = q.Encode()
-		tp.resp, _, _ = sendRequest(u, tp.resolv[u.Host], "GET", "", tp.cookiejar)
-	}
-
-
-    // if going via birk we now got a scoped request to the hub
-	if tp.usedoubleproxy {
-		u, _ = tp.resp.Location()
-		tp.resp, _, _ = sendRequest(u, tp.resolv[u.Host], "GET", "", tp.cookiejar)
-	}
-
-    // We still expect to be redirected
-	u, _ = tp.resp.Location()
-	// if we are not at our final IdP something is rotten
-	if u.Host != "this.is.not.a.valid.idp" {
-		// Errors from HUB is 302 to https://wayf.wayf.dk/displayerror.php ... which is a 500 with html content
-		u, _ = tp.resp.Location()
-		tp.resp, tp.responsebody, tp.err = sendRequest(u, tp.resolv[u.Host], "GET", "", tp.cookiejar)
-		return
-	}
-
-    // get the SAMLRequest
-	query = u.Query()
-    req, _ := base64.StdEncoding.DecodeString(query["SAMLRequest"][0])
-	authnrequest := NewXp(Inflate(req))
-	sourceresponse := NewXp(attributestmt)
-
-    // create a response
-    tp.newresponse = NewResponse(IdAndTiming{time.Now(), 4 * time.Minute, 4 * time.Hour, "", ""}, tp.testidpmd, tp.hubmd, authnrequest, sourceresponse)
-
-    // and sign it
-    assertion := tp.newresponse.Query(nil, "saml:Assertion[1]")[0]
-    privatekey, _ := ioutil.ReadFile("/etc/ssl/wayf/signing/this.is.not.a.valid.idp.key")
-
-	tp.newresponse.Sign(assertion, string(privatekey), os.Getenv("PW"),  "sha1")
-
-    return
-}
-
-func (tp *Testparams) SSOSendResponse() {
-
-    // and POST it to the hub
-	acs := tp.newresponse.Query1(nil, "@Destination")
-    data := url.Values{}
-    data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(tp.newresponse.Pp())))
-
-    u, _ := url.Parse(acs)
-    tp.resp, tp.responsebody, tp.err = sendRequest(u, tp.resolv[u.Host], "POST", data.Encode(), tp.cookiejar)
-
-    u, _ = tp.resp.Location()
-
-    if strings.Contains(u.Path, "displayerror.php") {
-        tp.resp, tp.responsebody, tp.err = sendRequest(u, tp.resolv[u.Host], "GET", "", tp.cookiejar)
-        return
-    }
-    // and now for some consent
-    if strings.Contains(u.Path, "getconsent.php") {
-        u.RawQuery = u.RawQuery + "&yes=1"
-        tp.resp, tp.responsebody, tp.err = sendRequest(u, tp.resolv[u.Host], "GET", "", tp.cookiejar)
-    }
-
-    // if going via birk we have to POST it again
-    if tp.usedoubleproxy {
-        response := NewHtmlXp(tp.responsebody)
-        action := response.Query1(nil, "//@action")
-        responsebodyvalue := response.Query1(nil, `//input[@name="SAMLResponse"]/@value`)
-        data := url.Values{}
-        data.Set("SAMLResponse", responsebodyvalue)
-        u, _ = url.Parse(action)
-        tp.resp, tp.responsebody, tp.err = sendRequest(u, tp.resolv[u.Host], "POST", data.Encode(), tp.cookiejar)
-    }
-    // last POST doesn't actually get POSTed - we don't have a real SP ...
-    return
-}
-
-func sendRequest(url *url.URL, server, method, body string, cookies map[string]map[string]*http.Cookie) (resp *http.Response, responsebody []byte, err error) {
-	if server == "" {
-		server = url.Host + ":443"
-	}
-	tr := &http.Transport{
-		TLSClientConfig:    &tls.Config{InsecureSkipVerify: true},
-		Dial:               func(network, addr string) (net.Conn, error) { return net.Dial("tcp", server) },
-		DisableCompression: true,
-	}
-	client := &http.Client{
-		Transport:     tr,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error { return errors.New("redirect-not-allowed") },
-	}
-
-	var payload io.Reader
-	if method == "POST" {
-		payload = strings.NewReader(body)
-	}
-
-	host := url.Host
-	req, err := http.NewRequest(method, url.String(), payload)
-
-	for _, cookie := range cookies[host] {
-		req.AddCookie(cookie)
-	}
-
-	if method == "POST" {
-		req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-		req.Header.Add("Content-Length", strconv.Itoa(len(body)))
-	}
-
-	req.Header.Add("Host", host)
-
-	resp, err = client.Do(req)
-	if err != nil && !strings.HasSuffix(err.Error(), "redirect-not-allowed") {
-	    // we need to do the redirect ourselves so a self inflicted redirect "error" is not an error
-	    return
-	}
-
-	location, _ := resp.Location()
-	loc := ""
-	if location != nil {
-		loc = location.Host + location.Path
-	}
-	log.Printf("%-4s %-70s %s %-15s %s\n", req.Method, req.URL.Host+req.URL.Path, resp.Proto, resp.Status, loc)
-	setcookies := resp.Cookies()
-	for _, cookie := range setcookies {
-		if cookies[url.Host] == nil {
-			cookies[url.Host] = make(map[string]*http.Cookie)
-		}
-		cookies[url.Host][cookie.Name] = cookie
-	}
-
-    // We can't get to the body if we got a redirect pseudo error above
-    if err == nil {
-	    responsebody, err = ioutil.ReadAll(resp.Body)
-	    defer resp.Body.Close()
-	}
-	// we need to nullify the damn redirec-not-allowed error from above
-	err = nil
-	return
-}
-
-func ExampleJustForKeepingLogImported() {
-	log.Println("ExampleJustForKeepingLogImported")
+    //<?xml version="1.0"?>
+    //<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="ID" Version="2.0" IssueInstant="0001-01-01T00:00:00Z" InResponseTo="ID" Destination="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
+    //     <saml:Issuer xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">https://aai-logon.switch.ch/idp/shibboleth</saml:Issuer>
+    //     <samlp:Status>
+    //         <samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
+    //     </samlp:Status>
+    //     <saml:Assertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="AssertionID" IssueInstant="0001-01-01T00:00:00Z" Version="2.0">
+    //         <saml:Issuer>https://aai-logon.switch.ch/idp/shibboleth</saml:Issuer>
+    //         <saml:Subject>
+    //             <saml:NameID Format="NameID@Format" SPNameQualifier="https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth">Subject</saml:NameID>
+    //             <saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
+    //                 <saml:SubjectConfirmationData InResponseTo="ID" NotOnOrAfter="0001-01-01T00:04:00Z" Recipient="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST"/>
+    //             </saml:SubjectConfirmation>
+    //         </saml:Subject>
+    //         <saml:Conditions NotBefore="0001-01-01T00:00:00Z" NotOnOrAfter="0001-01-01T00:04:00Z">
+    //             <saml:AudienceRestriction>
+    //                 <saml:Audience>https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth</saml:Audience>
+    //             </saml:AudienceRestriction>
+    //         </saml:Conditions>
+    //         <saml:AuthnStatement AuthnInstant="0001-01-01T00:00:00Z" SessionIndex="missing" SessionNotOnOrAfter="0001-01-01T04:00:00Z">
+    //             <saml:AuthnContext>
+    //                 <saml:AuthnContextClassRef>missing</saml:AuthnContextClassRef>
+    //             </saml:AuthnContext>
+    //         </saml:AuthnStatement>
+    //         <saml:AttributeStatement>
+    //         <saml:Attribute Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.6" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"><saml:AttributeValue xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">gikcaswid@orphanage.wayf.dk</saml:AttributeValue><saml:AttributeValue xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">only@thisone.example.com</saml:AttributeValue></saml:Attribute></saml:AttributeStatement>
+    //     </saml:Assertion>
+    //</samlp:Response>
 }
