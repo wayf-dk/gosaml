@@ -380,6 +380,15 @@ func (xp *Xp) dump(pretty int) string {
 	return C.GoString(p)
 }
 
+// dump the xml - pretty makes it readable ie. withindent
+func (xp *Xp) Dump2(cur *C.xmlNode) string {
+	buffer := C.xmlBufferCreateSize(100000)
+	_ = C.xmlNodeDump(buffer, xp.doc, cur, 1, 1)
+	defer C.xmlBufferFree(buffer)
+	p := (*C.char)(unsafe.Pointer(C.xmlBufferContent(buffer)))
+	return C.GoString(p)
+}
+
 // Pp Dump the document with indentation - ie pretty print
 func (xp *Xp) Pp() string {
 	return xp.dump(1)
@@ -464,6 +473,10 @@ func (xp *Xp) NodeGetContent(node *C.xmlNode) (res string) {
 	res = C.GoString((*C.char)(unsafe.Pointer(content)))
 	C.free(unsafe.Pointer(content))
 	return
+}
+
+func (xp *Xp) UnlinkNode(node *C.xmlNode) {
+    C.xmlUnlinkNode(node)
 }
 
 //  QueryDashP generative xpath query - ie. mkdir -p for xpath ...
@@ -811,32 +824,28 @@ func decryptAES(key, ciphertext []byte) (plaintext []byte) {
 	return
 }
 
-// PublicKeysFromMD extract the public keys from certs - typically some ds:X509Certificate elements
-func KeyNameFromMD(md *Xp) (keyname, cert string, err error) {
-	certs := md.Query(nil, `//md:KeyDescriptor[@use="signing"]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`)
+// PublicKeyInfo extracts the keyname, publickey and cert (base64 DER - no PEM) with the given role from metadata
+func (md *Xp) PublicKeyInfo(role string) (keyname string, publickey *rsa.PublicKey, cert string, err error) {
+    notrole := map[string]string{"signing": "enctyption", "enctyption": "signing"}
+	certs := md.Query(nil, fmt.Sprintf(`//md:KeyDescriptor[@use="%s"]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`, role))
 	if len(certs) == 0 {
-		certs = md.Query(nil, `//md:KeyDescriptor[not(@use="encryption")]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`)
+		certs = md.Query(nil, fmt.Sprintf(`//md:KeyDescriptor[not(@use="%s")]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`, notrole[role]))
 	}
 	if len(certs) == 0 {
 		err = fmt.Errorf("Could not find signing cert for: %s", md.Query1(nil, "/@entityID"))
 		return
 	}
-	re := regexp.MustCompile("\\s")
     content := C.xmlNodeGetContent(certs[0])
     cert = C.GoString((*C.char)(unsafe.Pointer(content)))
     C.free(unsafe.Pointer(content))
     // no pem so no pem.Decode
-    base64Data := re.ReplaceAllString(cert, "")
-    bytes := make([]byte, base64.StdEncoding.DecodedLen(len(base64Data)))
-    n, err := base64.StdEncoding.Decode(bytes, []byte(base64Data))
-    key := bytes[:n]
+    key, err := base64.StdEncoding.DecodeString(regexp.MustCompile("\\s").ReplaceAllString(cert, ""))
     pk, err := x509.ParseCertificate(key)
     if err != nil {
         return
     }
-	digest := crypto.SHA1.New()
-	io.WriteString(digest, fmt.Sprintf("Modulus=%X\n", pk.PublicKey.(*rsa.PublicKey).N))
-	keyname = hex.EncodeToString(digest.Sum(nil))
+    publickey = pk.PublicKey.(*rsa.PublicKey)
+	keyname = fmt.Sprintf("%x", sha1.Sum([]byte(fmt.Sprintf("Modulus=%X\n", publickey.N))))
 	return
 }
 
