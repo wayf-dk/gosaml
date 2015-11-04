@@ -233,6 +233,13 @@ func id() (id string) {
 	return "_" + hex.EncodeToString(b)
 }
 
+// Hash Perform a digest calculation using the given crypto.Hash
+func hash(h crypto.Hash, data string) []byte {
+	digest := h.New()
+	io.WriteString(digest, data)
+	return digest.Sum(nil)
+}
+
 // Deflate utility func that compresses a string using the flate algo
 func Deflate(inflated string) []byte {
 	var b bytes.Buffer
@@ -282,7 +289,11 @@ func SAMLRequest2Url(samlrequest *Xp) (url *url.URL) {
 // Parse SAML xml to Xp object with doc and xpath with relevant namespaces registered
 func NewXp(xml []byte) *Xp {
 	x := new(Xp)
-	x.doc = C.xmlParseMemory((*C.char)(unsafe.Pointer(&xml[0])), C.int(len(xml)))
+	if len(xml) == 0 {
+	    x.doc = C.xmlNewDoc((*C.xmlChar)(unsafe.Pointer(C.CString("1.0"))))
+	} else {
+    	x.doc = C.xmlParseMemory((*C.char)(unsafe.Pointer(&xml[0])), C.int(len(xml)))
+    }
 	x.xpathCtx = C.xmlXPathNewContext(x.doc)
 	runtime.SetFinalizer(x, (*Xp).free)
 
@@ -477,6 +488,12 @@ func (xp *Xp) NodeGetContent(node *C.xmlNode) (res string) {
 // UnlinkNode shim around the libxml2 function with the same name
 func (xp *Xp) UnlinkNode(node *C.xmlNode) {
     C.xmlUnlinkNode(node)
+}
+
+func NewXpFromNode(node *C.xmlNode) (*Xp) {
+    xp := NewXp(nil)
+    C.xmlAddChild((*C.xmlNode)(unsafe.Pointer(xp.doc)),  C.xmlDocCopyNode(node, xp.doc, 1))
+    return xp
 }
 
 //  QueryDashP generative xpath query - ie. mkdir -p for xpath ...
