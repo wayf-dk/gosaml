@@ -69,6 +69,7 @@ type Xp struct {
 	xpathCtx *C.xmlXPathContext
 }
 
+// HtmlXp si a wrapper for libxml2 and xmlXpathContext for html docs
 type HtmlXp struct {
 	doc      *C.xmlDoc
 	xpathCtx *C.xmlXPathContext
@@ -169,6 +170,7 @@ func (node *C.xmlNode) getAttr(attr string) (res string) {
 // NewMetaData - read a single entity xml metadata from an MDQ server
 // key is either en entityID or an endpoint - allows lookup entity by endpoints
 // Currently only supported by the phph.wayf.dk/MDQ
+// Currently we cache the results
 func NewMD(mdq, key string) (mdxp *Xp) {
 	if key != "" {
 		mdq = mdq + "/entities/{sha1}" + hex.EncodeToString(hash(crypto.SHA1, key))
@@ -224,13 +226,6 @@ func NewMD(mdq, key string) (mdxp *Xp) {
 	return
 }
 
-// Hash Perform a digest calculation using the given crypto.Hash
-func hash(h crypto.Hash, data string) []byte {
-	digest := h.New()
-	io.WriteString(digest, data)
-	return digest.Sum(nil)
-}
-
 // Make a random id
 func id() (id string) {
 	b := make([]byte, 21) // 168 bits - just over the 160 bit recomendation without base64 padding
@@ -265,6 +260,7 @@ func Html2SAMLResponse(html []byte) (samlresponse *Xp) {
 	return
 }
 
+// Url2SAMLRequest extracts the SAMLRequest from an URL
 func Url2SAMLRequest(url *url.URL, err error) (samlrequest *Xp) {
 	query := url.Query()
 	req, _ := base64.StdEncoding.DecodeString(query["SAMLRequest"][0])
@@ -272,6 +268,7 @@ func Url2SAMLRequest(url *url.URL, err error) (samlrequest *Xp) {
 	return
 }
 
+// SAMLRequest2Url creates a redirect URL from a saml request
 func SAMLRequest2Url(samlrequest *Xp) (url *url.URL) {
 	req := base64.StdEncoding.EncodeToString(Deflate(samlrequest.X2s()))
 
@@ -326,9 +323,8 @@ func (xp *Xp) freexpathCtx() {
 	xp.doc = nil
 }
 
-/* Parse html object with doc - used in testing for "forwarding" samlresponses from html to http
-   Disables error reporting - libxml2 complains about html5 elements
-*/
+// Parse html object with doc - used in testing for "forwarding" samlresponses from html to http
+//Disables error reporting - libxml2 complains about html5 elements
 func NewHtmlXp(html []byte) *Xp {
 	x := new(Xp)
 	//x.doc = C.htmlParseDoc((*C.xmlChar)(unsafe.Pointer(&html[0])), nil)
@@ -380,7 +376,7 @@ func (xp *Xp) dump(pretty int) string {
 	return C.GoString(p)
 }
 
-// dump the xml - pretty makes it readable ie. withindent
+// dump the xml from the cur node
 func (xp *Xp) Dump2(cur *C.xmlNode) string {
 	buffer := C.xmlBufferCreateSize(100000)
 	_ = C.xmlNodeDump(buffer, xp.doc, cur, 1, 1)
@@ -394,6 +390,7 @@ func (xp *Xp) Pp() string {
 	return xp.dump(1)
 }
 
+// X2s dumps the document without indentation
 func (xp *Xp) X2s() string {
 	return xp.dump(0)
 }
@@ -421,6 +418,7 @@ func (xp *Xp) Query(context *C.xmlNode, path string) (nodes []*C.xmlNode) {
 	return
 }
 
+// xmlXPathEvalExpression shim around the libxml2 function of the same name
 func (xp *Xp) xmlXPathEvalExpression(context *C.xmlNode, path string) (xmlXPathObject *C.xmlXPathObject) {
 	if context == nil {
 		context = C.xmlDocGetRootElement(xp.doc)
@@ -433,6 +431,7 @@ func (xp *Xp) xmlXPathEvalExpression(context *C.xmlNode, path string) (xmlXPathO
 	return
 }
 
+// QueryNumber evaluates an xpath expressions that returns a number
 func (xp *Xp) QueryNumber(context *C.xmlNode, path string) (val int) {
 	var xmlXPathObject *C.xmlXPathObject
 	if xmlXPathObject = xp.xmlXPathEvalExpression(context, path); xmlXPathObject == nil {
@@ -475,6 +474,7 @@ func (xp *Xp) NodeGetContent(node *C.xmlNode) (res string) {
 	return
 }
 
+// UnlinkNode shim around the libxml2 function with the same name
 func (xp *Xp) UnlinkNode(node *C.xmlNode) {
     C.xmlUnlinkNode(node)
 }
@@ -693,6 +693,10 @@ func signGoEleven(digest []byte, privatekey, algo string) (signaturevalue []byte
 	return
 }
 
+
+// Encrypt the context with the given publickey
+// Hardcoded to aes256-cbc for the symetric part and
+// rsa-oaep-mgf1p and sha1 for the rsa part
 func (xp *Xp) Encrypt(context *C.xmlNode, publickey *rsa.PublicKey) {
 template := []byte(`<saml:EncryptedAssertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:xenc="http://www.w3.org/2001/04/xmlenc#">
     <xenc:EncryptedData Type="http://www.w3.org/2001/04/xmlenc#Element">
@@ -730,6 +734,8 @@ template := []byte(`<saml:EncryptedAssertion xmlns:saml="urn:oasis:names:tc:SAML
 	C.xmlReplaceNode(context, encryptedAssertion)
 }
 
+
+// Decrypt decrypts the context using the give privatekey
 func (xp *Xp) Decrypt(context *C.xmlNode, privatekey *rsa.PrivateKey) {
     // for now just use what we send ourselves ...
     encryptedkey := xp.Query1(context, "//xenc:EncryptedData/ds:KeyInfo/xenc:EncryptedKey/xenc:CipherData/xenc:CipherValue")
@@ -746,24 +752,7 @@ func (xp *Xp) Decrypt(context *C.xmlNode, privatekey *rsa.PrivateKey) {
 	C.xmlReplaceNode(context, decryptedAssertion)
 }
 
-func encryptRSA(base64cert string, in []byte) (out []byte) {
-    // base64cert from metadata ie. not PEM only base64 encoded DER
-    base64Data := regexp.MustCompile("\\s").ReplaceAllString(base64cert, "")
-    bytes := make([]byte, base64.StdEncoding.DecodedLen(len(base64Data)))
-    n, err := base64.StdEncoding.Decode(bytes, []byte(base64Data))
-    key := bytes[:n]
-    cert, err := x509.ParseCertificate(key)
-    if err != nil {
-        panic(err)
-    }
-	pub := cert.PublicKey.(*rsa.PublicKey)
-    out, err = rsa.EncryptOAEP(sha1.New(), rand.Reader, pub, in, nil)
-    if err != nil {
-        panic(err)
-    }
-    return
-}
-
+// Pem2PrivateKey converts a PEM encoded private key with an optional password to a *rsa.PrivateKey
 func Pem2PrivateKey(privatekeypem, pw string) (privatekey *rsa.PrivateKey) {
     block, _ := pem.Decode([]byte(privatekeypem))
     if pw != "" {
@@ -775,6 +764,7 @@ func Pem2PrivateKey(privatekeypem, pw string) (privatekey *rsa.PrivateKey) {
     return
 }
 
+// encryptAES encrypts the plaintext with a generated random key and returns both the key and the ciphertext
 func encryptAES(plaintext []byte) (key, ciphertext []byte) {
     key = make([]byte, 32)
 	if _, err := io.ReadFull(rand.Reader, key); err != nil {
@@ -800,6 +790,7 @@ func encryptAES(plaintext []byte) (key, ciphertext []byte) {
 	return
 }
 
+// decryptAES decrypts the ciphertext using the supplied key
 func decryptAES(key, ciphertext []byte) (plaintext []byte) {
 	iv := ciphertext[:aes.BlockSize]
 	ciphertext = ciphertext[aes.BlockSize:]
@@ -824,9 +815,10 @@ func decryptAES(key, ciphertext []byte) (plaintext []byte) {
 	return
 }
 
-// PublicKeyInfo extracts the keyname, publickey and cert (base64 DER - no PEM) with the given role from metadata
+// PublicKeyInfo extracts the keyname, publickey and cert (base64 DER - no PEM) with the given role from metadata.
+// The keyname is computed from the public key corresponding to running this command: openssl x509 -modulus -noout -in <cert> | openssl sha1.
 func (md *Xp) PublicKeyInfo(role string) (keyname string, publickey *rsa.PublicKey, cert string, err error) {
-    notrole := map[string]string{"signing": "enctyption", "enctyption": "signing"}
+    notrole := map[string]string{"signing": "encryption", "encryption": "signing"}
 	certs := md.Query(nil, fmt.Sprintf(`//md:KeyDescriptor[@use="%s"]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`, role))
 	if len(certs) == 0 {
 		certs = md.Query(nil, fmt.Sprintf(`//md:KeyDescriptor[not(@use="%s")]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`, notrole[role]))
@@ -847,17 +839,6 @@ func (md *Xp) PublicKeyInfo(role string) (keyname string, publickey *rsa.PublicK
     publickey = pk.PublicKey.(*rsa.PublicKey)
 	keyname = fmt.Sprintf("%x", sha1.Sum([]byte(fmt.Sprintf("Modulus=%X\n", publickey.N))))
 	return
-}
-
-func EncryptionCertfromMD(md *Xp) ( cert string) {
-	certs := md.Query(nil, `//md:KeyDescriptor[@use="encryption"]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`)
-	if len(certs) == 0 {
-		certs = md.Query(nil, `//md:KeyDescriptor[not(@use="signing")]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`)
-	}
-    content := C.xmlNodeGetContent(certs[0])
-    cert = C.GoString((*C.char)(unsafe.Pointer(content)))
-    C.free(unsafe.Pointer(content))
-    return
 }
 
 /*  NewAuthnRequest - create an AuthnRequest using the supplied metadata for setting the fields according to the following rules:
@@ -896,9 +877,8 @@ func NewAuthnRequest(params IdAndTiming, spmd *Xp, idpmd *Xp) (request *Xp) {
 	return
 }
 
-/*  NewResponse - create a new response using the supplied metadata and resp. authnrequest and response for filling out the fields
-    The response is primarily for the attributes, but other fields is eg. the AuthnContextClassRef is also drawn from it
-*/
+// NewResponse - create a new response using the supplied metadata and resp. authnrequest and response for filling out the fields
+// The response is primarily for the attributes, but other fields is eg. the AuthnContextClassRef is also drawn from it
 func NewResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *Xp) (response *Xp) {
 	template := []byte(`<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
                 ID=""
