@@ -490,6 +490,7 @@ func (xp *Xp) UnlinkNode(node *C.xmlNode) {
     C.xmlUnlinkNode(node)
 }
 
+// NewXpFromNode creates a new *Xp from a node (subtree) from another *Xp
 func NewXpFromNode(node *C.xmlNode) (*Xp) {
     xp := NewXp(nil)
     C.xmlAddChild((*C.xmlNode)(unsafe.Pointer(xp.doc)),  C.xmlDocCopyNode(node, xp.doc, 1))
