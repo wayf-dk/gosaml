@@ -612,7 +612,7 @@ func (xp *Xp) VerifySignature(context *C.xmlNode, pub *rsa.PublicKey) (isvalid b
 // Sign the given context with the given private key - which is a PEM or hsm: key
 // A hsm: key is a urn 'key' that points to a specific key/action in a goeleven interface to a HSM
 // See https://github.com/wayf-dk/goeleven
-func (xp *Xp) Sign(context *C.xmlNode, privatekey, pw, cert, algo string) (derr error) {
+func (xp *Xp) Sign(context *C.xmlNode, privatekey, pw, cert, algo string) (err error) {
 	contextHash := hash(algos[algo].algo, xp.c14n(context))
 	contextDigest := base64.StdEncoding.EncodeToString(contextHash)
 	signaturexml := `<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
@@ -651,9 +651,9 @@ func (xp *Xp) Sign(context *C.xmlNode, privatekey, pw, cert, algo string) (derr 
 
 	var signaturevalue []byte
 	if strings.HasPrefix(privatekey, "hsm:") {
-		signaturevalue, _ = signGoEleven(digest, privatekey, algo)
+		signaturevalue, err = signGoEleven(digest, privatekey, algo)
 	} else {
-		signaturevalue, _ = signGo(digest, privatekey, pw, algo)
+		signaturevalue, err = signGo(digest, privatekey, pw, algo)
 	}
 	signatureval := base64.StdEncoding.EncodeToString(signaturevalue)
 	xp.QueryDashP(signature, `ds:Signature/ds:SignatureValue`, signatureval, nil)
@@ -664,13 +664,13 @@ func (xp *Xp) Sign(context *C.xmlNode, privatekey, pw, cert, algo string) (derr 
 func signGo(digest []byte, privatekey, pw, algo string) (signaturevalue []byte, err error) {
 	var priv *rsa.PrivateKey
 	block, _ := pem.Decode([]byte(privatekey))
-	if pw != "" {
+	if pw != "-" {
 		privbytes, _ := x509.DecryptPEMBlock(block, []byte(pw))
 		priv, _ = x509.ParsePKCS1PrivateKey(privbytes)
 	} else {
 		priv, _ = x509.ParsePKCS1PrivateKey(block.Bytes)
 	}
-	signaturevalue, _ = rsa.SignPKCS1v15(rand.Reader, priv, algos[algo].algo, digest)
+	signaturevalue, err = rsa.SignPKCS1v15(rand.Reader, priv, algos[algo].algo, digest)
 	return
 }
 

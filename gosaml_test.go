@@ -463,7 +463,7 @@ func ExampleMetadata() {
 func ExampleSignAndValidate() {
 	xp := NewXp(response)
 	assertion := xp.Query(nil, "saml:Assertion[1]")[0]
-	xp.Sign(assertion, privatekey, "", "", "sha256")
+	xp.Sign(assertion, privatekey, "-", "", "sha256")
 
 	xp = NewXp([]byte(xp.Pp()))
 	assertion = xp.Query(nil, "saml:Assertion[1]")[0]
@@ -478,7 +478,7 @@ func ExampleSignAndValidate() {
 	fmt.Printf("verify: %v\n", xp.VerifySignature(assertion, pub))
 	// Output:
 
-	xp.Sign(assertion, privatekey, "", "", "sha1")
+	xp.Sign(assertion, privatekey, "-", "", "sha1")
 
 	//log.Print(xp.C14n(nil))
 
