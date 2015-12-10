@@ -276,12 +276,27 @@ func Url2SAMLRequest(url *url.URL, err error) (samlrequest *Xp) {
 }
 
 // SAMLRequest2Url creates a redirect URL from a saml request
-func SAMLRequest2Url(samlrequest *Xp) (url *url.URL) {
+func SAMLRequest2Url(samlrequest *Xp, privatekey, pw, algo string) (url *url.URL, err error) {
 	req := base64.StdEncoding.EncodeToString(Deflate(samlrequest.X2s()))
 
 	url, _ = url.Parse(samlrequest.Query1(nil, "@Destination"))
 	q := url.Query()
 	q.Set("SAMLRequest", req)
+
+    if privatekey != "" {
+        digest := hash(algos[algo].algo, req)
+
+        var signaturevalue []byte
+        if strings.HasPrefix(privatekey, "hsm:") {
+            signaturevalue, err = signGoEleven(digest, privatekey, algo)
+        } else {
+            signaturevalue, err = signGo(digest, privatekey, pw, algo)
+        }
+        signatureval := base64.StdEncoding.EncodeToString(signaturevalue)
+    	q.Set("SigAlg", algos[algo].signature)
+    	q.Set("Signature", signatureval)
+    }
+
 	url.RawQuery = q.Encode()
 	return
 }
