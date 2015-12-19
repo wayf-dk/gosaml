@@ -17,8 +17,12 @@ package gosaml
 #include <libxml2/libxml/xpath.h>
 #include <libxml2/libxml/xpathInternals.h>
 #include <libxml2/libxml/xmlmemory.h>
+#include <libxml/xmlschemas.h>
 xmlNode* fetchNode(xmlNodeSet *nodeset, int index) {
     return nodeset->nodeTab[index];
+}
+// for now we just ignore the actual errors - the end result of xmlSchemaValidateDoc will tell if there were any
+void void_libxml_error_handler(void *ctx, const char *msg) {
 }
 */
 import "C"
@@ -316,6 +320,34 @@ func NewXp(xml []byte) *Xp {
 		C.xmlXPathRegisterNs(x.xpathCtx, ns.prefix, ns.ns_uri)
 	}
 	return x
+}
+
+// Validate - Schemavalidate the document against the the schema file given in url
+func (xp *Xp) SchemaValidate(url string) (errs []string, err error) {
+	cSchemaNewMemParserCtxt := C.xmlSchemaNewParserCtxt((*C.char)(unsafe.Pointer(C.CString(url))))
+	if cSchemaNewMemParserCtxt == nil {
+		return nil, errors.New("Could not create schema parser")
+	}
+	defer C.xmlSchemaFreeParserCtxt(cSchemaNewMemParserCtxt)
+	cSchema := C.xmlSchemaParse(cSchemaNewMemParserCtxt)
+	if cSchema == nil {
+		return nil, errors.New("Could not parse schema")
+	}
+	defer C.xmlSchemaFree(cSchema)
+
+	validCtxt := C.xmlSchemaNewValidCtxt(cSchema)
+	if validCtxt == nil {
+		return nil, errors.New("Could not build validator")
+	}
+	defer C.xmlSchemaFreeValidCtxt(validCtxt)
+
+    // void_libxml_error_handler is a null function - no info collected - just the final result matters - for now
+	C.xmlSchemaSetValidErrors(validCtxt, (*[0]byte)( C.void_libxml_error_handler), (*[0]byte)(C.void_libxml_error_handler), nil)
+
+	if C.xmlSchemaValidateDoc(validCtxt, xp.doc) != 0 {
+		return nil, errors.New("Document validation error")
+	}
+	return nil, nil
 }
 
 // Make a copy of the Xp object - shares the document with the source, but allocates a new xmlXPathContext because

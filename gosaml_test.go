@@ -634,3 +634,15 @@ func ExampleEncryptAndDecrypt() {
     //     </saml:Assertion>
     //</samlp:Response>
 }
+
+func ExampleValidateSchema() {
+	xp := NewXp(response)
+	fmt.Println(xp.SchemaValidate("schemas/saml-schema-protocol-2.0.xsd"))
+	// make the document schema-invalid
+	xp.UnlinkNode(xp.Query(nil, "//saml:Assertion/saml:Issuer")[0])
+	fmt.Println(xp.SchemaValidate("schemas/saml-schema-protocol-2.0.xsd"))
+	// Output:
+	// [] <nil>
+	// [] Document validation error
+
+}
