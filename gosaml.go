@@ -1027,8 +1027,8 @@ func NewResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *
 
 	nameid := response.Query(assertion, "saml:Subject/saml:NameID")[0]
 	response.QueryDashP(nameid, "@SPNameQualifier", spEntityID, nil)
-	response.QueryDashP(nameid, "@Format", "NameID@Format", nil)
-	response.QueryDashP(nameid, ".", "Subject", nil)
+	response.QueryDashP(nameid, "@Format", sourceResponse.Query1(nil, "//saml:NameID/@Format"), nil)
+	response.QueryDashP(nameid, ".", sourceResponse.Query1(nil, "//saml:NameID"), nil)
 
 	subjectconfirmationdata := response.Query(assertion, "saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData")[0]
 	response.QueryDashP(subjectconfirmationdata, "@NotOnOrAfter", assertionNotOnOrAfter, nil)
@@ -1052,11 +1052,13 @@ func NewResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *
 
 	for _, requestedAttribute := range requestedAttributes {
 		name := requestedAttribute.getAttr("Name")
-		nameFormat := requestedAttribute.getAttr("NameFormat")
+		//nameFormat := requestedAttribute.getAttr("NameFormat")
+		//log.Println("req attr:", name, nameFormat)
 		// look for a requested attribute with the requested nameformat
 		// TO-DO - xpath escape name and nameFormat
 		// TO-Do - value filtering
-		attributes := sourceResponse.Query(sourceAttributes, `saml:Attribute[@Name="`+name+`" and @NameFormat="`+nameFormat+`"]`)
+		//attributes := sourceResponse.Query(sourceAttributes, `saml:Attribute[@Name="`+name+`" and @NameFormat="`+nameFormat+`"]`)
+		attributes := sourceResponse.Query(sourceAttributes, `saml:Attribute[@Name="`+name+`"]`)
 		for _, attribute := range attributes {
 			newAttribute := C.xmlAddChild(destinationAttributes, C.xmlDocCopyNode(attribute, response.doc, 2))
 			allowedValues := spmd.Query(requestedAttribute, `saml:AttributeValue`)
