@@ -35,8 +35,7 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/rsa"
-    "crypto/sha1"
-	"crypto/tls"
+	"crypto/sha1"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
@@ -48,10 +47,8 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -63,7 +60,7 @@ import (
 var _ = log.Printf // For debugging; delete when done.
 
 const (
-	xsDateTime = "2006-01-02T15:04:05Z"
+	xsDateTime        = "2006-01-02T15:04:05Z"
 	metadatacachepath = "/tmp/gosaml-metadatacache-"
 )
 
@@ -161,158 +158,14 @@ func init() {
 	}
 }
 
-// GetAttr gets the value of the non-namespaced attribute attr
-func (node *C.xmlNode) getAttr(attr string) (res string) {
-	Cattr := (*C.xmlChar)(unsafe.Pointer(C.CString(attr)))
-	value := (*C.char)(unsafe.Pointer(C.xmlGetProp(node, Cattr)))
-	C.free(unsafe.Pointer(Cattr))
-	res = C.GoString(value)
-	C.free(unsafe.Pointer(value))
-	return
-}
-
-// NewMetaData - read a single entity xml metadata from an MDQ server
-// key is either en entityID or an endpoint - allows lookup entity by endpoints
-// Currently only supported by the phph.wayf.dk/MDQ
-// Currently we cache the results
-func NewMD(mdq, key string) (mdxp *Xp) {
-	if key != "" {
-		mdq = mdq + "/entities/{sha1}" + hex.EncodeToString(hash(crypto.SHA1, key))
-	}
-	url, _ := url.Parse(mdq)
-	cachekey := hex.EncodeToString(hash(crypto.SHA1, url.String()))
-	cachedmd := metadatacache[cachekey]
-	if cachedmd != nil {
-		return cachedmd.CpXp()
-	}
-
-	md, err := ioutil.ReadFile(metadatacachepath +  cachekey)
-	if err == nil {
-	    mdxp = NewXp(md)
-	    metadatacache[cachekey] = mdxp
-	    return
-	}
-
-	tr := &http.Transport{
-		TLSClientConfig:    &tls.Config{InsecureSkipVerify: true},
-		Dial:               func(network, addr string) (net.Conn, error) { return net.Dial("tcp", addr) },
-		DisableCompression: true,
-	}
-	client := &http.Client{
-		Transport:     tr,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error { return errors.New("redirect not supported") },
-	}
-
-	req, err := http.NewRequest("GET", url.String(), nil)
-	if err != nil {
-		log.Fatalf("Error: %v\n", err)
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Fatalf("Error: %v\n", err)
-	}
-	if resp.StatusCode != 200 {
-		log.Fatalf("looking for: '%s' using: '%s' MDQ said: %s\n", key, url.String(), resp.Status)
-	}
-	md, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Fatalf("Error: %v\n", err)
-	}
-
-    f, err := ioutil.TempFile("", "")
-    _, _ = f.Write(md)
-	err = os.Rename(f.Name(), metadatacachepath +  cachekey)
-	if err != nil {
-	    log.Println("Error writing metadatacachefile: " + cachekey)
-	}
-	mdxp = NewXp(md)
-	metadatacache[cachekey] = mdxp
-	return
-}
-
-// Make a random id
-func id() (id string) {
-	b := make([]byte, 21) // 168 bits - just over the 160 bit recomendation without base64 padding
-	rand.Read(b)
-	return "_" + hex.EncodeToString(b)
-}
-
-// Hash Perform a digest calculation using the given crypto.Hash
-func hash(h crypto.Hash, data string) []byte {
-	digest := h.New()
-	io.WriteString(digest, data)
-	return digest.Sum(nil)
-}
-
-// Deflate utility func that compresses a string using the flate algo
-func Deflate(inflated string) []byte {
-	var b bytes.Buffer
-	w, _ := flate.NewWriter(&b, -1)
-	w.Write([]byte(inflated))
-	w.Close()
-	return b.Bytes()
-}
-
-// Inflate utility func that decompresses a string using the flate algo
-func Inflate(deflated []byte) []byte {
-	var b bytes.Buffer
-	r := flate.NewReader(bytes.NewReader(deflated))
-	b.ReadFrom(r)
-	r.Close()
-	return b.Bytes()
-}
-
-// Html2SAMLResponse extracts the SAMLResponse from a html document
-func Html2SAMLResponse(html []byte) (samlresponse *Xp) {
-	response := NewHtmlXp(html)
-	samlbase64 := response.Query1(nil, `//input[@name="SAMLResponse"]/@value`)
-	samlxml, _ := base64.StdEncoding.DecodeString(samlbase64)
-	samlresponse = NewXp(samlxml)
-	return
-}
-
-// Url2SAMLRequest extracts the SAMLRequest from an URL
-func Url2SAMLRequest(url *url.URL, err error) (samlrequest *Xp) {
-	query := url.Query()
-	req, _ := base64.StdEncoding.DecodeString(query["SAMLRequest"][0])
-	samlrequest = NewXp(Inflate(req))
-	return
-}
-
-// SAMLRequest2Url creates a redirect URL from a saml request
-func SAMLRequest2Url(samlrequest *Xp, privatekey, pw, algo string) (url *url.URL, err error) {
-	req := base64.StdEncoding.EncodeToString(Deflate(samlrequest.X2s()))
-
-	url, _ = url.Parse(samlrequest.Query1(nil, "@Destination"))
-	q := url.Query()
-	q.Set("SAMLRequest", req)
-
-    if privatekey != "" {
-        digest := hash(algos[algo].algo, req)
-
-        var signaturevalue []byte
-        if strings.HasPrefix(privatekey, "hsm:") {
-            signaturevalue, err = signGoEleven(digest, privatekey, algo)
-        } else {
-            signaturevalue, err = signGo(digest, privatekey, pw, algo)
-        }
-        signatureval := base64.StdEncoding.EncodeToString(signaturevalue)
-    	q.Set("SigAlg", algos[algo].signature)
-    	q.Set("Signature", signatureval)
-    }
-
-	url.RawQuery = q.Encode()
-	return
-}
-
 // Parse SAML xml to Xp object with doc and xpath with relevant namespaces registered
 func NewXp(xml []byte) *Xp {
 	x := new(Xp)
 	if len(xml) == 0 {
-	    x.doc = C.xmlNewDoc((*C.xmlChar)(unsafe.Pointer(C.CString("1.0"))))
+		x.doc = C.xmlNewDoc((*C.xmlChar)(unsafe.Pointer(C.CString("1.0"))))
 	} else {
-    	x.doc = C.xmlParseMemory((*C.char)(unsafe.Pointer(&xml[0])), C.int(len(xml)))
-    }
+		x.doc = C.xmlParseMemory((*C.char)(unsafe.Pointer(&xml[0])), C.int(len(xml)))
+	}
 	x.xpathCtx = C.xmlXPathNewContext(x.doc)
 	runtime.SetFinalizer(x, (*Xp).free)
 
@@ -320,34 +173,6 @@ func NewXp(xml []byte) *Xp {
 		C.xmlXPathRegisterNs(x.xpathCtx, ns.prefix, ns.ns_uri)
 	}
 	return x
-}
-
-// Validate - Schemavalidate the document against the the schema file given in url
-func (xp *Xp) SchemaValidate(url string) (errs []string, err error) {
-	cSchemaNewMemParserCtxt := C.xmlSchemaNewParserCtxt((*C.char)(unsafe.Pointer(C.CString(url))))
-	if cSchemaNewMemParserCtxt == nil {
-		return nil, errors.New("Could not create schema parser")
-	}
-	defer C.xmlSchemaFreeParserCtxt(cSchemaNewMemParserCtxt)
-	cSchema := C.xmlSchemaParse(cSchemaNewMemParserCtxt)
-	if cSchema == nil {
-		return nil, errors.New("Could not parse schema")
-	}
-	defer C.xmlSchemaFree(cSchema)
-
-	validCtxt := C.xmlSchemaNewValidCtxt(cSchema)
-	if validCtxt == nil {
-		return nil, errors.New("Could not build validator")
-	}
-	defer C.xmlSchemaFreeValidCtxt(validCtxt)
-
-    // void_libxml_error_handler is a null function - no info collected - just the final result matters - for now
-	C.xmlSchemaSetValidErrors(validCtxt, (*[0]byte)( C.void_libxml_error_handler), (*[0]byte)(C.void_libxml_error_handler), nil)
-
-	if C.xmlSchemaValidateDoc(validCtxt, xp.doc) != 0 {
-		return nil, errors.New("Document validation error")
-	}
-	return nil, nil
 }
 
 // Make a copy of the Xp object - shares the document with the source, but allocates a new xmlXPathContext because
@@ -381,8 +206,15 @@ func (xp *Xp) freexpathCtx() {
 	xp.doc = nil
 }
 
+// NewXpFromNode creates a new *Xp from a node (subtree) from another *Xp
+func NewXpFromNode(node *C.xmlNode) *Xp {
+	xp := NewXp(nil)
+	C.xmlAddChild((*C.xmlNode)(unsafe.Pointer(xp.doc)), C.xmlDocCopyNode(node, xp.doc, 1))
+	return xp
+}
+
 // Parse html object with doc - used in testing for "forwarding" samlresponses from html to http
-//Disables error reporting - libxml2 complains about html5 elements
+// Disables error reporting - libxml2 complains about html5 elements
 func NewHtmlXp(html []byte) *Xp {
 	x := new(Xp)
 	//x.doc = C.htmlParseDoc((*C.xmlChar)(unsafe.Pointer(&html[0])), nil)
@@ -404,9 +236,49 @@ func (xp *HtmlXp) free() {
 	xp.doc = nil
 }
 
+// NodeSetContent  Set the content of a node (or attribute)
+func (xp *Xp) NodeSetContent(node *C.xmlNode, content string) {
+	Ccontent := unsafe.Pointer(C.CString(content))
+	C.xmlNodeSetContent(C.xmlNodePtr(node), (*C.xmlChar)(Ccontent))
+	C.free(Ccontent)
+}
+
+// NodeGetContent  Set the content of a node (or attribute)
+func (xp *Xp) NodeGetContent(node *C.xmlNode) (res string) {
+	content := C.xmlNodeGetContent(node)
+	res = C.GoString((*C.char)(unsafe.Pointer(content)))
+	C.free(unsafe.Pointer(content))
+	return
+}
+
+// UnlinkNode shim around the libxml2 function with the same name
+func (xp *Xp) UnlinkNode(node *C.xmlNode) {
+	C.xmlUnlinkNode(node)
+}
+
+// GetAttr gets the value of the non-namespaced attribute attr
+func (node *C.xmlNode) GetAttr(attr string) (res string) {
+	Cattr := (*C.xmlChar)(unsafe.Pointer(C.CString(attr)))
+	value := (*C.char)(unsafe.Pointer(C.xmlGetProp(node, Cattr)))
+	C.free(unsafe.Pointer(Cattr))
+	res = C.GoString(value)
+	C.free(unsafe.Pointer(value))
+	return
+}
+
+// 'setAttr sets the value of the non-namespaced attribute attr
+func (node *C.xmlNode) SetAttr(attr, value string) {
+	Cattr := (*C.xmlChar)(unsafe.Pointer(C.CString(attr)))
+	Cvalue := (*C.xmlChar)(unsafe.Pointer(C.CString(value)))
+	C.xmlSetProp(node, Cattr, Cvalue)
+	C.free(unsafe.Pointer(Cattr))
+	C.free(unsafe.Pointer(Cvalue))
+	return
+}
+
 // C14n Canonicalise the node using the SAML specified exclusive method
 // Very slow on large documents with node != nil
-func (xp *Xp) c14n(node *C.xmlNode) string {
+func (xp *Xp) C14n(node *C.xmlNode) string {
 	var buffer *C.xmlChar
 	var nodeset *C.xmlNodeSet
 
@@ -517,33 +389,6 @@ func (xp *Xp) Query1(context *C.xmlNode, path string) (res string) {
 	return
 }
 
-// NodeSetContent  Set the content of a node (or attribute)
-func (xp *Xp) NodeSetContent(node *C.xmlNode, content string) {
-	Ccontent := unsafe.Pointer(C.CString(content))
-	C.xmlNodeSetContent(C.xmlNodePtr(node), (*C.xmlChar)(Ccontent))
-	C.free(Ccontent)
-}
-
-// NodeGetContent  Set the content of a node (or attribute)
-func (xp *Xp) NodeGetContent(node *C.xmlNode) (res string) {
-	content := C.xmlNodeGetContent(node)
-	res = C.GoString((*C.char)(unsafe.Pointer(content)))
-	C.free(unsafe.Pointer(content))
-	return
-}
-
-// UnlinkNode shim around the libxml2 function with the same name
-func (xp *Xp) UnlinkNode(node *C.xmlNode) {
-    C.xmlUnlinkNode(node)
-}
-
-// NewXpFromNode creates a new *Xp from a node (subtree) from another *Xp
-func NewXpFromNode(node *C.xmlNode) (*Xp) {
-    xp := NewXp(nil)
-    C.xmlAddChild((*C.xmlNode)(unsafe.Pointer(xp.doc)),  C.xmlDocCopyNode(node, xp.doc, 1))
-    return xp
-}
-
 //  QueryDashP generative xpath query - ie. mkdir -p for xpath ...
 //  Understands simple xpath expressions including indexes and attribute values
 func (xp *Xp) QueryDashP(context *C.xmlNode, query string, data string, before *C.xmlNode) *C.xmlNode {
@@ -630,12 +475,45 @@ func (xp *Xp) createElementNS(prefix, element string, context *C.xmlNode, before
 	return
 }
 
+// Validate - Schemavalidate the document against the the schema file given in url
+func (xp *Xp) SchemaValidate(url string) (errs []string, err error) {
+	cSchemaNewMemParserCtxt := C.xmlSchemaNewParserCtxt((*C.char)(unsafe.Pointer(C.CString(url))))
+	if cSchemaNewMemParserCtxt == nil {
+		return nil, errors.New("Could not create schema parser")
+	}
+	defer C.xmlSchemaFreeParserCtxt(cSchemaNewMemParserCtxt)
+	cSchema := C.xmlSchemaParse(cSchemaNewMemParserCtxt)
+	if cSchema == nil {
+		return nil, errors.New("Could not parse schema")
+	}
+	defer C.xmlSchemaFree(cSchema)
+
+	validCtxt := C.xmlSchemaNewValidCtxt(cSchema)
+	if validCtxt == nil {
+		return nil, errors.New("Could not build validator")
+	}
+	defer C.xmlSchemaFreeValidCtxt(validCtxt)
+
+	// void_libxml_error_handler is a null function - no info collected - just the final result matters - for now
+	C.xmlSchemaSetValidErrors(validCtxt, (*[0]byte)(C.void_libxml_error_handler), (*[0]byte)(C.void_libxml_error_handler), nil)
+
+	if C.xmlSchemaValidateDoc(validCtxt, xp.doc) != 0 {
+		return nil, errors.New("Document validation error")
+	}
+	return nil, nil
+}
+
 // VerifySignature Verify a signature for the given context and public key
 func (xp *Xp) VerifySignature(context *C.xmlNode, pub *rsa.PublicKey) (isvalid bool) {
-	signature := xp.Query(context, "ds:Signature[1]")[0]
+	signaturelist := xp.Query(context, "ds:Signature[1]")
+	isvalid = signaturelist != nil
+	if !isvalid {
+		return
+	}
+	signature := signaturelist[0]
 	signatureValue := xp.Query1(signature, "ds:SignatureValue")
 	signedInfo := xp.Query(signature, "ds:SignedInfo")[0]
-	signedInfoC14n := xp.c14n(signedInfo)
+	signedInfoC14n := xp.C14n(signedInfo)
 	digestValue := xp.Query1(signedInfo, "ds:Reference/ds:DigestValue")
 	ID := xp.Query1(context, "@ID")
 	URI := xp.Query1(signedInfo, "ds:Reference/@URI")
@@ -644,12 +522,12 @@ func (xp *Xp) VerifySignature(context *C.xmlNode, pub *rsa.PublicKey) (isvalid b
 	digestMethod := xp.Query1(signedInfo, "ds:Reference/ds:DigestMethod/@Algorithm")
 
 	C.xmlUnlinkNode(signature)
-	contextDigest := hash(algos[digestMethod].algo, xp.c14n(context))
+	contextDigest := Hash(algos[digestMethod].algo, xp.C14n(context))
 	contextDigestValueComputed := base64.StdEncoding.EncodeToString(contextDigest)
 	isvalid = isvalid && contextDigestValueComputed == digestValue
 
 	signatureMethod := xp.Query1(signedInfo, "ds:SignatureMethod/@Algorithm")
-	signedInfoDigest := hash(algos[signatureMethod].algo, signedInfoC14n)
+	signedInfoDigest := Hash(algos[signatureMethod].algo, signedInfoC14n)
 	ds, _ := base64.StdEncoding.DecodeString(signatureValue)
 	err := rsa.VerifyPKCS1v15(pub, algos[signatureMethod].algo, signedInfoDigest[:], ds)
 	isvalid = isvalid && err == nil
@@ -660,7 +538,7 @@ func (xp *Xp) VerifySignature(context *C.xmlNode, pub *rsa.PublicKey) (isvalid b
 // A hsm: key is a urn 'key' that points to a specific key/action in a goeleven interface to a HSM
 // See https://github.com/wayf-dk/goeleven
 func (xp *Xp) Sign(context *C.xmlNode, privatekey, pw, cert, algo string) (err error) {
-	contextHash := hash(algos[algo].algo, xp.c14n(context))
+	contextHash := Hash(algos[algo].algo, xp.C14n(context))
 	contextDigest := base64.StdEncoding.EncodeToString(contextHash)
 	signaturexml := `<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
 <ds:SignedInfo>
@@ -693,8 +571,8 @@ func (xp *Xp) Sign(context *C.xmlNode, privatekey, pw, cert, algo string) (err e
 	xp.QueryDashP(signedInfo, `ds:Reference/ds:DigestMethod[1]/@Algorithm`, algos[algo].digest, nil)
 	xp.QueryDashP(signedInfo, `ds:Reference/ds:DigestValue[1]`, contextDigest, nil)
 
-	signedInfoC14n := xp.c14n(signedInfo)
-	digest := hash(algos[algo].algo, signedInfoC14n)
+	signedInfoC14n := xp.C14n(signedInfo)
+	digest := Hash(algos[algo].algo, signedInfoC14n)
 
 	var signaturevalue []byte
 	if strings.HasPrefix(privatekey, "hsm:") {
@@ -758,12 +636,11 @@ func signGoEleven(digest []byte, privatekey, algo string) (signaturevalue []byte
 	return
 }
 
-
 // Encrypt the context with the given publickey
 // Hardcoded to aes256-cbc for the symetric part and
 // rsa-oaep-mgf1p and sha1 for the rsa part
 func (xp *Xp) Encrypt(context *C.xmlNode, publickey *rsa.PublicKey) {
-template := []byte(`<saml:EncryptedAssertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:xenc="http://www.w3.org/2001/04/xmlenc#">
+	template := []byte(`<saml:EncryptedAssertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:xenc="http://www.w3.org/2001/04/xmlenc#">
     <xenc:EncryptedData Type="http://www.w3.org/2001/04/xmlenc#Element">
         <xenc:EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc" />
         <ds:KeyInfo xmlns="http://www.w3.org/2000/09/xmldsig#">
@@ -787,11 +664,11 @@ template := []byte(`<saml:EncryptedAssertion xmlns:saml="urn:oasis:names:tc:SAML
 	C.xmlParseBalancedChunkMemory(xp.doc, nil, nil, 0, (*C.xmlChar)(&template[0]), &res)
 	C.xmlAddChildList(encryptedAssertion, res)
 
-    sessionkey, ciphertext := encryptAES([]byte(xp.c14n(context)));
-    sessionkey, err := rsa.EncryptOAEP(sha1.New(), rand.Reader, publickey, sessionkey, nil)
-    if err != nil {
-        panic(err)
-    }
+	sessionkey, ciphertext := encryptAES([]byte(xp.C14n(context)))
+	sessionkey, err := rsa.EncryptOAEP(sha1.New(), rand.Reader, publickey, sessionkey, nil)
+	if err != nil {
+		panic(err)
+	}
 
 	ec := xp.QueryDashP(encryptedAssertion, `saml:EncryptedAssertion/xenc:EncryptedData`, "", nil)
 	xp.QueryDashP(ec, `ds:KeyInfo/xenc:EncryptedKey/xenc:CipherData/xenc:CipherValue`, base64.StdEncoding.EncodeToString(sessionkey), nil)
@@ -799,17 +676,16 @@ template := []byte(`<saml:EncryptedAssertion xmlns:saml="urn:oasis:names:tc:SAML
 	C.xmlReplaceNode(context, encryptedAssertion)
 }
 
-
 // Decrypt decrypts the context using the give privatekey
 func (xp *Xp) Decrypt(context *C.xmlNode, privatekey *rsa.PrivateKey) {
-    // for now just use what we send ourselves ...
-    encryptedkey := xp.Query1(context, "//xenc:EncryptedData/ds:KeyInfo/xenc:EncryptedKey/xenc:CipherData/xenc:CipherValue")
-    encryptedkeybyte, _ := base64.StdEncoding.DecodeString(encryptedkey)
-    sessionkey, _ := rsa.DecryptOAEP(sha1.New(), rand.Reader, privatekey, encryptedkeybyte, nil)
-    encryptedassertion := xp.Query1(context, "//xenc:EncryptedData/xenc:CipherData/xenc:CipherValue")
-    encryptedassertionbyte, _ := base64.StdEncoding.DecodeString(encryptedassertion)
-    assertion := decryptAES([]byte(sessionkey), encryptedassertionbyte)
-    assertion = append(assertion, 0)
+	// for now just use what we send ourselves ...
+	encryptedkey := xp.Query1(context, "//xenc:EncryptedData/ds:KeyInfo/xenc:EncryptedKey/xenc:CipherData/xenc:CipherValue")
+	encryptedkeybyte, _ := base64.StdEncoding.DecodeString(encryptedkey)
+	sessionkey, _ := rsa.DecryptOAEP(sha1.New(), rand.Reader, privatekey, encryptedkeybyte, nil)
+	encryptedassertion := xp.Query1(context, "//xenc:EncryptedData/xenc:CipherData/xenc:CipherValue")
+	encryptedassertionbyte, _ := base64.StdEncoding.DecodeString(encryptedassertion)
+	assertion := decryptAES([]byte(sessionkey), encryptedassertionbyte)
+	assertion = append(assertion, 0)
 	var res C.xmlNodePtr
 	decryptedAssertion := C.xmlNewDocFragment(xp.doc)
 	C.xmlParseBalancedChunkMemory(xp.doc, nil, nil, 0, (*C.xmlChar)(&assertion[0]), &res)
@@ -819,26 +695,26 @@ func (xp *Xp) Decrypt(context *C.xmlNode, privatekey *rsa.PrivateKey) {
 
 // Pem2PrivateKey converts a PEM encoded private key with an optional password to a *rsa.PrivateKey
 func Pem2PrivateKey(privatekeypem, pw string) (privatekey *rsa.PrivateKey) {
-    block, _ := pem.Decode([]byte(privatekeypem))
-    if pw != "" {
-        privbytes, _ := x509.DecryptPEMBlock(block, []byte(pw))
-        privatekey, _ = x509.ParsePKCS1PrivateKey(privbytes)
-    } else {
-        privatekey, _ = x509.ParsePKCS1PrivateKey(block.Bytes)
-    }
-    return
+	block, _ := pem.Decode([]byte(privatekeypem))
+	if pw != "" {
+		privbytes, _ := x509.DecryptPEMBlock(block, []byte(pw))
+		privatekey, _ = x509.ParsePKCS1PrivateKey(privbytes)
+	} else {
+		privatekey, _ = x509.ParsePKCS1PrivateKey(block.Bytes)
+	}
+	return
 }
 
 // encryptAES encrypts the plaintext with a generated random key and returns both the key and the ciphertext
 func encryptAES(plaintext []byte) (key, ciphertext []byte) {
-    key = make([]byte, 32)
+	key = make([]byte, 32)
 	if _, err := io.ReadFull(rand.Reader, key); err != nil {
 		panic(err)
 	}
-	paddinglen := aes.BlockSize - len(plaintext) % aes.BlockSize
+	paddinglen := aes.BlockSize - len(plaintext)%aes.BlockSize
 
-    plaintext = append(plaintext, bytes.Repeat([]byte{byte(paddinglen)}, paddinglen) ...)
-	ciphertext = make([]byte, aes.BlockSize + len(plaintext))
+	plaintext = append(plaintext, bytes.Repeat([]byte{byte(paddinglen)}, paddinglen)...)
+	ciphertext = make([]byte, aes.BlockSize+len(plaintext))
 
 	iv := ciphertext[:aes.BlockSize]
 	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
@@ -873,35 +749,23 @@ func decryptAES(key, ciphertext []byte) (plaintext []byte) {
 	mode.CryptBlocks(ciphertext, ciphertext)
 	paddinglen := int(ciphertext[len(ciphertext)-1])
 	if paddinglen > aes.BlockSize || paddinglen == 0 {
-	    panic("decrypted plaintext is not padded correctly")
+		panic("decrypted plaintext is not padded correctly")
 	}
 	// remove padding
-	plaintext = ciphertext[:len(ciphertext) - int(paddinglen)]
+	plaintext = ciphertext[:len(ciphertext)-int(paddinglen)]
 	return
 }
 
-// PublicKeyInfo extracts the keyname, publickey and cert (base64 DER - no PEM) with the given role from metadata.
+// PublicKeyInfo extracts the keyname, publickey and cert (base64 DER - no PEM) from the give certificate.
 // The keyname is computed from the public key corresponding to running this command: openssl x509 -modulus -noout -in <cert> | openssl sha1.
-func (md *Xp) PublicKeyInfo(role string) (keyname string, publickey *rsa.PublicKey, cert string, err error) {
-    notrole := map[string]string{"signing": "encryption", "encryption": "signing"}
-	certs := md.Query(nil, fmt.Sprintf(`//md:KeyDescriptor[@use="%s"]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`, role))
-	if len(certs) == 0 {
-		certs = md.Query(nil, fmt.Sprintf(`//md:KeyDescriptor[not(@use="%s")]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`, notrole[role]))
-	}
-	if len(certs) == 0 {
-		err = fmt.Errorf("Could not find signing cert for: %s", md.Query1(nil, "/@entityID"))
+func PublicKeyInfo(cert string) (keyname string, publickey *rsa.PublicKey, err error) {
+	// no pem so no pem.Decode
+	key, err := base64.StdEncoding.DecodeString(regexp.MustCompile("\\s").ReplaceAllString(cert, ""))
+	pk, err := x509.ParseCertificate(key)
+	if err != nil {
 		return
 	}
-    content := C.xmlNodeGetContent(certs[0])
-    cert = C.GoString((*C.char)(unsafe.Pointer(content)))
-    C.free(unsafe.Pointer(content))
-    // no pem so no pem.Decode
-    key, err := base64.StdEncoding.DecodeString(regexp.MustCompile("\\s").ReplaceAllString(cert, ""))
-    pk, err := x509.ParseCertificate(key)
-    if err != nil {
-        return
-    }
-    publickey = pk.PublicKey.(*rsa.PublicKey)
+	publickey = pk.PublicKey.(*rsa.PublicKey)
 	keyname = fmt.Sprintf("%x", sha1.Sum([]byte(fmt.Sprintf("Modulus=%X\n", publickey.N))))
 	return
 }
@@ -1046,14 +910,14 @@ func NewResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *
 	response.QueryDashP(authstatement, "@SessionIndex", "missing", nil)
 	response.QueryDashP(authstatement, "saml:AuthnContext/saml:AuthnContextClassRef", "missing", nil)
 
-	requestedAttributes := spmd.Query(nil, `//md:RequestedAttribute[@isRequired="true"]`)
 	sourceAttributes := sourceResponse.Query(nil, `//saml:AttributeStatement`)[0]
 	destinationAttributes := response.Query(nil, `//saml:AttributeStatement`)[0]
 
-	for _, requestedAttribute := range requestedAttributes {
-		name := requestedAttribute.getAttr("Name")
-		//nameFormat := requestedAttribute.getAttr("NameFormat")
-		//log.Println("req attr:", name, nameFormat)
+	//requestedAttributes := spmd.Query(nil, `//md:RequestedAttribute[@isRequired=true()]`)
+	//for _, requestedAttribute := range requestedAttributes {
+	for _, requestedAttribute := range sourceResponse.Query(nil, `//saml:Attribute`) {
+		name := requestedAttribute.GetAttr("Name")
+		//nameFormat := requestedAttribute.GetAttr("NameFormat")
 		// look for a requested attribute with the requested nameformat
 		// TO-DO - xpath escape name and nameFormat
 		// TO-Do - value filtering
@@ -1074,5 +938,82 @@ func NewResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *
 			}
 		}
 	}
+	return
+}
+
+// Utility functions
+
+// Make a random id
+func id() (id string) {
+	b := make([]byte, 21) // 168 bits - just over the 160 bit recomendation without base64 padding
+	rand.Read(b)
+	return "_" + hex.EncodeToString(b)
+}
+
+// Hash Perform a digest calculation using the given crypto.Hash
+func Hash(h crypto.Hash, data string) []byte {
+	digest := h.New()
+	io.WriteString(digest, data)
+	return digest.Sum(nil)
+}
+
+// Deflate utility func that compresses a string using the flate algo
+func Deflate(inflated string) []byte {
+	var b bytes.Buffer
+	w, _ := flate.NewWriter(&b, -1)
+	w.Write([]byte(inflated))
+	w.Close()
+	return b.Bytes()
+}
+
+// Inflate utility func that decompresses a string using the flate algo
+func Inflate(deflated []byte) []byte {
+	var b bytes.Buffer
+	r := flate.NewReader(bytes.NewReader(deflated))
+	b.ReadFrom(r)
+	r.Close()
+	return b.Bytes()
+}
+
+// Html2SAMLResponse extracts the SAMLResponse from a html document
+func Html2SAMLResponse(html []byte) (samlresponse *Xp) {
+	response := NewHtmlXp(html)
+	samlbase64 := response.Query1(nil, `//input[@name="SAMLResponse"]/@value`)
+	samlxml, _ := base64.StdEncoding.DecodeString(samlbase64)
+	samlresponse = NewXp(samlxml)
+	return
+}
+
+// Url2SAMLRequest extracts the SAMLRequest from an URL
+func Url2SAMLRequest(url *url.URL, err error) (samlrequest *Xp) {
+	query := url.Query()
+	req, _ := base64.StdEncoding.DecodeString(query["SAMLRequest"][0])
+	samlrequest = NewXp(Inflate(req))
+	return
+}
+
+// SAMLRequest2Url creates a redirect URL from a saml request
+func SAMLRequest2Url(samlrequest *Xp, privatekey, pw, algo string) (url *url.URL, err error) {
+	req := base64.StdEncoding.EncodeToString(Deflate(samlrequest.X2s()))
+
+	url, _ = url.Parse(samlrequest.Query1(nil, "@Destination"))
+	q := url.Query()
+	q.Set("SAMLRequest", req)
+
+	if privatekey != "" {
+		digest := Hash(algos[algo].algo, req)
+
+		var signaturevalue []byte
+		if strings.HasPrefix(privatekey, "hsm:") {
+			signaturevalue, err = signGoEleven(digest, privatekey, algo)
+		} else {
+			signaturevalue, err = signGo(digest, privatekey, pw, algo)
+		}
+		signatureval := base64.StdEncoding.EncodeToString(signaturevalue)
+		q.Set("SigAlg", algos[algo].signature)
+		q.Set("Signature", signatureval)
+	}
+
+	url.RawQuery = q.Encode()
 	return
 }
