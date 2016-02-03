@@ -1,11 +1,18 @@
 package gosaml
 
 import (
+    "crypto"
+	"crypto/tls"
 	"crypto/x509"
+	"encoding/hex"
 	"encoding/pem"
+	"errors"
+	"io/ioutil"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"sync"
 	"testing"
@@ -568,7 +575,7 @@ func ExampleResponse() {
 	//     <saml:Assertion xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="AssertionID" Version="2.0" IssueInstant="0001-01-01T00:00:00Z">
 	//         <saml:Issuer>https://aai-logon.switch.ch/idp/shibboleth</saml:Issuer>
 	//         <saml:Subject>
-	//             <saml:NameID SPNameQualifier="https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth" Format="NameID@Format">Subject</saml:NameID>
+    //             <saml:NameID SPNameQualifier="https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth" Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient">_6c41e4c164d64aee825cdecc23ca67187f4741f390</saml:NameID>
 	//             <saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
 	//                 <saml:SubjectConfirmationData NotOnOrAfter="0001-01-01T00:04:00Z" Recipient="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST" InResponseTo="ID"/>
 	//             </saml:SubjectConfirmation>
@@ -614,7 +621,7 @@ func ExampleEncryptAndDecrypt() {
     //     <saml:Assertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="AssertionID" IssueInstant="0001-01-01T00:00:00Z" Version="2.0">
     //         <saml:Issuer>https://aai-logon.switch.ch/idp/shibboleth</saml:Issuer>
     //         <saml:Subject>
-    //             <saml:NameID Format="NameID@Format" SPNameQualifier="https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth">Subject</saml:NameID>
+    //             <saml:NameID Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" SPNameQualifier="https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth">_6c41e4c164d64aee825cdecc23ca67187f4741f390</saml:NameID>
     //             <saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
     //                 <saml:SubjectConfirmationData InResponseTo="ID" NotOnOrAfter="0001-01-01T00:04:00Z" Recipient="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST"/>
     //             </saml:SubjectConfirmation>
@@ -645,4 +652,55 @@ func ExampleValidateSchema() {
 	// [] <nil>
 	// [] Document validation error
 
+}
+
+
+// Repeated her to avoid import cycle - need metadata to be able to test
+
+// MDQclient - read some metadata from either a MDQ Server or a normal feed url.
+// Key is either en entityID or Location - allows lookup entity by endpoints,
+// this is currently only supported by the phph.wayf.dk/MDQ and is used by WAYF for mass virtual entity hosting
+// in BIRK and KRIB. THE PHPh MDQ server only understands the sha1 encoded parameter and currently only
+// understands request for 1 entity at a time.
+// If key is "" the mdq string is used as a normal feed url.
+func NewMD(mdq, key string) (mdxp *Xp) {
+    var err error
+	if key != "" {
+		mdq = mdq + "/entities/{sha1}" + hex.EncodeToString(Hash(crypto.SHA1, key))
+	}
+	url, _ := url.Parse(mdq)
+
+	tr := &http.Transport{
+		TLSClientConfig:    &tls.Config{InsecureSkipVerify: true},
+		Dial:               func(network, addr string) (net.Conn, error) { return net.Dial("tcp", addr) },
+		DisableCompression: true,
+	}
+	client := &http.Client{
+		Transport:     tr,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error { return errors.New("redirect not supported") },
+	}
+
+    var req *http.Request
+	if req, err = http.NewRequest("GET", url.String(), nil); err != nil {
+		log.Fatal(err)
+	}
+	var resp *http.Response
+	if resp, err = client.Do(req); err != nil {
+		log.Fatal(err)
+	}
+	if resp.StatusCode != 200 {
+	    if key == "" {
+	        key = mdq
+	    }
+	    err = fmt.Errorf("Metadata not found for entity: %s", key)
+//	    err = fmt.Errorf("looking for: '%s' using: '%s' MDQ said: %s\n", key, url.String(), resp.Status)
+		log.Fatal(err)
+	}
+	var md []byte
+	if md, err = ioutil.ReadAll(resp.Body); err != nil {
+		log.Fatal(err)
+	}
+
+	mdxp = NewXp(md)
+	return
 }
