@@ -236,6 +236,17 @@ func (xp *HtmlXp) free() {
 	xp.doc = nil
 }
 
+
+func (destination *C.xmlNode) AddChild(source *C.xmlNode) (res *C.xmlNode) {
+    res = C.xmlAddChild(destination, source)
+    return
+}
+
+func (xp *Xp) CopyNode(node *C.xmlNode, extended int) (copy *C.xmlNode) {
+    copy = C.xmlDocCopyNode(node, xp.doc, C.int(extended))
+    return
+}
+
 // NodeSetContent  Set the content of a node (or attribute)
 func (xp *Xp) NodeSetContent(node *C.xmlNode, content string) {
 	Ccontent := unsafe.Pointer(C.CString(content))
@@ -373,6 +384,11 @@ func (xp *Xp) QueryNumber(context *C.xmlNode, path string) (val int) {
 		val = int(xmlXPathObject.floatval)
 	}
 	return
+}
+
+// QueryNumber evaluates an xpath expressions that returns a bool
+func (xp *Xp) QueryBool(context *C.xmlNode, path string) (bool) {
+	return xp.Query1(context, path) == "true" || xp.Query1(context, path) == "1"
 }
 
 // Q1 Utility function to get the content of the first node from a xpath query
