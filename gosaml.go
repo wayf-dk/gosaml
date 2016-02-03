@@ -583,6 +583,7 @@ func (xp *Xp) Sign(context *C.xmlNode, privatekey, pw, cert, algo string) (err e
 	signatureval := base64.StdEncoding.EncodeToString(signaturevalue)
 	xp.QueryDashP(signature, `ds:Signature/ds:SignatureValue`, signatureval, nil)
 	xp.QueryDashP(signature, `ds:Signature/ds:KeyInfo/ds:X509Data/ds:X509Certificate`, cert, nil)
+	//	log.Println(xp.Pp())
 	return
 }
 
@@ -913,16 +914,16 @@ func NewResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *
 	sourceAttributes := sourceResponse.Query(nil, `//saml:AttributeStatement`)[0]
 	destinationAttributes := response.Query(nil, `//saml:AttributeStatement`)[0]
 
-	//requestedAttributes := spmd.Query(nil, `//md:RequestedAttribute[@isRequired=true()]`)
-	//for _, requestedAttribute := range requestedAttributes {
-	for _, requestedAttribute := range sourceResponse.Query(nil, `//saml:Attribute`) {
+	requestedAttributes := spmd.Query(nil, `//md:RequestedAttribute[@isRequired=true()]`)
+	for _, requestedAttribute := range requestedAttributes {
+		// for _, requestedAttribute := range sourceResponse.Query(nil, `//saml:Attribute`) {
 		name := requestedAttribute.GetAttr("Name")
-		//nameFormat := requestedAttribute.GetAttr("NameFormat")
+		nameFormat := requestedAttribute.GetAttr("NameFormat")
 		// look for a requested attribute with the requested nameformat
 		// TO-DO - xpath escape name and nameFormat
 		// TO-Do - value filtering
-		//attributes := sourceResponse.Query(sourceAttributes, `saml:Attribute[@Name="`+name+`" and @NameFormat="`+nameFormat+`"]`)
-		attributes := sourceResponse.Query(sourceAttributes, `saml:Attribute[@Name="`+name+`"]`)
+		attributes := sourceResponse.Query(sourceAttributes, `saml:Attribute[@Name="`+name+`" and @NameFormat="`+nameFormat+`"]`)
+		//attributes := sourceResponse.Query(sourceAttributes, `saml:Attribute[@Name="`+name+`"]`)
 		for _, attribute := range attributes {
 			newAttribute := C.xmlAddChild(destinationAttributes, C.xmlDocCopyNode(attribute, response.doc, 2))
 			allowedValues := spmd.Query(requestedAttribute, `saml:AttributeValue`)
@@ -957,7 +958,7 @@ func Hash(h crypto.Hash, data string) []byte {
 	return digest.Sum(nil)
 }
 
-// Deflate utility func that compresses a string using the flate algo
+// Deflate utility that compresses a string using the flate algo
 func Deflate(inflated string) []byte {
 	var b bytes.Buffer
 	w, _ := flate.NewWriter(&b, -1)
@@ -966,7 +967,7 @@ func Deflate(inflated string) []byte {
 	return b.Bytes()
 }
 
-// Inflate utility func that decompresses a string using the flate algo
+// Inflate utility that decompresses a string using the flate algo
 func Inflate(deflated []byte) []byte {
 	var b bytes.Buffer
 	r := flate.NewReader(bytes.NewReader(deflated))
