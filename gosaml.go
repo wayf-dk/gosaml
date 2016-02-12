@@ -65,9 +65,13 @@ const (
 )
 
 // Xp is a wrapper for the libxml2 xmlDoc and xmlXpathContext
+// master is a pointer to the original struct with the shared
+// xmlDoc so that is never gets deallocated before any copies
 type Xp struct {
 	doc      *C.xmlDoc
 	xpathCtx *C.xmlXPathContext
+	master *Xp
+	created time.Time
 }
 
 // HtmlXp si a wrapper for libxml2 and xmlXpathContext for html docs
@@ -172,6 +176,7 @@ func NewXp(xml []byte) *Xp {
 	for _, ns := range namespaces {
 		C.xmlXPathRegisterNs(x.xpathCtx, ns.prefix, ns.ns_uri)
 	}
+	x.created = time.Now()
 	return x
 }
 
@@ -188,6 +193,7 @@ func (src *Xp) CpXp() *Xp {
 	for _, ns := range namespaces {
 		C.xmlXPathRegisterNs(x.xpathCtx, ns.prefix, ns.ns_uri)
 	}
+	x.master = src
 	return x
 }
 
