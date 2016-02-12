@@ -253,6 +253,13 @@ func (xp *Xp) CopyNode(node *C.xmlNode, extended int) (copy *C.xmlNode) {
     return
 }
 
+// NodeSetName  Set the name/tag of a node
+func (xp *Xp) NodeSetName(node *C.xmlNode, name string) {
+	Cname := unsafe.Pointer(C.CString(name))
+	C.xmlNodeSetName(C.xmlNodePtr(node), (*C.xmlChar)(Cname))
+	C.free(Cname)
+}
+
 // NodeSetContent  Set the content of a node (or attribute)
 func (xp *Xp) NodeSetContent(node *C.xmlNode, content string) {
 	Ccontent := unsafe.Pointer(C.CString(content))
@@ -399,6 +406,19 @@ func (xp *Xp) QueryBool(context *C.xmlNode, path string) (bool) {
 
 // Q1 Utility function to get the content of the first node from a xpath query
 // as a string
+func (xp *Xp) QueryMulti(context *C.xmlNode, path string) (res []string) {
+	nodes := xp.Query(context, path)
+
+	for _, node := range nodes {
+		content := C.xmlNodeGetContent(node)
+    	res = append(res, C.GoString((*C.char)(unsafe.Pointer(content))))
+		C.free(unsafe.Pointer(content))
+	}
+	return
+}
+
+// Q1 Utility function to get the content of the first node from a xpath query
+// as a string
 func (xp *Xp) Query1(context *C.xmlNode, path string) (res string) {
 	nodes := xp.Query(context, path)
 
@@ -423,7 +443,7 @@ func (xp *Xp) QueryDashP(context *C.xmlNode, query string, data string, before *
 	path := re.FindAllStringSubmatch(query, -1)
 	if query[0] == '/' {
 		var buffer bytes.Buffer
-		buffer.WriteString("/")
+		//buffer.WriteString("/")
 		buffer.WriteString(path[0][1])
 		path[0][1] = buffer.String()
 	}
@@ -495,6 +515,12 @@ func (xp *Xp) createElementNS(prefix, element string, context *C.xmlNode, before
 		newcontext = C.xmlAddChild(context, newelement)
 	}
 	return
+}
+
+func (xp *Xp) Valid(duration time.Duration) bool {
+    since := time.Since(xp.created)
+    //log.Println(since, duration, since  < duration)
+    return since  < duration
 }
 
 // Validate - Schemavalidate the document against the the schema file given in url
@@ -1040,3 +1066,15 @@ func SAMLRequest2Url(samlrequest *Xp, privatekey, pw, algo string) (url *url.URL
 	url.RawQuery = q.Encode()
 	return
 }
+
+func CpAndSet(dest *C.xmlNode, doc, md *Xp, context *C.xmlNode, name, value string) {
+    sourceNode := md.Query(context, `md:RequestedAttribute[@FriendlyName="` + name + `"]`)[0]
+    d := dest.AddChild(md.CopyNode(sourceNode, 0))
+    for _, attr := range []string{"Name", "FriendlyName"} {
+        d.SetAttr(attr, sourceNode.GetAttr(attr))
+    }
+    d.SetAttr("NameFormat", "urn:oasis:names:tc:SAML:2.0:attrname-format:uri")
+	doc.NodeSetName(d, "saml:Attribute")
+	doc.QueryDashP(d, `saml:AttributeValue`, value, nil)
+}
+
