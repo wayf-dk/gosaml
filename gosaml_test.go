@@ -1,14 +1,14 @@
 package gosaml
 
 import (
-    "crypto"
+	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/hex"
 	"encoding/pem"
 	"errors"
-	"io/ioutil"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -575,7 +575,7 @@ func ExampleResponse() {
 	//     <saml:Assertion xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="AssertionID" Version="2.0" IssueInstant="0001-01-01T00:00:00Z">
 	//         <saml:Issuer>https://aai-logon.switch.ch/idp/shibboleth</saml:Issuer>
 	//         <saml:Subject>
-    //             <saml:NameID SPNameQualifier="https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth" Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient">_6c41e4c164d64aee825cdecc23ca67187f4741f390</saml:NameID>
+	//             <saml:NameID SPNameQualifier="https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth" Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient">_6c41e4c164d64aee825cdecc23ca67187f4741f390</saml:NameID>
 	//             <saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
 	//                 <saml:SubjectConfirmationData NotOnOrAfter="0001-01-01T00:04:00Z" Recipient="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST" InResponseTo="ID"/>
 	//             </saml:SubjectConfirmation>
@@ -605,41 +605,41 @@ func ExampleEncryptAndDecrypt() {
 	response := NewResponse(IdAndTiming{time.Time{}, 4 * time.Minute, 4 * time.Hour, "ID", "AssertionID"}, idpmd, spmd, request, sourceResponse)
 	assertion := response.Query(nil, "saml:Assertion[1]")[0]
 
-    pk := Pem2PrivateKey(privatekey, "")
+	pk := Pem2PrivateKey(privatekey, "")
 	response.Encrypt(assertion, &pk.PublicKey)
-    assertion = response.Query(nil, "//saml:EncryptedAssertion")[0]
-    response.Decrypt(assertion, pk)
+	assertion = response.Query(nil, "//saml:EncryptedAssertion")[0]
+	response.Decrypt(assertion, pk)
 	fmt.Print(response.Pp())
 
 	// Output:
-    //<?xml version="1.0"?>
-    //<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="ID" Version="2.0" IssueInstant="0001-01-01T00:00:00Z" InResponseTo="ID" Destination="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
-    //     <saml:Issuer xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">https://aai-logon.switch.ch/idp/shibboleth</saml:Issuer>
-    //     <samlp:Status>
-    //         <samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
-    //     </samlp:Status>
-    //     <saml:Assertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="AssertionID" IssueInstant="0001-01-01T00:00:00Z" Version="2.0">
-    //         <saml:Issuer>https://aai-logon.switch.ch/idp/shibboleth</saml:Issuer>
-    //         <saml:Subject>
-    //             <saml:NameID Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" SPNameQualifier="https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth">_6c41e4c164d64aee825cdecc23ca67187f4741f390</saml:NameID>
-    //             <saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
-    //                 <saml:SubjectConfirmationData InResponseTo="ID" NotOnOrAfter="0001-01-01T00:04:00Z" Recipient="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST"/>
-    //             </saml:SubjectConfirmation>
-    //         </saml:Subject>
-    //         <saml:Conditions NotBefore="0001-01-01T00:00:00Z" NotOnOrAfter="0001-01-01T00:04:00Z">
-    //             <saml:AudienceRestriction>
-    //                 <saml:Audience>https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth</saml:Audience>
-    //             </saml:AudienceRestriction>
-    //         </saml:Conditions>
-    //         <saml:AuthnStatement AuthnInstant="0001-01-01T00:00:00Z" SessionIndex="missing" SessionNotOnOrAfter="0001-01-01T04:00:00Z">
-    //             <saml:AuthnContext>
-    //                 <saml:AuthnContextClassRef>missing</saml:AuthnContextClassRef>
-    //             </saml:AuthnContext>
-    //         </saml:AuthnStatement>
-    //         <saml:AttributeStatement>
-    //         <saml:Attribute Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.6" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"><saml:AttributeValue xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">gikcaswid@orphanage.wayf.dk</saml:AttributeValue><saml:AttributeValue xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">only@thisone.example.com</saml:AttributeValue></saml:Attribute></saml:AttributeStatement>
-    //     </saml:Assertion>
-    //</samlp:Response>
+	//<?xml version="1.0"?>
+	//<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="ID" Version="2.0" IssueInstant="0001-01-01T00:00:00Z" InResponseTo="ID" Destination="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
+	//     <saml:Issuer xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">https://aai-logon.switch.ch/idp/shibboleth</saml:Issuer>
+	//     <samlp:Status>
+	//         <samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
+	//     </samlp:Status>
+	//     <saml:Assertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="AssertionID" IssueInstant="0001-01-01T00:00:00Z" Version="2.0">
+	//         <saml:Issuer>https://aai-logon.switch.ch/idp/shibboleth</saml:Issuer>
+	//         <saml:Subject>
+	//             <saml:NameID Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" SPNameQualifier="https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth">_6c41e4c164d64aee825cdecc23ca67187f4741f390</saml:NameID>
+	//             <saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
+	//                 <saml:SubjectConfirmationData InResponseTo="ID" NotOnOrAfter="0001-01-01T00:04:00Z" Recipient="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST"/>
+	//             </saml:SubjectConfirmation>
+	//         </saml:Subject>
+	//         <saml:Conditions NotBefore="0001-01-01T00:00:00Z" NotOnOrAfter="0001-01-01T00:04:00Z">
+	//             <saml:AudienceRestriction>
+	//                 <saml:Audience>https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth</saml:Audience>
+	//             </saml:AudienceRestriction>
+	//         </saml:Conditions>
+	//         <saml:AuthnStatement AuthnInstant="0001-01-01T00:00:00Z" SessionIndex="missing" SessionNotOnOrAfter="0001-01-01T04:00:00Z">
+	//             <saml:AuthnContext>
+	//                 <saml:AuthnContextClassRef>missing</saml:AuthnContextClassRef>
+	//             </saml:AuthnContext>
+	//         </saml:AuthnStatement>
+	//         <saml:AttributeStatement>
+	//         <saml:Attribute Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.6" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"><saml:AttributeValue xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">gikcaswid@orphanage.wayf.dk</saml:AttributeValue><saml:AttributeValue xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">only@thisone.example.com</saml:AttributeValue></saml:Attribute></saml:AttributeStatement>
+	//     </saml:Assertion>
+	//</samlp:Response>
 }
 
 func ExampleValidateSchema() {
@@ -654,7 +654,6 @@ func ExampleValidateSchema() {
 
 }
 
-
 // Repeated her to avoid import cycle - need metadata to be able to test
 
 // MDQclient - read some metadata from either a MDQ Server or a normal feed url.
@@ -664,7 +663,7 @@ func ExampleValidateSchema() {
 // understands request for 1 entity at a time.
 // If key is "" the mdq string is used as a normal feed url.
 func NewMD(mdq, key string) (mdxp *Xp) {
-    var err error
+	var err error
 	if key != "" {
 		mdq = mdq + "/entities/{sha1}" + hex.EncodeToString(Hash(crypto.SHA1, key))
 	}
@@ -680,7 +679,7 @@ func NewMD(mdq, key string) (mdxp *Xp) {
 		CheckRedirect: func(req *http.Request, via []*http.Request) error { return errors.New("redirect not supported") },
 	}
 
-    var req *http.Request
+	var req *http.Request
 	if req, err = http.NewRequest("GET", url.String(), nil); err != nil {
 		log.Fatal(err)
 	}
@@ -689,11 +688,11 @@ func NewMD(mdq, key string) (mdxp *Xp) {
 		log.Fatal(err)
 	}
 	if resp.StatusCode != 200 {
-	    if key == "" {
-	        key = mdq
-	    }
-	    err = fmt.Errorf("Metadata not found for entity: %s", key)
-//	    err = fmt.Errorf("looking for: '%s' using: '%s' MDQ said: %s\n", key, url.String(), resp.Status)
+		if key == "" {
+			key = mdq
+		}
+		err = fmt.Errorf("Metadata not found for entity: %s", key)
+		//	    err = fmt.Errorf("looking for: '%s' using: '%s' MDQ said: %s\n", key, url.String(), resp.Status)
 		log.Fatal(err)
 	}
 	var md []byte
