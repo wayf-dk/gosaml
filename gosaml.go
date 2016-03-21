@@ -85,6 +85,7 @@ type (
 	Xp struct {
 		doc      *C.xmlDoc
 		xpathCtx *C.xmlXPathContext
+		master *Xp
 	}
 
 	// HtmlXp si a wrapper for libxml2 and xmlXpathContext for html docs
@@ -200,6 +201,7 @@ func NewXp(xml []byte) *Xp {
 func (src *Xp) CpXp() (xp *Xp) {
 	xp = new(Xp)
 	xp.doc = src.doc
+	xp.master = src
 	//xp.doc = C.xmlCopyDoc(src.doc, 1)
 	xp.xpathCtx = C.xmlXPathNewContext(xp.doc)
 	runtime.SetFinalizer(xp, (*Xp).freexpathCtx)
@@ -223,6 +225,7 @@ func (xp *Xp) freexpathCtx() {
 	C.xmlXPathFreeContext(xp.xpathCtx)
 	xp.xpathCtx = nil
 	xp.doc = nil
+	xp.master = nil
 }
 
 // NewXpFromNode creates a new *Xp from a node (subtree) from another *Xp
@@ -253,6 +256,15 @@ func (xp *HtmlXp) free() {
 	xp.xpathCtx = nil
 	C.xmlFreeDoc(xp.doc)
 	xp.doc = nil
+}
+
+func (xp *Xp) DocGetRootElement() (res *C.xmlNode) {
+    return C.xmlDocGetRootElement(xp.doc)
+}
+
+func (parent *C.xmlNode) FirstElementChild() (res *C.xmlNode) {
+    res = C.xmlFirstElementChild(parent)
+    return
 }
 
 func (destination *C.xmlNode) AddChild(source *C.xmlNode) (res *C.xmlNode) {
