@@ -63,7 +63,7 @@ var _ = log.Printf // For debugging; delete when done.
 
 const (
 	xsDateTime   = "2006-01-02T15:04:05Z"
-	idpCertQuery = `./md:IDPSSODescriptor/md:KeyDescriptor[@use="signing" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
+	IdpCertQuery = `./md:IDPSSODescriptor/md:KeyDescriptor[@use="signing" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
 	spCertQuery  = `./md:SPSSODescriptor/md:KeyDescriptor[@use="encryption" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
 	samlSchema   = "/home/mz/src/github.com/wayf-dk/gosaml/schemas/saml-schema-protocol-2.0.xsd"
 	certPath     = "/etc/ssl/wayf/signing/"
@@ -1003,7 +1003,8 @@ func NewResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *
 		attrcache[attr.GetAttr("FriendlyName")] = attr
 	}
 
-	requestedAttributes := spmd.Query(nil, `./md:SPSSODescriptor/md:AttributeConsumingService[1]/md:RequestedAttribute[@isRequired=true()]`)
+	//requestedAttributes := spmd.Query(nil, `./md:SPSSODescriptor/md:AttributeConsumingService[1]/md:RequestedAttribute[@isRequired=true()]`)
+	requestedAttributes := spmd.Query(nil, `./md:SPSSODescriptor/md:AttributeConsumingService[1]/md:RequestedAttribute`)
 
 	for _, requestedAttribute := range requestedAttributes {
 		// for _, requestedAttribute := range sourceResponse.Query(nil, `//saml:Attribute`) {
@@ -1255,7 +1256,7 @@ func GetSAMLMsg(r *http.Request, key string, sendermdsource, memdsource Md, me *
 	} else if post {
 		if response {
 			//no ds:Object in signatures
-			certificates := md.Query(nil, idpCertQuery)
+			certificates := md.Query(nil, IdpCertQuery)
 			if len(certificates) == 0 {
 				err = errors.New("no certificates found in metadata")
 				return
@@ -1359,7 +1360,7 @@ func DecodeSAMLMsg(msg string, deflate bool) (xp *Xp, err error) {
 }
 
 func SignResponse(response *Xp, elementQuery string, md *Xp) (err error) {
-	cert := md.Query1(nil, idpCertQuery) // actual signing key is always first
+	cert := md.Query1(nil, IdpCertQuery) // actual signing key is always first
 	var keyname string
 	keyname, _, err = PublicKeyInfo(cert)
 	if err != nil {
