@@ -669,9 +669,12 @@ func signGo(digest []byte, privatekey, pw, algo string) (signaturevalue []byte, 
 	block, _ := pem.Decode([]byte(privatekey))
 	if pw != "-" {
 		privbytes, _ := x509.DecryptPEMBlock(block, []byte(pw))
-		priv, _ = x509.ParsePKCS1PrivateKey(privbytes)
+		priv, err = x509.ParsePKCS1PrivateKey(privbytes)
 	} else {
-		priv, _ = x509.ParsePKCS1PrivateKey(block.Bytes)
+		priv, err = x509.ParsePKCS1PrivateKey(block.Bytes)
+	}
+	if err != nil {
+	    return
 	}
 	signaturevalue, err = rsa.SignPKCS1v15(rand.Reader, priv, algos[algo].algo, digest)
 	return
