@@ -85,7 +85,7 @@ type (
 	Xp struct {
 		doc      *C.xmlDoc
 		xpathCtx *C.xmlXPathContext
-		master *Xp
+		master   *Xp
 	}
 
 	// HtmlXp si a wrapper for libxml2 and xmlXpathContext for html docs
@@ -259,12 +259,12 @@ func (xp *HtmlXp) free() {
 }
 
 func (xp *Xp) DocGetRootElement() (res *C.xmlNode) {
-    return C.xmlDocGetRootElement(xp.doc)
+	return C.xmlDocGetRootElement(xp.doc)
 }
 
 func (parent *C.xmlNode) FirstElementChild() (res *C.xmlNode) {
-    res = C.xmlFirstElementChild(parent)
-    return
+	res = C.xmlFirstElementChild(parent)
+	return
 }
 
 func (destination *C.xmlNode) AddChild(source *C.xmlNode) (res *C.xmlNode) {
@@ -674,7 +674,7 @@ func signGo(digest []byte, privatekey, pw, algo string) (signaturevalue []byte, 
 		priv, err = x509.ParsePKCS1PrivateKey(block.Bytes)
 	}
 	if err != nil {
-	    return
+		return
 	}
 	signaturevalue, err = rsa.SignPKCS1v15(rand.Reader, priv, algos[algo].algo, digest)
 	return
@@ -1211,10 +1211,6 @@ func GetSAMLMsg(r *http.Request, key string, sendermdsource, memdsource Md, me *
 		err = fmt.Errorf("%s's destination is not here")
 		return
 	}
-	_, err = xp.SchemaValidate(samlSchema)
-	if err != nil {
-		return
-	}
 	encryptedAssertions := xp.Query(nil, "./saml:EncryptedAssertion")
 	if len(encryptedAssertions) == 1 {
 		cert := me.Query1(nil, spCertQuery) // actual encryption key is always first
@@ -1309,8 +1305,8 @@ func GetSAMLMsg(r *http.Request, key string, sendermdsource, memdsource Md, me *
 		acs := xp.Query1(nil, "@AssertionConsumerServiceURL")
 		validacs := len(md.Query(nil, "./md:SPSSODescriptor/md:AssertionConsumerService[@Location='"+acs+"']")) == 1
 		if acs == "" || !validacs {
-			//err = fmt.Errorf("AssertionConsumerServiceURL missing or not present in metadata: '%s'", acs)
-			//return
+			err = fmt.Errorf("AssertionConsumerServiceURL missing or not present in metadata: '%s'", acs)
+			return
 		}
 		subject := xp.Query1(nil, "@Subject")
 		if subject != "" {
@@ -1359,6 +1355,8 @@ func DecodeSAMLMsg(msg string, deflate bool) (xp *Xp, err error) {
 		bmsg = Inflate(bmsg)
 	}
 	xp = NewXp(bmsg)
+	_, err = xp.SchemaValidate(samlSchema)
+	// go thing - actually returns err from schemavalidate ...
 	return
 }
 
