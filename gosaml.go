@@ -24,7 +24,7 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"github.com/lestrrat/go-libxml2/types"
+	"github.com/wayf-dk/go-libxml2/types"
     "github.com/wayf-dk/goxml"
 )
 
