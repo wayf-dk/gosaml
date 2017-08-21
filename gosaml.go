@@ -34,7 +34,7 @@ const (
 	xsDateTime   = "2006-01-02T15:04:05Z"
 	IdpCertQuery = `./md:IDPSSODescriptor/md:KeyDescriptor[@use="signing" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
 	spCertQuery  = `./md:SPSSODescriptor/md:KeyDescriptor[@use="encryption" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
-	samlSchema   = "/home/mz/src/github.com/wayf-dk/gosaml/schemas/saml-schema-protocol-2.0.xsd"
+	samlSchema   = "/home/mz/go/src/github.com/wayf-dk/goxml/schemas/saml-schema-protocol-2.0.xsd"
 	certPath     = "/etc/ssl/wayf/signing/"
 
 	basic      = "urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
@@ -190,11 +190,17 @@ func SAMLRequest2Url(samlrequest *goxml.Xp, privatekey, pw, algo string) (url *u
 // CpAndset
 func CpAndSet(dest types.Element, doc, md *goxml.Xp, context types.Element, name, value string) {
 	sourceNode := md.Query(context, `md:RequestedAttribute[@FriendlyName="`+name+`"]`)[0].(types.Element)
-	d, _ := doc.Doc.CreateElementNS(goxml.Namespaces["saml"], "sank;Attribute")
+	d, err := doc.Doc.CreateElementNS(goxml.Namespaces["saml"], "saml:Attribute")
+	if err != nil {
+	    fmt.Println("err: ", err)
+	    return
+	}
     dest.AddChild(d)
 	for _, attr := range []string{"Name", "FriendlyName"} {
 	    attribute, _ := sourceNode.GetAttribute(attr)
-		d.SetAttribute(attr, attribute.Value())
+	    if attribute != nil {
+		    d.SetAttribute(attr, attribute.Value())
+		}
 	}
 	d.SetAttribute("NameFormat", "urn:oasis:names:tc:SAML:2.0:attrname-format:uri")
 	doc.QueryDashP(d, `saml:AttributeValue`, value, nil)
@@ -323,7 +329,7 @@ func GetSAMLMsg(r *http.Request, key string, sendermdsource, memdsource Md, me *
 				err = errors.New("no certificates found in metadata")
 				return
 			}
-			signatures := xp.Query(nil, "(/samlp:Response[ds:Signature] | /samlp:Response/saml:Assertion[ds:Signature])")
+			signatures := xp.Query(nil, "(/samlp:Response[1]/ds:Signature[1] | /samlp:Response[1]/saml:Assertion[1]/ds:Signature[1])")
 			if decryptedassertion != nil {
 				//signatures = append(signatures, decryptedassertion)
 			}
@@ -418,8 +424,10 @@ func DecodeSAMLMsg(msg string, deflate bool) (xp *goxml.Xp, err error) {
 	if deflate {
 		bmsg = Inflate(bmsg)
 	}
+    fmt.Println(string(bmsg))
 	xp = goxml.NewXp(string(bmsg))
-	_, err = xp.SchemaValidate(samlSchema)
+	errs, err := xp.SchemaValidate(samlSchema)
+	fmt.Println(errs)
 	// go thing - actually returns err from schemavalidate ...
 	return
 }
@@ -442,7 +450,9 @@ func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp) (err er
 		err = errors.New("did not find exactly one element to sign")
 		return
 	}
-	err = response.Sign(element[0].(types.Element), string(privatekey), "-", cert, "sha1")
+    // Put signature before 2nd child - ie. after Issuer
+	before := response.Query(element[0], "*[2]")[0]
+	err = response.Sign(element[0].(types.Element), before.(types.Element), string(privatekey), "-", cert, "sha1")
 	return
 }
 
