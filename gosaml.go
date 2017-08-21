@@ -16,6 +16,8 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"github.com/wayf-dk/go-libxml2/types"
+	"github.com/wayf-dk/goxml"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -24,8 +26,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"github.com/wayf-dk/go-libxml2/types"
-    "github.com/wayf-dk/goxml"
 )
 
 var _ = log.Printf // For debugging; delete when done.
@@ -192,14 +192,14 @@ func CpAndSet(dest types.Element, doc, md *goxml.Xp, context types.Element, name
 	sourceNode := md.Query(context, `md:RequestedAttribute[@FriendlyName="`+name+`"]`)[0].(types.Element)
 	d, err := doc.Doc.CreateElementNS(goxml.Namespaces["saml"], "saml:Attribute")
 	if err != nil {
-	    fmt.Println("err: ", err)
-	    return
+		fmt.Println("err: ", err)
+		return
 	}
-    dest.AddChild(d)
+	dest.AddChild(d)
 	for _, attr := range []string{"Name", "FriendlyName"} {
-	    attribute, _ := sourceNode.GetAttribute(attr)
-	    if attribute != nil {
-		    d.SetAttribute(attr, attribute.Value())
+		attribute, _ := sourceNode.GetAttribute(attr)
+		if attribute != nil {
+			d.SetAttribute(attr, attribute.Value())
 		}
 	}
 	d.SetAttribute("NameFormat", "urn:oasis:names:tc:SAML:2.0:attrname-format:uri")
@@ -424,10 +424,10 @@ func DecodeSAMLMsg(msg string, deflate bool) (xp *goxml.Xp, err error) {
 	if deflate {
 		bmsg = Inflate(bmsg)
 	}
-    fmt.Println(string(bmsg))
+	//    fmt.Println(string(bmsg))
 	xp = goxml.NewXp(string(bmsg))
-	errs, err := xp.SchemaValidate(samlSchema)
-	fmt.Println(errs)
+	_, err = xp.SchemaValidate(samlSchema)
+	//	fmt.Println(errs)
 	// go thing - actually returns err from schemavalidate ...
 	return
 }
@@ -450,15 +450,15 @@ func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp) (err er
 		err = errors.New("did not find exactly one element to sign")
 		return
 	}
-    // Put signature before 2nd child - ie. after Issuer
+	// Put signature before 2nd child - ie. after Issuer
 	before := response.Query(element[0], "*[2]")[0]
 	err = response.Sign(element[0].(types.Element), before.(types.Element), string(privatekey), "-", cert, "sha1")
 	return
 }
 
 /**
-   NewResponse - create a new response using the supplied metadata and resp. authnrequest and response for filling out the fields
-   The response is primarily for the attributes, but other fields is eg. the AuthnContextClassRef is also drawn from it
+  NewResponse - create a new response using the supplied metadata and resp. authnrequest and response for filling out the fields
+  The response is primarily for the attributes, but other fields is eg. the AuthnContextClassRef is also drawn from it
 */
 
 func NewResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *goxml.Xp) (response *goxml.Xp) {
@@ -569,12 +569,12 @@ func NewResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *
 
 	attrcache := map[string]types.Element{}
 	for _, attr := range sourceAttributes {
-	    name, _ := attr.(types.Element).GetAttribute("Name")
-	    friendlyname, _ := attr.(types.Element).GetAttribute("FriendlyName")
+		name, _ := attr.(types.Element).GetAttribute("Name")
+		friendlyname, _ := attr.(types.Element).GetAttribute("FriendlyName")
 		attrcache[name.Value()] = attr.(types.Element)
 		if friendlyname != nil {
-    		attrcache[friendlyname.Value()] = attr.(types.Element)
-    	}
+			attrcache[friendlyname.Value()] = attr.(types.Element)
+		}
 	}
 
 	//requestedAttributes := spmd.Query(nil, `./md:SPSSODescriptor/md:AttributeConsumingService[1]/md:RequestedAttribute[@isRequired=true()]`)

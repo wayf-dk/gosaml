@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/wayf-dk/go-libxml2/types"
+	"github.com/wayf-dk/goxml"
 	"io/ioutil"
 	"log"
 	"net"
@@ -15,8 +17,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-	"github.com/wayf-dk/go-libxml2/types"
-    "github.com/wayf-dk/goxml"
 )
 
 type Testparams struct {
@@ -149,7 +149,7 @@ o62EePTDB7SHh4OWulz08Em6RtbKgyiKmNvHdmT4Ww==
   </md:ContactPerson>
 </md:EntityDescriptor>`
 
-idpmetadataxml = `<?xml version="1.0"?>
+	idpmetadataxml = `<?xml version="1.0"?>
 <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:mdrpi="urn:oasis:names:tc:SAML:metadata:rpi" xmlns:mdattr="urn:oasis:names:tc:SAML:metadata:attribute" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" xmlns:shibmd="urn:mace:shibboleth:metadata:1.0" xmlns:mdui="urn:oasis:names:tc:SAML:metadata:ui" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:remd="http://refeds.org/metadata" entityID="https://aai-logon.switch.ch/idp/shibboleth">
   <md:Extensions>
     <mdrpi:RegistrationInfo registrationAuthority="http://rr.aai.switch.ch/" registrationInstant="2017-05-18T14:28:03Z">
@@ -705,12 +705,12 @@ G6aFKaqQfOXKCyWoUiVknQJAXrlgySFci/2ueKlIE1QqIiLSZ8V8OlpFLRnb1pzI
 )
 
 func TestMain(m *testing.M) {
-	spmetadata = goxml.NewXp(spmetadatxml) // NewMD(mdq+"EDUGAIN", "https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth")
+	spmetadata = goxml.NewXp(spmetadatxml)    // NewMD(mdq+"EDUGAIN", "https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth")
 	idpmetadata = goxml.NewXp(idpmetadataxml) // NewMD(mdq+"EDUGAIN", "https://aai-logon.switch.ch/idp/shibboleth")
 	//wayfmetadata = NewMD(mdq, "wayf-hub-public", "https://wayf.wayf.dk")
 	hubmetadata = goxml.NewXp(wayfmdxml)
-//	testidpmetadata = NewMD(mdq+"HUB-OPS", "https://this.is.not.a.valid.idp")
-//	testidpviabirkmetadata = NewMD(mdq+"BIRK-OPS", "https://birk.wayf.dk/birk.php/this.is.not.a.valid.idp")
+	//	testidpmetadata = NewMD(mdq+"HUB-OPS", "https://this.is.not.a.valid.idp")
+	//	testidpviabirkmetadata = NewMD(mdq+"BIRK-OPS", "https://birk.wayf.dk/birk.php/this.is.not.a.valid.idp")
 	os.Exit(m.Run())
 }
 
@@ -786,9 +786,8 @@ func xExampleEncryptAndDecrypt() {
 	assertion := response.Query(nil, "saml:Assertion[1]")[0]
 
 	pk := goxml.Pem2PrivateKey(privatekey, "")
-    ea := goxml.NewXp(`<saml:EncryptedAssertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"></saml:EncryptedAssertion>`)
+	ea := goxml.NewXp(`<saml:EncryptedAssertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"></saml:EncryptedAssertion>`)
 	response.Encrypt(assertion.(types.Element), &pk.PublicKey, ea)
-
 
 	assertion = response.Query(nil, "//saml:EncryptedAssertion")[0]
 	response.Decrypt(assertion.(types.Element), pk)
