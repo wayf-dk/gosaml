@@ -26,6 +26,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+    // . "github.com/y0ssar1an/q"
 )
 
 var _ = log.Printf // For debugging; delete when done.
@@ -242,6 +243,8 @@ func GetSAMLMsg(r *http.Request, key string, sendermdsource, memdsource Md, me *
 	response := key == "SAMLResponse"
 	location := "https://" + r.Host + r.URL.Path
 	if request {
+	    fmt.Println("location: ", location)
+	    fmt.Println(memdsource)
 		memd, err = memdsource.MDQ(location)
 		if err != nil {
 			return
@@ -329,13 +332,9 @@ func GetSAMLMsg(r *http.Request, key string, sendermdsource, memdsource Md, me *
 				err = errors.New("no certificates found in metadata")
 				return
 			}
-			signatures := xp.Query(nil, "(/samlp:Response[1]/ds:Signature[1] | /samlp:Response[1]/saml:Assertion[1]/ds:Signature[1])")
+			signatures := xp.Query(nil, "(/samlp:Response[1]/ds:Signature[1]/.. | /samlp:Response[1]/saml:Assertion[1]/ds:Signature[1]/..)")
 			if decryptedassertion != nil {
 				//signatures = append(signatures, decryptedassertion)
-			}
-			if len(signatures) == 0 {
-				err = errors.New("Neither the assertion nor the response was signed.")
-				return
 			}
 			verified := 0
 			signerrors := []error{}
@@ -424,7 +423,7 @@ func DecodeSAMLMsg(msg string, deflate bool) (xp *goxml.Xp, err error) {
 	if deflate {
 		bmsg = Inflate(bmsg)
 	}
-	//    fmt.Println(string(bmsg))
+	fmt.Println(string(bmsg))
 	xp = goxml.NewXp(string(bmsg))
 	_, err = xp.SchemaValidate(samlSchema)
 	//	fmt.Println(errs)
