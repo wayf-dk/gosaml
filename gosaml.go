@@ -2,8 +2,6 @@
 
 package gosaml
 
-import "C"
-
 import (
 	"bytes"
 	"compress/flate"
@@ -26,7 +24,7 @@ import (
 	"sort"
 	"strings"
 	"time"
-    // . "github.com/y0ssar1an/q"
+	// . "github.com/y0ssar1an/q"
 )
 
 var _ = log.Printf // For debugging; delete when done.
@@ -237,55 +235,20 @@ func AttributeCanonicalDump(xp *goxml.Xp) {
 	}
 }
 
-func GetSAMLMsg(r *http.Request, key string, sendermdsource, memdsource Md, me *goxml.Xp) (xp, md, memd *goxml.Xp, err error) {
+// ReceiveSAMLResponse handles the SAML minutiae when receiving a SAMLResponse
+// Currently the only supported binding is POST
+// Receives the metadatasets for resp. the sender and the receiver
+// Returns metadata for the sender and the receiver
+func ReceiveSAMLResponse(r *http.Request, issuerMdSet, destinationMdSet Md) (xp, md, memd *goxml.Xp, err error) {
 	var decryptedassertion types.Element
-	request := key == "SAMLRequest"
-	response := key == "SAMLResponse"
-	location := "https://" + r.Host + r.URL.Path
-	if request {
-	    fmt.Println("location: ", location)
-	    fmt.Println(memdsource)
-		memd, err = memdsource.MDQ(location)
-		if err != nil {
-			return
-		}
+	xp, md, memd, err = DecodeSAMLMsg(r, issuerMdSet, destinationMdSet, "SAMLResponse")
+	if err != nil {
+	    return
 	}
 
-	r.ParseForm()
-	redirect := r.URL.Query().Get(key) != ""
-	post := r.PostForm.Get(key) != ""
-	//postsimplesign := r.PostForm.Get("Signature") != ""
-
-	msg := r.Form.Get(key)
-	if msg == "" {
-		err = fmt.Errorf("no %s found", key)
-		return
-	}
-	xp, err = DecodeSAMLMsg(msg, redirect)
-	if err != nil {
-		return
-	}
-	issuer := xp.Query1(nil, "./saml:Issuer")
-	if issuer == "" {
-		err = fmt.Errorf("no issuer found in %s", key)
-		return
-	}
-	md, err = sendermdsource.MDQ(issuer)
-	if err != nil {
-		return
-	}
-	destination := xp.Query1(nil, "./@Destination")
-	if destination == "" {
-		err = fmt.Errorf("no destination found in %s", key)
-		return
-	}
-	if destination != location {
-		err = fmt.Errorf("%s's destination is not here")
-		return
-	}
 	encryptedAssertions := xp.Query(nil, "./saml:EncryptedAssertion")
 	if len(encryptedAssertions) == 1 {
-		cert := me.Query1(nil, spCertQuery) // actual encryption key is always first
+		cert := memd.Query1(nil, spCertQuery) // actual encryption key is always first
 		var keyname string
 		keyname, _, err = PublicKeyInfo(cert)
 		if err != nil {
@@ -319,115 +282,154 @@ func GetSAMLMsg(r *http.Request, key string, sendermdsource, memdsource Md, me *
 		err = fmt.Errorf("only 1 EncryptedAssertion allowed, %d found", len(encryptedAssertions))
 	}
 
-	if redirect {
-		if response {
-			err = errors.New("no suppport for redirect binding for responses")
-			return
-		}
-	} else if post {
-		if response {
-			//no ds:Object in signatures
-			certificates := md.Query(nil, IdpCertQuery)
-			if len(certificates) == 0 {
-				err = errors.New("no certificates found in metadata")
-				return
-			}
-			signatures := xp.Query(nil, "(/samlp:Response[1]/ds:Signature[1]/.. | /samlp:Response[1]/saml:Assertion[1]/ds:Signature[1]/..)")
-			if decryptedassertion != nil {
-				//signatures = append(signatures, decryptedassertion)
-			}
-			verified := 0
-			signerrors := []error{}
-			for _, certificate := range certificates {
-				var key *rsa.PublicKey
-				_, key, err = PublicKeyInfo(certificate.NodeValue())
-
-				if err != nil {
-					return
-				}
-
-				for _, signature := range signatures {
-					signerror := xp.VerifySignature(signature.(types.Element), key)
-					if signerror != nil {
-						signerrors = append(signerrors, signerror)
-					} else {
-						verified++
-					}
-				}
-			}
-			if verified == 0 || verified != len(signatures) {
-				errorstring := ""
-				delim := ""
-				for _, e := range signerrors {
-					errorstring += e.Error() + delim
-					delim = ", "
-				}
-				err = fmt.Errorf("unable to validate signature: %s", errorstring)
-				return
-			}
-		}
-	} else {
-		err = errors.New("could not find a supported binding")
+	//no ds:Object in signatures
+	certificates := md.Query(nil, IdpCertQuery)
+	if len(certificates) == 0 {
+		err = errors.New("no certificates found in metadata")
+		return
 	}
-	if request {
-		acs := xp.Query1(nil, "@AssertionConsumerServiceURL")
-		validacs := len(md.Query(nil, "./md:SPSSODescriptor/md:AssertionConsumerService[@Location='"+acs+"']")) == 1
-		log.Println("acs", acs, validacs)
-		if acs == "" || !validacs {
-			err = fmt.Errorf("AssertionConsumerServiceURL missing or not present in metadata: '%s'", acs)
+	signatures := xp.Query(nil, "(/samlp:Response[1]/ds:Signature[1]/.. | /samlp:Response[1]/saml:Assertion[1]/ds:Signature[1]/..)")
+	if decryptedassertion != nil {
+		//signatures = append(signatures, decryptedassertion)
+	}
+	verified := 0
+	signerrors := []error{}
+	for _, certificate := range certificates {
+		var key *rsa.PublicKey
+		_, key, err = PublicKeyInfo(certificate.NodeValue())
+
+		if err != nil {
 			return
 		}
-		subject := xp.Query1(nil, "@Subject")
-		if subject != "" {
-			err = fmt.Errorf("subject not allowed in %ss", key)
-			return
-		}
-		nameidpolicy := xp.Query1(nil, "./samlp:NameIDPolicy/@Format")
-		if nameidpolicy != "" && nameidpolicy != transient && nameidpolicy != persistent {
-			err = fmt.Errorf("nameidpolicy format: %s is not supported")
-			return
-		}
-		allowcreate := xp.Query1(nil, "./samlp:NameIDPolicy/@AllowCreate")
-		if allowcreate != "true" {
-			err = fmt.Errorf("only supported value for NameIDPolicy @AllowCreate is true, got: %s", allowcreate)
-			return
+
+		for _, signature := range signatures {
+			signerror := xp.VerifySignature(signature.(types.Element), key)
+			if signerror != nil {
+				signerrors = append(signerrors, signerror)
+			} else {
+				verified++
+			}
 		}
 	}
-	if response {
-		// one minute skew allowed
-		now := time.Now().Add(time.Duration(1) * time.Minute).UTC().Format("2006-01-02T15:04:05Z")
-		checks := map[string]bool{
-			// "/samlp:Response[1]/saml:Assertion[1]/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@NotBefore": true ,
-			"/samlp:Response[1]/saml:Assertion[1]/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@NotOnOrAfter": false,
-			"/samlp:Response[1]/saml:Assertion[1]/saml:Conditions/@NotBefore":                                                       true,
-			"/samlp:Response[1]/saml:Assertion[1]/saml:Conditions/@NotOnOrAfter":                                                    false,
-			"/samlp:Response[1]/saml:Assertion[1]/saml:AuthnStatement/@SessionNotOnOrAfter":                                         false,
+	if verified == 0 || verified != len(signatures) {
+		errorstring := ""
+		delim := ""
+		for _, e := range signerrors {
+			errorstring += e.Error() + delim
+			delim = ", "
 		}
-		for q, i := range checks {
-			samltime := xp.Query1(nil, q)
-			cmp := samltime < now
-			if samltime == "" || cmp != i {
-				err = fmt.Errorf("timing problem: %s = '%s', now = %s", q, samltime, now)
-				return
-			}
+		err = fmt.Errorf("unable to validate signature: %s", errorstring)
+		return
+	}
+	// one minute skew allowed
+	now := time.Now().Add(time.Duration(1) * time.Minute).UTC().Format("2006-01-02T15:04:05Z")
+	checks := map[string]bool{
+		// "/samlp:Response[1]/saml:Assertion[1]/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@NotBefore": true ,
+		"/samlp:Response[1]/saml:Assertion[1]/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@NotOnOrAfter": false,
+		"/samlp:Response[1]/saml:Assertion[1]/saml:Conditions/@NotBefore":                                                       true,
+		"/samlp:Response[1]/saml:Assertion[1]/saml:Conditions/@NotOnOrAfter":                                                    false,
+		"/samlp:Response[1]/saml:Assertion[1]/saml:AuthnStatement/@SessionNotOnOrAfter":                                         false,
+	}
+	for q, i := range checks {
+		samltime := xp.Query1(nil, q)
+		cmp := samltime < now
+		if samltime == "" || cmp != i {
+			err = fmt.Errorf("timing problem: %s = '%s', now = %s", q, samltime, now)
+			return
 		}
 	}
 	return
 }
 
-func DecodeSAMLMsg(msg string, deflate bool) (xp *goxml.Xp, err error) {
+// ReceiveSAMLRequest handles the SAML minutiae when receiving a SAMLRequest
+// Supports POST and Redirect bindings
+// Receives the metadatasets for resp. the sender and the receiver
+// Returns metadata for the sender and the receiver
+func ReceiveSAMLRequest(r *http.Request, issuerMdSet, destinationMdSet Md) (xp, md, memd *goxml.Xp, err error) {
+	xp, md, memd, err = DecodeSAMLMsg(r, issuerMdSet, destinationMdSet, "SAMLRequest")
+	if err != nil {
+	    return
+	}
+
+	acs := xp.Query1(nil, "@AssertionConsumerServiceURL")
+	validacs := len(md.Query(nil, "./md:SPSSODescriptor/md:AssertionConsumerService[@Location='"+acs+"']")) == 1
+	log.Println("acs", acs, validacs)
+	if acs == "" || !validacs {
+		err = fmt.Errorf("AssertionConsumerServiceURL missing or not present in metadata: '%s'", acs)
+		return
+	}
+	subject := xp.Query1(nil, "@Subject")
+	if subject != "" {
+		err = fmt.Errorf("subject not allowed in SAMLRequest")
+		return
+	}
+	nameidpolicy := xp.Query1(nil, "./samlp:NameIDPolicy/@Format")
+	if nameidpolicy != "" && nameidpolicy != transient && nameidpolicy != persistent {
+		err = fmt.Errorf("nameidpolicy format: %s is not supported")
+		return
+	}
+	allowcreate := xp.Query1(nil, "./samlp:NameIDPolicy/@AllowCreate")
+	if allowcreate != "true" {
+		err = fmt.Errorf("only supported value for NameIDPolicy @AllowCreate is true, got: %s", allowcreate)
+		return
+	}
+	return
+}
+
+func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, parameterName string) (xp, issuerMd, destinationMd *goxml.Xp, err error) {
+	supportedBindings := map[string]map[string]bool{"SAMLRequest": {"GET": true, }, "SAMLResponse": { "GET": true, "POST": true}}
+	location := "https://" + r.Host + r.URL.Path
+	r.ParseForm()
+	method := r.Method
+
+    if !supportedBindings[parameterName][method] {
+		err = fmt.Errorf("Unsupported method: %", method)
+		return
+    }
+
+	destinationMd, err = destinationMdSet.MDQ(location)
+	if err != nil {
+		return
+	}
+
+	msg := r.Form.Get(parameterName)
+	if msg == "" {
+		err = fmt.Errorf("no %s found", parameterName)
+		return
+	}
 	bmsg, err := base64.StdEncoding.DecodeString(msg)
 	if err != nil {
 		return
 	}
-	if deflate {
+	if method == "GET" {
 		bmsg = Inflate(bmsg)
 	}
-	fmt.Println(string(bmsg))
+
+	fmt.Println("bmsg", string(bmsg))
+
 	xp = goxml.NewXp(string(bmsg))
 	_, err = xp.SchemaValidate(samlSchema)
-	//	fmt.Println(errs)
-	// go thing - actually returns err from schemavalidate ...
+	if err != nil {
+		return
+	}
+	issuer := xp.Query1(nil, "./saml:Issuer")
+	if issuer == "" {
+		err = fmt.Errorf("no issuer found in %s", parameterName)
+		return
+	}
+	issuerMd, err = issuerMdSet.MDQ(issuer)
+	if err != nil {
+		return
+	}
+	destination := xp.Query1(nil, "./@Destination")
+	if destination == "" {
+		err = fmt.Errorf("no destination found in %s", parameterName)
+		return
+	}
+	if destination != location {
+		err = fmt.Errorf("%s's destination is not here")
+		return
+	}
 	return
 }
 
