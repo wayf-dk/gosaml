@@ -33,7 +33,7 @@ const (
 	xsDateTime   = "2006-01-02T15:04:05Z"
 	IdpCertQuery = `./md:IDPSSODescriptor/md:KeyDescriptor[@use="signing" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
 	spCertQuery  = `./md:SPSSODescriptor/md:KeyDescriptor[@use="encryption" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
-	samlSchema   = "/home/mz/go/src/github.com/wayf-dk/goxml/schemas/saml-schema-protocol-2.0.xsd"
+	samlSchema   = "/home/mekhan/hybrid/src/github.com/wayf-dk/goxml/schemas/saml-schema-protocol-2.0.xsd"
 	certPath     = "/etc/ssl/wayf/signing/"
 
 	basic      = "urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
@@ -240,10 +240,9 @@ func AttributeCanonicalDump(xp *goxml.Xp) {
 // Receives the metadatasets for resp. the sender and the receiver
 // Returns metadata for the sender and the receiver
 func ReceiveSAMLResponse(r *http.Request, issuerMdSet, destinationMdSet Md) (xp, md, memd *goxml.Xp, err error) {
-	var decryptedassertion types.Element
 	xp, md, memd, err = DecodeSAMLMsg(r, issuerMdSet, destinationMdSet, "SAMLResponse")
 	if err != nil {
-	    return
+		return
 	}
 
 	encryptedAssertions := xp.Query(nil, "./saml:EncryptedAssertion")
@@ -289,9 +288,13 @@ func ReceiveSAMLResponse(r *http.Request, issuerMdSet, destinationMdSet Md) (xp,
 		return
 	}
 	signatures := xp.Query(nil, "(/samlp:Response[1]/ds:Signature[1]/.. | /samlp:Response[1]/saml:Assertion[1]/ds:Signature[1]/..)")
-	if decryptedassertion != nil {
-		//signatures = append(signatures, decryptedassertion)
-	}
+	VerifySign(xp, certificates, signatures)
+	return
+}
+
+// Function to verify Signature
+// Takes Certificate, signature and xp as an input
+func VerifySign(xp *goxml.Xp, certificates, signatures types.NodeList) (err error) {
 	verified := 0
 	signerrors := []error{}
 	for _, certificate := range certificates {
@@ -348,7 +351,7 @@ func ReceiveSAMLResponse(r *http.Request, issuerMdSet, destinationMdSet Md) (xp,
 func ReceiveSAMLRequest(r *http.Request, issuerMdSet, destinationMdSet Md) (xp, md, memd *goxml.Xp, err error) {
 	xp, md, memd, err = DecodeSAMLMsg(r, issuerMdSet, destinationMdSet, "SAMLRequest")
 	if err != nil {
-	    return
+		return
 	}
 
 	acs := xp.Query1(nil, "@AssertionConsumerServiceURL")
@@ -377,15 +380,15 @@ func ReceiveSAMLRequest(r *http.Request, issuerMdSet, destinationMdSet Md) (xp, 
 }
 
 func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, parameterName string) (xp, issuerMd, destinationMd *goxml.Xp, err error) {
-	supportedBindings := map[string]map[string]bool{"SAMLRequest": {"GET": true, }, "SAMLResponse": { "GET": true, "POST": true}}
+	supportedBindings := map[string]map[string]bool{"SAMLRequest": {"GET": true}, "SAMLResponse": {"GET": true, "POST": true}}
 	location := "https://" + r.Host + r.URL.Path
 	r.ParseForm()
 	method := r.Method
 
-    if !supportedBindings[parameterName][method] {
+	if !supportedBindings[parameterName][method] {
 		err = fmt.Errorf("Unsupported method: %", method)
 		return
-    }
+	}
 
 	destinationMd, err = destinationMdSet.MDQ(location)
 	if err != nil {
