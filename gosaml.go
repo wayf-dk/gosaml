@@ -33,19 +33,17 @@ const (
 	xsDateTime   = "2006-01-02T15:04:05Z"
 	IdpCertQuery = `./md:IDPSSODescriptor/md:KeyDescriptor[@use="signing" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
 	spCertQuery  = `./md:SPSSODescriptor/md:KeyDescriptor[@use="encryption" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
-	samlSchema   = "/home/mekhan/hybrid/src/github.com/wayf-dk/goxml/schemas/saml-schema-protocol-2.0.xsd"
+	samlSchema   = "/home/mz/go/src/github.com/wayf-dk/goxml/schemas/saml-schema-protocol-2.0.xsd"
 	certPath     = "/etc/ssl/wayf/signing/"
 
-	basic      = "urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
-	uri        = "urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
-	transient  = "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
-	persistent = "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
+	Basic      = "urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+	Uri        = "urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+	Transient  = "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
+	Persistent = "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
 )
 
-// Xp is a wrapper for the libxml2 xmlDoc and xmlXpathContext
-// master is a pointer to the original struct with the shared
-// xmlDoc so that is never gets deallocated before any copies
 type (
+	// Interface for metadata provider
 	Md interface {
 		MDQ(key string) (xp *goxml.Xp, err error)
 	}
@@ -59,10 +57,7 @@ type (
 	}
 )
 
-// namespaces maps between a ns prefix and the urn/url
-var metadatacache = make(map[string]*goxml.Xp)
-
-// PublicKeyInfo extracts the keyname, publickey and cert (base64 DER - no PEM) from the give certificate.
+// PublicKeyInfo extracts the keyname, publickey and cert (base64 DER - no PEM) from the given certificate.
 // The keyname is computed from the public key corresponding to running this command: openssl x509 -modulus -noout -in <cert> | openssl sha1.
 func PublicKeyInfo(cert string) (keyname string, publickey *rsa.PublicKey, err error) {
 	// no pem so no pem.Decode
@@ -78,7 +73,7 @@ func PublicKeyInfo(cert string) (keyname string, publickey *rsa.PublicKey, err e
 
 /*  NewAuthnRequest - create an AuthnRequest using the supplied metadata for setting the fields according to the following rules:
     - The Destination is the 1st SingleSignOnService with a redirect binding in the idpmetadata
-    - The AssertionConsumerServiceURL is Location of the 1st ACS with a post binding in the spmetadata
+    - The AssertionConsumerServiceURL is the Location of the 1st ACS with a post binding in the spmetadata
     - The ProtocolBinding is post
     - The Issuer is the entityID ín the idpmetadata
     - The NameID defaults to transient
@@ -186,25 +181,6 @@ func SAMLRequest2Url(samlrequest *goxml.Xp, privatekey, pw, algo string) (url *u
 	return
 }
 
-// CpAndset
-func CpAndSet(dest types.Element, doc, md *goxml.Xp, context types.Element, name, value string) {
-	sourceNode := md.Query(context, `md:RequestedAttribute[@FriendlyName="`+name+`"]`)[0].(types.Element)
-	d, err := doc.Doc.CreateElementNS(goxml.Namespaces["saml"], "saml:Attribute")
-	if err != nil {
-		fmt.Println("err: ", err)
-		return
-	}
-	dest.AddChild(d)
-	for _, attr := range []string{"Name", "FriendlyName"} {
-		attribute, _ := sourceNode.GetAttribute(attr)
-		if attribute != nil {
-			d.SetAttribute(attr, attribute.Value())
-		}
-	}
-	d.SetAttribute("NameFormat", "urn:oasis:names:tc:SAML:2.0:attrname-format:uri")
-	doc.QueryDashP(d, `saml:AttributeValue`, value, nil)
-}
-
 func AttributeCanonicalDump(xp *goxml.Xp) {
 	attrsmap := map[string][]string{}
 	keys := []string{}
@@ -240,9 +216,24 @@ func AttributeCanonicalDump(xp *goxml.Xp) {
 // Receives the metadatasets for resp. the sender and the receiver
 // Returns metadata for the sender and the receiver
 func ReceiveSAMLResponse(r *http.Request, issuerMdSet, destinationMdSet Md) (xp, md, memd *goxml.Xp, err error) {
+	providedSignatures := 0
 	xp, md, memd, err = DecodeSAMLMsg(r, issuerMdSet, destinationMdSet, "SAMLResponse")
 	if err != nil {
 		return
+	}
+
+	certificates := md.Query(nil, IdpCertQuery)
+	if len(certificates) == 0 {
+		err = errors.New("no certificates found in metadata")
+		return
+	}
+
+	signatures := xp.Query(nil, "/samlp:Response[1]/ds:Signature[1]/..")
+	if len(signatures) == 1 {
+		providedSignatures++
+		if err = VerifySign(xp, certificates, signatures); err != nil {
+			return
+		}
 	}
 
 	encryptedAssertions := xp.Query(nil, "./saml:EncryptedAssertion")
@@ -282,13 +273,17 @@ func ReceiveSAMLResponse(r *http.Request, issuerMdSet, destinationMdSet Md) (xp,
 	}
 
 	//no ds:Object in signatures
-	certificates := md.Query(nil, IdpCertQuery)
-	if len(certificates) == 0 {
-		err = errors.New("no certificates found in metadata")
+	signatures = xp.Query(nil, "/samlp:Response[1]/saml:Assertion[1]/ds:Signature[1]/..")
+	if len(signatures) == 1 {
+		providedSignatures++
+		if err = VerifySign(xp, certificates, signatures); err != nil {
+			return
+		}
+	}
+	if providedSignatures < 1 {
+		err = fmt.Errorf("No signatures found")
 		return
 	}
-	signatures := xp.Query(nil, "(/samlp:Response[1]/ds:Signature[1]/.. | /samlp:Response[1]/saml:Assertion[1]/ds:Signature[1]/..)")
-	VerifySign(xp, certificates, signatures)
 	return
 }
 
@@ -324,8 +319,12 @@ func VerifySign(xp *goxml.Xp, certificates, signatures types.NodeList) (err erro
 		err = fmt.Errorf("unable to validate signature: %s", errorstring)
 		return
 	}
-	// one minute skew allowed
-	now := time.Now().Add(time.Duration(1) * time.Minute).UTC().Format("2006-01-02T15:04:05Z")
+	return
+}
+
+func VerifyTiming(xp *goxml.Xp) (err error) {
+	// 3 minutes skew allowed
+	now := time.Now().Add(time.Duration(3) * time.Minute).UTC().Format("2006-01-02T15:04:05Z")
 	checks := map[string]bool{
 		// "/samlp:Response[1]/saml:Assertion[1]/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@NotBefore": true ,
 		"/samlp:Response[1]/saml:Assertion[1]/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@NotOnOrAfter": false,
@@ -367,7 +366,7 @@ func ReceiveSAMLRequest(r *http.Request, issuerMdSet, destinationMdSet Md) (xp, 
 		return
 	}
 	nameidpolicy := xp.Query1(nil, "./samlp:NameIDPolicy/@Format")
-	if nameidpolicy != "" && nameidpolicy != transient && nameidpolicy != persistent {
+	if nameidpolicy != "" && nameidpolicy != Transient && nameidpolicy != Persistent {
 		err = fmt.Errorf("nameidpolicy format: %s is not supported")
 		return
 	}
@@ -411,8 +410,9 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, parameterN
 	fmt.Println("bmsg", string(bmsg))
 
 	xp = goxml.NewXp(string(bmsg))
-	_, err = xp.SchemaValidate(samlSchema)
+	errs, err := xp.SchemaValidate(samlSchema)
 	if err != nil {
+		fmt.Println("schemaerrs:", errs)
 		return
 	}
 	issuer := xp.Query1(nil, "./saml:Issuer")
