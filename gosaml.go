@@ -139,29 +139,32 @@ func Inflate(deflated []byte) []byte {
 }
 
 // Html2SAMLResponse extracts the SAMLResponse from a html document
-func Html2SAMLResponse(html []byte) (samlresponse *goxml.Xp) {
+func Html2SAMLResponse(html []byte) (samlresponse *goxml.Xp, relayState string) {
 	response := goxml.NewHtmlXp(string(html))
 	samlbase64 := response.Query1(nil, `//input[@name="SAMLResponse"]/@value`)
+	relayState = response.Query1(nil, `//input[@name="RelayState"]/@value`)
 	samlxml, _ := base64.StdEncoding.DecodeString(samlbase64)
 	samlresponse = goxml.NewXp(string(samlxml))
 	return
 }
 
 // Url2SAMLRequest extracts the SAMLRequest from an URL
-func Url2SAMLRequest(url *url.URL, err error) (samlrequest *goxml.Xp) {
+func Url2SAMLRequest(url *url.URL, err error) (samlrequest *goxml.Xp, relayState string) {
 	query := url.Query()
-	req, _ := base64.StdEncoding.DecodeString(query["SAMLRequest"][0])
+	req, _ := base64.StdEncoding.DecodeString(query.Get("SAMLRequest"))
+	relayState = query.Get("SAMLRequest")
 	samlrequest = goxml.NewXp(string(Inflate(req)))
 	return
 }
 
 // SAMLRequest2Url creates a redirect URL from a saml request
-func SAMLRequest2Url(samlrequest *goxml.Xp, privatekey, pw, algo string) (url *url.URL, err error) {
+func SAMLRequest2Url(samlrequest *goxml.Xp, relayState, privatekey, pw, algo string) (url *url.URL, err error) {
 	req := base64.StdEncoding.EncodeToString(Deflate(samlrequest.Doc.Dump(false)))
 
 	url, _ = url.Parse(samlrequest.Query1(nil, "@Destination"))
 	q := url.Query()
 	q.Set("SAMLRequest", req)
+	q.Set("RelayState", relayState)
 
 	if privatekey != "" {
 		digest := goxml.Hash(goxml.Algos[algo].Algo, req)
@@ -215,9 +218,9 @@ func AttributeCanonicalDump(xp *goxml.Xp) {
 // Currently the only supported binding is POST
 // Receives the metadatasets for resp. the sender and the receiver
 // Returns metadata for the sender and the receiver
-func ReceiveSAMLResponse(r *http.Request, issuerMdSet, destinationMdSet Md) (xp, md, memd *goxml.Xp, err error) {
+func ReceiveSAMLResponse(r *http.Request, issuerMdSet, destinationMdSet Md) (xp, md, memd *goxml.Xp, relayState string, err error) {
 	providedSignatures := 0
-	xp, md, memd, err = DecodeSAMLMsg(r, issuerMdSet, destinationMdSet, "SAMLResponse")
+	xp, md, memd, relayState, err = DecodeSAMLMsg(r, issuerMdSet, destinationMdSet, "SAMLResponse")
 	if err != nil {
 		return
 	}
@@ -324,7 +327,7 @@ func VerifySign(xp *goxml.Xp, certificates, signatures types.NodeList) (err erro
 
 func VerifyTiming(xp *goxml.Xp) (err error) {
 	// 3 minutes skew allowed
-	now := time.Now().Add(time.Duration(3) * time.Minute).UTC().Format("2006-01-02T15:04:05Z")
+	now := time.Now().Add(time.Duration(3) * time.Minute).UTC().Format(xsDateTime)
 	checks := map[string]bool{
 		// "/samlp:Response[1]/saml:Assertion[1]/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@NotBefore": true ,
 		"/samlp:Response[1]/saml:Assertion[1]/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@NotOnOrAfter": false,
@@ -347,8 +350,8 @@ func VerifyTiming(xp *goxml.Xp) (err error) {
 // Supports POST and Redirect bindings
 // Receives the metadatasets for resp. the sender and the receiver
 // Returns metadata for the sender and the receiver
-func ReceiveSAMLRequest(r *http.Request, issuerMdSet, destinationMdSet Md) (xp, md, memd *goxml.Xp, err error) {
-	xp, md, memd, err = DecodeSAMLMsg(r, issuerMdSet, destinationMdSet, "SAMLRequest")
+func ReceiveSAMLRequest(r *http.Request, issuerMdSet, destinationMdSet Md) (xp, md, memd *goxml.Xp, relayState string, err error) {
+	xp, md, memd, relayState, err = DecodeSAMLMsg(r, issuerMdSet, destinationMdSet, "SAMLRequest")
 	if err != nil {
 		return
 	}
@@ -378,7 +381,7 @@ func ReceiveSAMLRequest(r *http.Request, issuerMdSet, destinationMdSet Md) (xp, 
 	return
 }
 
-func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, parameterName string) (xp, issuerMd, destinationMd *goxml.Xp, err error) {
+func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, parameterName string) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, err error) {
 	supportedBindings := map[string]map[string]bool{"SAMLRequest": {"GET": true}, "SAMLResponse": {"GET": true, "POST": true}}
 	location := "https://" + r.Host + r.URL.Path
 	r.ParseForm()
@@ -394,6 +397,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, parameterN
 		return
 	}
 
+    relayState = r.Form.Get("RelayState")
 	msg := r.Form.Get(parameterName)
 	if msg == "" {
 		err = fmt.Errorf("no %s found", parameterName)
