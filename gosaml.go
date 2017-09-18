@@ -397,7 +397,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, parameterN
 		return
 	}
 
-    relayState = r.Form.Get("RelayState")
+	relayState = r.Form.Get("RelayState")
 	msg := r.Form.Get(parameterName)
 	if msg == "" {
 		err = fmt.Errorf("no %s found", parameterName)
@@ -411,7 +411,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, parameterN
 		bmsg = Inflate(bmsg)
 	}
 
-	fmt.Println("bmsg", string(bmsg))
+	//	fmt.Println("bmsg", string(bmsg))
 
 	xp = goxml.NewXp(string(bmsg))
 	errs, err := xp.SchemaValidate(samlSchema)
