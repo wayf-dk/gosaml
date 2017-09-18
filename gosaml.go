@@ -33,7 +33,6 @@ const (
 	xsDateTime   = "2006-01-02T15:04:05Z"
 	IdpCertQuery = `./md:IDPSSODescriptor/md:KeyDescriptor[@use="signing" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
 	spCertQuery  = `./md:SPSSODescriptor/md:KeyDescriptor[@use="encryption" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
-	samlSchema   = "/home/mz/go/src/github.com/wayf-dk/goxml/schemas/saml-schema-protocol-2.0.xsd"
 	certPath     = "/etc/ssl/wayf/signing/"
 
 	Basic      = "urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
@@ -55,6 +54,14 @@ type (
 		Slack, Sessionduration time.Duration
 		Id, Assertionid        string
 	}
+
+	Conf struct {
+		SamlSchema string
+	}
+)
+
+var (
+	Config = Conf{}
 )
 
 // PublicKeyInfo extracts the keyname, publickey and cert (base64 DER - no PEM) from the given certificate.
@@ -267,7 +274,7 @@ func ReceiveSAMLResponse(r *http.Request, issuerMdSet, destinationMdSet Md) (xp,
 		xp.Decrypt(encryptedAssertions[0].(types.Element), priv)
 		xp = goxml.NewXp(xp.Doc.Dump(false))
 		// repeat schemacheck
-		_, err = xp.SchemaValidate(samlSchema)
+		_, err = xp.SchemaValidate(Config.SamlSchema)
 		if err != nil {
 			return
 		}
@@ -414,7 +421,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, parameterN
 	//	fmt.Println("bmsg", string(bmsg))
 
 	xp = goxml.NewXp(string(bmsg))
-	errs, err := xp.SchemaValidate(samlSchema)
+	errs, err := xp.SchemaValidate(Config.SamlSchema)
 	if err != nil {
 		fmt.Println("schemaerrs:", errs)
 		return
