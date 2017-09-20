@@ -202,7 +202,12 @@ func AttributeCanonicalDump(xp *goxml.Xp) {
 		}
 		nameattr, _ := attr.(types.Element).GetAttribute("Name")
 		nameformatattr, _ := attr.(types.Element).GetAttribute("NameFormat")
-		key := strings.TrimSpace(nameattr.Value() + " " + nameformatattr.Value())
+		friendlynameattr, err := attr.(types.Element).GetAttribute("FriendlyName")
+		fn := "x"
+		if err == nil {
+			fn = friendlynameattr.Value()
+		}
+		key := strings.TrimSpace(fn + " " + nameattr.Value() + " " + nameformatattr.Value())
 		keys = append(keys, key)
 		attrsmap[key] = values
 	}
