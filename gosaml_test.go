@@ -3,7 +3,9 @@ package gosaml
 import (
 	"crypto"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/hex"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"github.com/wayf-dk/go-libxml2/types"
@@ -714,6 +716,15 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+func xpFromFile(file string) (res *goxml.Xp) {
+	xml, err := ioutil.ReadFile(file)
+	if err != nil {
+		log.Panic(err)
+	}
+	res = goxml.NewXp(string(xml))
+	return
+}
+
 func ExampleMetadata() {
 	fmt.Println(idpmetadata.Query1(nil, "/md:EntityDescriptor/@entityID"))
 	fmt.Println(idpmetadata.Query1(nil, "/md:EntityDescriptor/md:IDPSSODescriptor/md:NameIDFormat"))
@@ -774,6 +785,191 @@ func ExampleResponse() {
 	//         <saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.6" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">gikcaswid@orphanage.wayf.dk</saml:AttributeValue><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">only@thisone.example.com</saml:AttributeValue></saml:Attribute></saml:AttributeStatement>
 	//     </saml:Assertion>
 	// </samlp:Response>
+}
+
+func ExampleDecryptShibResponse() {
+	shibresponse := xpFromFile("testdata/testshib.org.encryptedresponse.xml")
+
+	privatekey, err := ioutil.ReadFile("testdata/private.key.pem")
+	if err != nil {
+		log.Panic(err)
+	}
+	block, _ := pem.Decode([]byte(privatekey))
+	priv, _ := x509.ParsePKCS1PrivateKey(block.Bytes)
+
+	assertion := shibresponse.Query(nil, "//saml:EncryptedAssertion")[0]
+	shibresponse.Decrypt(assertion.(types.Element), priv)
+	fmt.Println(shibresponse.PP())
+
+	signatures := shibresponse.Query(nil, "/samlp:Response[1]/saml:Assertion[1]/ds:Signature[1]/..")
+	// don't do this in real life !!!
+	certs := shibresponse.Query(nil, "/samlp:Response[1]/saml:Assertion[1]/ds:Signature[1]/ds:KeyInfo/ds:X509Data/ds:X509Certificate")
+	if len(signatures) == 1 {
+		if err = VerifySign(shibresponse, certs, signatures); err != nil {
+			log.Panic(err)
+		}
+	}
+	fmt.Println(shibresponse.PP())
+
+	// Output:
+	// <?xml version="1.0" encoding="UTF-8"?>
+	// <saml2p:Response xmlns:saml2p="urn:oasis:names:tc:SAML:2.0:protocol" Destination="https://wayf.wayf.dk/module.php/saml/sp/saml2-acs.php/wayf.wayf.dk" ID="_c1a1851a2eb5d206c084ffdf6c30af21" InResponseTo="_f02dc09251ae6770de91952ce6d5070b71b97e5e20" IssueInstant="2017-09-21T09:40:32.443Z" Version="2.0">
+	//   <saml2:Issuer xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion" Format="urn:oasis:names:tc:SAML:2.0:nameid-format:entity">https://idp.testshib.org/idp/shibboleth</saml2:Issuer>
+	//   <saml2p:Status>
+	//     <saml2p:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
+	//   </saml2p:Status>
+	//   <saml2:Assertion xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion" xmlns:xs="http://www.w3.org/2001/XMLSchema" ID="_3e3314e5a31a63e371330f5ab7871196" IssueInstant="2017-09-21T09:40:32.443Z" Version="2.0">
+	//     <saml2:Issuer Format="urn:oasis:names:tc:SAML:2.0:nameid-format:entity">https://idp.testshib.org/idp/shibboleth</saml2:Issuer>
+	//     <ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+	//       <ds:SignedInfo>
+	//         <ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
+	//         <ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>
+	//         <ds:Reference URI="#_3e3314e5a31a63e371330f5ab7871196">
+	//           <ds:Transforms>
+	//             <ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/>
+	//             <ds:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#">
+	//               <ec:InclusiveNamespaces xmlns:ec="http://www.w3.org/2001/10/xml-exc-c14n#" PrefixList="xs"/>
+	//             </ds:Transform>
+	//           </ds:Transforms>
+	//           <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+	//           <ds:DigestValue>qrcwgLZVU3GMEc/CSTcII9iAXF7NzH4n9we7JZ8aBjY=</ds:DigestValue>
+	//         </ds:Reference>
+	//       </ds:SignedInfo>
+	//       <ds:SignatureValue>Qi1NNa6KzJfQRjDoF1ZdwpNxIhH6a1rtkpeuIrViXTyCzcXd6A7nKKogTA5S8eAS2UYzT+6/VTbe8t1zUDq7O5g0yKC98f3V4LqiCj26p9E3aAR3C+ptfpqMokZr6hoNqJJ2ETR05YJryWgBKLJ+6r2DeIyb38Fz5MJgOACEx0q1m+nbNXNPf35OSSAye9AhkYziXiKJhwFgRJlQF6DKYLIgMJXjuN2bZXvjvOJAcBw1ZhMBZ+DAkCTqOJcO0e/W4cqYgsy6umgb5ee+QgUtvrmc/ScTnrT0vxjP+YfskPwT9VTfqelvrLunhSydVri3FQYJBRSXISu1lUa71vMk2g==</ds:SignatureValue>
+	//       <ds:KeyInfo>
+	//         <ds:X509Data>
+	//           <ds:X509Certificate>MIIDAzCCAeugAwIBAgIVAPX0G6LuoXnKS0Muei006mVSBXbvMA0GCSqGSIb3DQEBCwUAMBsxGTAX
+	// BgNVBAMMEGlkcC50ZXN0c2hpYi5vcmcwHhcNMTYwODIzMjEyMDU0WhcNMzYwODIzMjEyMDU0WjAb
+	// MRkwFwYDVQQDDBBpZHAudGVzdHNoaWIub3JnMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKC
+	// AQEAg9C4J2DiRTEhJAWzPt1S3ryhm3M2P3hPpwJwvt2q948vdTUxhhvNMuc3M3S4WNh6JYBs53R+
+	// YmjqJAII4ShMGNEmlGnSVfHorex7IxikpuDPKV3SNf28mCAZbQrX+hWA+ann/uifVzqXktOjs6Dd
+	// zdBnxoVhniXgC8WCJwKcx6JO/hHsH1rG/0DSDeZFpTTcZHj4S9MlLNUtt5JxRzV/MmmB3ObaX0CM
+	// qsSWUOQeE4nylSlp5RWHCnx70cs9kwz5WrflnbnzCeHU2sdbNotBEeTHot6a2cj/pXlRJIgPsrL/
+	// 4VSicPZcGYMJMPoLTJ8mdy6mpR6nbCmP7dVbCIm/DQIDAQABoz4wPDAdBgNVHQ4EFgQUUfaDa2mP
+	// i24x09yWp1OFXmZ2GPswGwYDVR0RBBQwEoIQaWRwLnRlc3RzaGliLm9yZzANBgkqhkiG9w0BAQsF
+	// AAOCAQEASKKgqTxhqBzROZ1eVy++si+eTTUQZU4+8UywSKLia2RattaAPMAcXUjO+3cYOQXLVASd
+	// lJtt+8QPdRkfp8SiJemHPXC8BES83pogJPYEGJsKo19l4XFJHPnPy+Dsn3mlJyOfAa8RyWBS80u5
+	// lrvAcr2TJXt9fXgkYs7BOCigxtZoR8flceGRlAZ4p5FPPxQR6NDYb645jtOTMVr3zgfjP6Wh2dt+
+	// 2p04LG7ENJn8/gEwtXVuXCsPoSCDx9Y0QmyXTJNdV1aB0AhORkWPlFYwp+zOyOIR+3m1+pqWFpn0
+	// eT/HrxpdKa74FA3R2kq4R7dXe4G0kUgXTdqXMLRKhDgdmA==</ds:X509Certificate>
+	//         </ds:X509Data>
+	//       </ds:KeyInfo>
+	//     </ds:Signature>
+	//     <saml2:Subject>
+	//       <saml2:NameID Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" NameQualifier="https://idp.testshib.org/idp/shibboleth" SPNameQualifier="https://wayf.wayf.dk">_df813f421f7a8cf4e43c67f3f4b15923</saml2:NameID>
+	//       <saml2:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
+	//         <saml2:SubjectConfirmationData Address="193.11.3.30" InResponseTo="_f02dc09251ae6770de91952ce6d5070b71b97e5e20" NotOnOrAfter="2017-09-21T09:45:32.443Z" Recipient="https://wayf.wayf.dk/module.php/saml/sp/saml2-acs.php/wayf.wayf.dk"/>
+	//       </saml2:SubjectConfirmation>
+	//     </saml2:Subject>
+	//     <saml2:Conditions NotBefore="2017-09-21T09:40:32.443Z" NotOnOrAfter="2017-09-21T09:45:32.443Z">
+	//       <saml2:AudienceRestriction>
+	//         <saml2:Audience>https://wayf.wayf.dk</saml2:Audience>
+	//       </saml2:AudienceRestriction>
+	//     </saml2:Conditions>
+	//     <saml2:AuthnStatement AuthnInstant="2017-09-21T09:40:31.859Z" SessionIndex="_deb3c904f4b792ff9c85ae8e9542c6c8">
+	//       <saml2:SubjectLocality Address="193.11.3.30"/>
+	//       <saml2:AuthnContext>
+	//         <saml2:AuthnContextClassRef>urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport</saml2:AuthnContextClassRef>
+	//       </saml2:AuthnContext>
+	//     </saml2:AuthnStatement>
+	//     <saml2:AttributeStatement>
+	//       <saml2:Attribute FriendlyName="uid" Name="urn:oid:0.9.2342.19200300.100.1.1" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">
+	//         <saml2:AttributeValue xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">alterego</saml2:AttributeValue>
+	//       </saml2:Attribute>
+	//       <saml2:Attribute FriendlyName="eduPersonAffiliation" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.1" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">
+	//         <saml2:AttributeValue xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">Member</saml2:AttributeValue>
+	//       </saml2:Attribute>
+	//       <saml2:Attribute FriendlyName="eduPersonPrincipalName" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.6" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">
+	//         <saml2:AttributeValue xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">alterego@testshib.org</saml2:AttributeValue>
+	//       </saml2:Attribute>
+	//       <saml2:Attribute FriendlyName="sn" Name="urn:oid:2.5.4.4" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">
+	//         <saml2:AttributeValue xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">Ego</saml2:AttributeValue>
+	//       </saml2:Attribute>
+	//       <saml2:Attribute FriendlyName="eduPersonScopedAffiliation" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.9" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">
+	//         <saml2:AttributeValue xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">Member@testshib.org</saml2:AttributeValue>
+	//       </saml2:Attribute>
+	//       <saml2:Attribute FriendlyName="givenName" Name="urn:oid:2.5.4.42" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">
+	//         <saml2:AttributeValue xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">Alter</saml2:AttributeValue>
+	//       </saml2:Attribute>
+	//       <saml2:Attribute FriendlyName="eduPersonEntitlement" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.7" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">
+	//         <saml2:AttributeValue xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">urn:mace:dir:entitlement:common-lib-terms</saml2:AttributeValue>
+	//       </saml2:Attribute>
+	//       <saml2:Attribute FriendlyName="cn" Name="urn:oid:2.5.4.3" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">
+	//         <saml2:AttributeValue xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">Alter Ego</saml2:AttributeValue>
+	//       </saml2:Attribute>
+	//       <saml2:Attribute FriendlyName="eduPersonTargetedID" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.10" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">
+	//         <saml2:AttributeValue>
+	//           <saml2:NameID Format="urn:oasis:names:tc:SAML:2.0:nameid-format:persistent" NameQualifier="https://idp.testshib.org/idp/shibboleth" SPNameQualifier="https://wayf.wayf.dk">afnAt0SHFwggQyk/EZh5YGOy8wc=</saml2:NameID>
+	//         </saml2:AttributeValue>
+	//       </saml2:Attribute>
+	//       <saml2:Attribute FriendlyName="telephoneNumber" Name="urn:oid:2.5.4.20" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">
+	//         <saml2:AttributeValue xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">555-5555</saml2:AttributeValue>
+	//       </saml2:Attribute>
+	//     </saml2:AttributeStatement>
+	//   </saml2:Assertion>
+	// </saml2p:Response>
+	//
+	// <?xml version="1.0" encoding="UTF-8"?>
+	// <saml2p:Response xmlns:saml2p="urn:oasis:names:tc:SAML:2.0:protocol" Destination="https://wayf.wayf.dk/module.php/saml/sp/saml2-acs.php/wayf.wayf.dk" ID="_c1a1851a2eb5d206c084ffdf6c30af21" InResponseTo="_f02dc09251ae6770de91952ce6d5070b71b97e5e20" IssueInstant="2017-09-21T09:40:32.443Z" Version="2.0">
+	//   <saml2:Issuer xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion" Format="urn:oasis:names:tc:SAML:2.0:nameid-format:entity">https://idp.testshib.org/idp/shibboleth</saml2:Issuer>
+	//   <saml2p:Status>
+	//     <saml2p:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
+	//   </saml2p:Status>
+	//   <saml2:Assertion xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion" xmlns:xs="http://www.w3.org/2001/XMLSchema" ID="_3e3314e5a31a63e371330f5ab7871196" IssueInstant="2017-09-21T09:40:32.443Z" Version="2.0">
+	//     <saml2:Issuer Format="urn:oasis:names:tc:SAML:2.0:nameid-format:entity">https://idp.testshib.org/idp/shibboleth</saml2:Issuer>
+	//     <saml2:Subject>
+	//       <saml2:NameID Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" NameQualifier="https://idp.testshib.org/idp/shibboleth" SPNameQualifier="https://wayf.wayf.dk">_df813f421f7a8cf4e43c67f3f4b15923</saml2:NameID>
+	//       <saml2:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
+	//         <saml2:SubjectConfirmationData Address="193.11.3.30" InResponseTo="_f02dc09251ae6770de91952ce6d5070b71b97e5e20" NotOnOrAfter="2017-09-21T09:45:32.443Z" Recipient="https://wayf.wayf.dk/module.php/saml/sp/saml2-acs.php/wayf.wayf.dk"/>
+	//       </saml2:SubjectConfirmation>
+	//     </saml2:Subject>
+	//     <saml2:Conditions NotBefore="2017-09-21T09:40:32.443Z" NotOnOrAfter="2017-09-21T09:45:32.443Z">
+	//       <saml2:AudienceRestriction>
+	//         <saml2:Audience>https://wayf.wayf.dk</saml2:Audience>
+	//       </saml2:AudienceRestriction>
+	//     </saml2:Conditions>
+	//     <saml2:AuthnStatement AuthnInstant="2017-09-21T09:40:31.859Z" SessionIndex="_deb3c904f4b792ff9c85ae8e9542c6c8">
+	//       <saml2:SubjectLocality Address="193.11.3.30"/>
+	//       <saml2:AuthnContext>
+	//         <saml2:AuthnContextClassRef>urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport</saml2:AuthnContextClassRef>
+	//       </saml2:AuthnContext>
+	//     </saml2:AuthnStatement>
+	//     <saml2:AttributeStatement>
+	//       <saml2:Attribute FriendlyName="uid" Name="urn:oid:0.9.2342.19200300.100.1.1" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">
+	//         <saml2:AttributeValue xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">alterego</saml2:AttributeValue>
+	//       </saml2:Attribute>
+	//       <saml2:Attribute FriendlyName="eduPersonAffiliation" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.1" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">
+	//         <saml2:AttributeValue xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">Member</saml2:AttributeValue>
+	//       </saml2:Attribute>
+	//       <saml2:Attribute FriendlyName="eduPersonPrincipalName" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.6" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">
+	//         <saml2:AttributeValue xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">alterego@testshib.org</saml2:AttributeValue>
+	//       </saml2:Attribute>
+	//       <saml2:Attribute FriendlyName="sn" Name="urn:oid:2.5.4.4" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">
+	//         <saml2:AttributeValue xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">Ego</saml2:AttributeValue>
+	//       </saml2:Attribute>
+	//       <saml2:Attribute FriendlyName="eduPersonScopedAffiliation" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.9" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">
+	//         <saml2:AttributeValue xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">Member@testshib.org</saml2:AttributeValue>
+	//       </saml2:Attribute>
+	//       <saml2:Attribute FriendlyName="givenName" Name="urn:oid:2.5.4.42" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">
+	//         <saml2:AttributeValue xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">Alter</saml2:AttributeValue>
+	//       </saml2:Attribute>
+	//       <saml2:Attribute FriendlyName="eduPersonEntitlement" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.7" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">
+	//         <saml2:AttributeValue xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">urn:mace:dir:entitlement:common-lib-terms</saml2:AttributeValue>
+	//       </saml2:Attribute>
+	//       <saml2:Attribute FriendlyName="cn" Name="urn:oid:2.5.4.3" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">
+	//         <saml2:AttributeValue xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">Alter Ego</saml2:AttributeValue>
+	//       </saml2:Attribute>
+	//       <saml2:Attribute FriendlyName="eduPersonTargetedID" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.10" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">
+	//         <saml2:AttributeValue>
+	//           <saml2:NameID Format="urn:oasis:names:tc:SAML:2.0:nameid-format:persistent" NameQualifier="https://idp.testshib.org/idp/shibboleth" SPNameQualifier="https://wayf.wayf.dk">afnAt0SHFwggQyk/EZh5YGOy8wc=</saml2:NameID>
+	//         </saml2:AttributeValue>
+	//       </saml2:Attribute>
+	//       <saml2:Attribute FriendlyName="telephoneNumber" Name="urn:oid:2.5.4.20" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">
+	//         <saml2:AttributeValue xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">555-5555</saml2:AttributeValue>
+	//       </saml2:Attribute>
+	//     </saml2:AttributeStatement>
+	//   </saml2:Assertion>
+	// </saml2p:Response>
 }
 
 func xExampleEncryptAndDecrypt() {

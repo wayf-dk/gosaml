@@ -287,6 +287,8 @@ func ReceiveSAMLResponse(r *http.Request, issuerMdSet, destinationMdSet Md) (xp,
 		err = fmt.Errorf("only 1 EncryptedAssertion allowed, %d found", len(encryptedAssertions))
 	}
 
+	fmt.Println("SAMLRespose", xp.PP())
+
 	//no ds:Object in signatures
 	signatures = xp.Query(nil, "/samlp:Response[1]/saml:Assertion[1]/ds:Signature[1]/..")
 	if len(signatures) == 1 {
@@ -422,8 +424,6 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, parameterN
 	if method == "GET" {
 		bmsg = Inflate(bmsg)
 	}
-
-	//	fmt.Println("bmsg", string(bmsg))
 
 	xp = goxml.NewXp(string(bmsg))
 	errs, err := xp.SchemaValidate(Config.SamlSchema)
