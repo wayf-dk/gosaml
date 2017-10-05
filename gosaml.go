@@ -276,7 +276,15 @@ func ReceiveSAMLResponse(r *http.Request, issuerMdSet, destinationMdSet Md) (xp,
 		*/
 		priv, _ := x509.ParsePKCS1PrivateKey(block.Bytes)
 
-		xp.Decrypt(encryptedAssertions[0].(types.Element), priv)
+		encryptedAssertion := encryptedAssertions[0]
+		encryptedData := xp.Query(encryptedAssertion, "xenc:EncryptedData")[0]
+		decryptedAssertion := xp.Decrypt(encryptedData.(types.Element), priv)
+
+		decryptedAssertionElement, _ := decryptedAssertion.Doc.DocumentElement()
+		_ = encryptedAssertion.AddPrevSibling(decryptedAssertionElement)
+		parent, _ := encryptedAssertion.ParentNode()
+		parent.RemoveChild(encryptedAssertion)
+
 		xp = goxml.NewXp(xp.Doc.Dump(false))
 		// repeat schemacheck
 		_, err = xp.SchemaValidate(Config.SamlSchema)
