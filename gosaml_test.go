@@ -3,9 +3,7 @@ package gosaml
 import (
 	"crypto"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/hex"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"github.com/wayf-dk/go-libxml2/types"
@@ -734,7 +732,7 @@ func ExampleAuthnRequest() {
 	// <?xml version="1.0" encoding="UTF-8"?>
 	// <samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" ID="ID" IssueInstant="0001-01-01T00:00:00Z" Destination="https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO" AssertionConsumerServiceURL="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST" ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST">
 	// <saml:Issuer>https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth</saml:Issuer>
-	// <samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" AllowCreate="true"/>
+	// <samlp:NameIDPolicy Format="urn:mace:shibboleth:1.0:nameIdentifier" AllowCreate="true"/>
 	// </samlp:AuthnRequest>
 }
 

@@ -111,6 +111,10 @@ func NewAuthnRequest(params IdAndTiming, spmd *goxml.Xp, idpmd *goxml.Xp) (reque
 	request.QueryDashP(nil, "./@Destination", idpmd.Query1(nil, `//md:SingleSignOnService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"]/@Location`), nil)
 	request.QueryDashP(nil, "./@AssertionConsumerServiceURL", spmd.Query1(nil, `//md:AssertionConsumerService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"]/@Location`), nil)
 	request.QueryDashP(nil, "./saml:Issuer", spmd.Query1(nil, `/md:EntityDescriptor/@entityID`), nil)
+	// take the 1st supported NameIDFormat
+	if nameIdPolicy := idpmd.Query1(nil, "./md:IDPSSODescriptor/md:NameIDFormat"); nameIdPolicy != "" {
+		request.QueryDashP(nil, "./samlp:NameIDPolicy/@Format", nameIdPolicy, nil)
+	}
 	return
 }
 
@@ -165,16 +169,19 @@ func Url2SAMLRequest(url *url.URL, err error) (samlrequest *goxml.Xp, relayState
 }
 
 // SAMLRequest2Url creates a redirect URL from a saml request
-func SAMLRequest2Url(samlrequest *goxml.Xp, relayState, privatekey, pw, algo string) (url *url.URL, err error) {
+func SAMLRequest2Url(samlrequest *goxml.Xp, relayState, privatekey, pw, algo string) (destination *url.URL, err error) {
 	req := base64.StdEncoding.EncodeToString(Deflate(samlrequest.Doc.Dump(false)))
 
-	url, _ = url.Parse(samlrequest.Query1(nil, "@Destination"))
-	q := url.Query()
-	q.Set("SAMLRequest", req)
-	q.Set("RelayState", relayState)
+	destination, _ = url.Parse(samlrequest.Query1(nil, "@Destination"))
+	q := "SAMLRequest=" + url.QueryEscape(req)
+	if relayState != "" {
+		q += "&RelayState=" + url.QueryEscape(relayState)
+	}
 
 	if privatekey != "" {
-		digest := goxml.Hash(goxml.Algos[algo].Algo, req)
+		q += "&SigAlg=" + url.QueryEscape(goxml.Algos[algo].Signature)
+
+		digest := goxml.Hash(goxml.Algos[algo].Algo, q)
 
 		var signaturevalue []byte
 		if strings.HasPrefix(privatekey, "hsm:") {
@@ -183,11 +190,12 @@ func SAMLRequest2Url(samlrequest *goxml.Xp, relayState, privatekey, pw, algo str
 			signaturevalue, err = goxml.SignGo(digest, privatekey, pw, algo)
 		}
 		signatureval := base64.StdEncoding.EncodeToString(signaturevalue)
-		q.Set("SigAlg", goxml.Algos[algo].Signature)
-		q.Set("Signature", signatureval)
+		fmt.Println("signature", signaturevalue, signatureval)
+		q += "&Signature=" + url.QueryEscape(signatureval)
 	}
+	fmt.Println("query", q)
 
-	url.RawQuery = q.Encode()
+	destination.RawQuery = q
 	return
 }
 
