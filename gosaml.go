@@ -16,12 +16,14 @@ import (
 	"fmt"
 	"github.com/wayf-dk/go-libxml2/types"
 	"github.com/wayf-dk/goxml"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	// . "github.com/y0ssar1an/q"
@@ -33,10 +35,7 @@ const (
 	xsDateTime   = "2006-01-02T15:04:05Z"
 	IdpCertQuery = `./md:IDPSSODescriptor/md:KeyDescriptor[@use="signing" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
 	spCertQuery  = `./md:SPSSODescriptor/md:KeyDescriptor[@use="encryption" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
-	certPath     = "/etc/ssl/wayf/signing/"
 
-	Basic      = "urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
-	Uri        = "urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
 	Transient  = "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
 	Persistent = "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
 )
@@ -56,11 +55,15 @@ type (
 	}
 
 	Conf struct {
-		SamlSchema string
+		SamlSchema    string
+		CertPath      string
+		NameIDFormats []string
 	}
 )
 
 var (
+	supportedBindings = map[string]map[string]bool{"SAMLRequest": {"GET": true, "POST": true}, "SAMLResponse": {"POST": true}}
+
 	Config = Conf{}
 )
 
@@ -85,14 +88,10 @@ func PublicKeyInfo(cert string) (keyname string, publickey *rsa.PublicKey, err e
     - The Issuer is the entityID ín the idpmetadata
     - The NameID defaults to transient
 */
-func NewAuthnRequest(params IdAndTiming, spmd *goxml.Xp, idpmd *goxml.Xp) (request *goxml.Xp) {
+func NewAuthnRequest(params IdAndTiming, originalRequest, spmd, idpmd *goxml.Xp) (request *goxml.Xp) {
 	template := `<samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
                     xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
                     Version="2.0"
-                    ID="x"
-                    IssueInstant="IssueInstant"
-                    Destination="Destination"
-                    AssertionConsumerServiceURL="ACSURL"
                     ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
                     >
 <saml:Issuer>Issuer</saml:Issuer>
@@ -111,10 +110,35 @@ func NewAuthnRequest(params IdAndTiming, spmd *goxml.Xp, idpmd *goxml.Xp) (reque
 	request.QueryDashP(nil, "./@Destination", idpmd.Query1(nil, `//md:SingleSignOnService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"]/@Location`), nil)
 	request.QueryDashP(nil, "./@AssertionConsumerServiceURL", spmd.Query1(nil, `//md:AssertionConsumerService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"]/@Location`), nil)
 	request.QueryDashP(nil, "./saml:Issuer", spmd.Query1(nil, `/md:EntityDescriptor/@entityID`), nil)
-	// take the 1st supported NameIDFormat
-	if nameIdPolicy := idpmd.Query1(nil, "./md:IDPSSODescriptor/md:NameIDFormat"); nameIdPolicy != "" {
-		request.QueryDashP(nil, "./samlp:NameIDPolicy/@Format", nameIdPolicy, nil)
+	found := false
+	nameIDFormat := ""
+	nameIDFormats := Config.NameIDFormats
+
+	if originalRequest != nil { // already checked for supported nameidformat
+		switch originalRequest.Query1(nil, "./@ForceAuthn") {
+		case "1", "true":
+			request.QueryDashP(nil, "./@ForceAuthn", "true", nil)
+		}
+		switch originalRequest.Query1(nil, "./@IsPassive") {
+		case "1", "true":
+			request.QueryDashP(nil, "./@IsPassive", "true", nil)
+		}
+		requesterID := originalRequest.Query1(nil, "./saml:Issuer")
+		request.QueryDashP(nil, "./samlp:Scoping/samlp:RequesterID", requesterID, nil)
+		if nameIDPolicy := originalRequest.Query1(nil, "./samlp:NameIDPolicy/@Format"); nameIDPolicy != "" {
+			nameIDFormats = append([]string{nameIDPolicy}, nameIDFormats...)
+		}
 	}
+
+	for _, nameIDFormat = range nameIDFormats {
+		if found = idpmd.Query1(nil, "./md:IDPSSODescriptor/md:NameIDFormat[.='"+nameIDFormat+"']") != ""; found {
+			break
+		}
+	}
+	if !found {
+		panic("no supported NameID format")
+	}
+	request.QueryDashP(nil, "./samlp:NameIDPolicy/@Format", nameIDFormat, nil)
 	return
 }
 
@@ -199,7 +223,7 @@ func SAMLRequest2Url(samlrequest *goxml.Xp, relayState, privatekey, pw, algo str
 	return
 }
 
-func AttributeCanonicalDump(xp *goxml.Xp) {
+func AttributeCanonicalDump(w io.Writer, xp *goxml.Xp) {
 	attrsmap := map[string][]string{}
 	keys := []string{}
 	attrs := xp.Query(nil, "./saml:Assertion/saml:AttributeStatement/saml:Attribute")
@@ -211,7 +235,7 @@ func AttributeCanonicalDump(xp *goxml.Xp) {
 		nameattr, _ := attr.(types.Element).GetAttribute("Name")
 		nameformatattr, _ := attr.(types.Element).GetAttribute("NameFormat")
 		friendlynameattr, err := attr.(types.Element).GetAttribute("FriendlyName")
-		fn := "x"
+		fn := ""
 		if err == nil {
 			fn = friendlynameattr.Value()
 		}
@@ -222,14 +246,14 @@ func AttributeCanonicalDump(xp *goxml.Xp) {
 
 	sort.Strings(keys)
 	for _, key := range keys {
-		fmt.Println(key)
+		fmt.Fprintln(w, key)
 		values := attrsmap[key]
 		sort.Strings(values)
 		for _, value := range values {
 			if value != "" {
-				fmt.Print("    " + value)
+				fmt.Fprint(w, "    "+value)
 			}
-			fmt.Println()
+			fmt.Fprintln(w)
 		}
 	}
 }
@@ -239,11 +263,26 @@ func AttributeCanonicalDump(xp *goxml.Xp) {
 // Receives the metadatasets for resp. the sender and the receiver
 // Returns metadata for the sender and the receiver
 func ReceiveSAMLResponse(r *http.Request, issuerMdSet, destinationMdSet Md) (xp, md, memd *goxml.Xp, relayState string, err error) {
-	providedSignatures := 0
+
 	xp, md, memd, relayState, err = DecodeSAMLMsg(r, issuerMdSet, destinationMdSet, "SAMLResponse")
 	if err != nil {
 		return
 	}
+
+	location := "https://" + r.Host + r.URL.Path
+	destination := xp.Query1(nil, "./@Destination")
+
+	if destination != location {
+		err = fmt.Errorf("destination: %s is not here, here is %s", destination, location)
+		return
+	}
+
+	err = CheckSAMLResponse(xp, md, memd)
+	return
+}
+
+func CheckSAMLResponse(xp, md, memd *goxml.Xp) (err error) {
+	providedSignatures := 0
 
 	certificates := md.Query(nil, IdpCertQuery)
 	if len(certificates) == 0 {
@@ -268,7 +307,7 @@ func ReceiveSAMLResponse(r *http.Request, issuerMdSet, destinationMdSet Md) (xp,
 			return
 		}
 		var privatekey []byte
-		privatekey, err = ioutil.ReadFile(certPath + keyname + ".key")
+		privatekey, err = ioutil.ReadFile(Config.CertPath + keyname + ".key")
 		if err != nil {
 			return
 		}
@@ -386,11 +425,15 @@ func ReceiveSAMLRequest(r *http.Request, issuerMdSet, destinationMdSet Md) (xp, 
 		return
 	}
 
-	acs := xp.Query1(nil, "@AssertionConsumerServiceURL")
-	validacs := len(md.Query(nil, "./md:SPSSODescriptor/md:AssertionConsumerService[@Location='"+acs+"']")) == 1
-	log.Println("acs", acs, validacs)
-	if acs == "" || !validacs {
-		err = fmt.Errorf("AssertionConsumerServiceURL missing or not present in metadata: '%s'", acs)
+	location := "https://" + r.Host + r.URL.Path
+	destination := xp.Query1(nil, "./@Destination")
+	if destination != location {
+		err = fmt.Errorf("destination: %s is not here, here is %s", destination, location)
+		return
+	}
+
+	err = checkACS(xp, md)
+	if err != nil {
 		return
 	}
 	subject := xp.Query1(nil, "@Subject")
@@ -404,26 +447,46 @@ func ReceiveSAMLRequest(r *http.Request, issuerMdSet, destinationMdSet Md) (xp, 
 		return
 	}
 	allowcreate := xp.Query1(nil, "./samlp:NameIDPolicy/@AllowCreate")
-	if allowcreate != "true" {
-		err = fmt.Errorf("only supported value for NameIDPolicy @AllowCreate is true, got: %s", allowcreate)
+	if allowcreate != "true" && allowcreate != "1" {
+		err = fmt.Errorf("only supported value for NameIDPolicy @AllowCreate is true/1, got: %s", allowcreate)
 		return
 	}
 	return
 }
 
+func checkACS(message, metadata *goxml.Xp) (err error) {
+	// check for request or response, get acs by url or index resp. destination
+	fmt.Println(message.PP())
+	tmpAcs := message.Query1(nil, "../samlp:Response/@Destination")
+	tmpAcs = message.Query1(nil, "../samlp:AuthnRequest/@AssertionConsumerServiceURL")
+	if tmpAcs == "" {
+		tmpAcs = message.Query1(nil, "../samlp:AuthnRequest/@AssertionConsumerServiceURL")
+	}
+	fmt.Println("url", tmpAcs)
+
+	if tmpAcs == "" {
+		acsindex := message.Query1(nil, "../samlp:AuthnRequest/@AttributeConsumingServiceIndex")
+		tmpAcs = metadata.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Index=`+strconv.Quote(acsindex)+`]/@Location`)
+	}
+	if tmpAcs == "" {
+		err = fmt.Errorf("no AssertionConsumerService found")
+		return
+	}
+	// only POST supported for now
+	acs := metadata.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" and @Location=`+strconv.Quote(tmpAcs)+`]/@Location`)
+	if acs == "" {
+		err = fmt.Errorf("AssertionConsumerServiceURL / Destination: %s in not valid", tmpAcs)
+	}
+	return
+}
+
 func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, parameterName string) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, err error) {
-	supportedBindings := map[string]map[string]bool{"SAMLRequest": {"GET": true}, "SAMLResponse": {"GET": true, "POST": true}}
-	location := "https://" + r.Host + r.URL.Path
+
 	r.ParseForm()
 	method := r.Method
 
 	if !supportedBindings[parameterName][method] {
 		err = fmt.Errorf("Unsupported method: %", method)
-		return
-	}
-
-	destinationMd, err = destinationMdSet.MDQ(location)
-	if err != nil {
 		return
 	}
 
@@ -461,8 +524,9 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, parameterN
 		err = fmt.Errorf("no destination found in %s", parameterName)
 		return
 	}
-	if destination != location {
-		err = fmt.Errorf("%s's destination is not here")
+
+	destinationMd, err = destinationMdSet.MDQ(destination)
+	if err != nil {
 		return
 	}
 	return
@@ -476,7 +540,7 @@ func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp) (err er
 		return
 	}
 	var privatekey []byte
-	privatekey, err = ioutil.ReadFile(certPath + keyname + ".key")
+	privatekey, err = ioutil.ReadFile(Config.CertPath + keyname + ".key")
 	if err != nil {
 		return
 	}
@@ -498,55 +562,36 @@ func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp) (err er
 */
 
 func NewResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *goxml.Xp) (response *goxml.Xp) {
-	template := `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
-                ID=""
-                Version="2.0"
-                IssueInstant=""
-                InResponseTo=""
-                Destination=""
-                >
-    <saml:Issuer xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"></saml:Issuer>
-    <samlp:Status>
-        <samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success" />
-    </samlp:Status>
-    <saml:Assertion xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                    xmlns:xs="http://www.w3.org/2001/XMLSchema"
-                    xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
-                    ID=""
-                    Version="2.0"
-                    IssueInstant=""
-                    >
-        <saml:Issuer></saml:Issuer>
-        <saml:Subject>
-            <saml:NameID SPNameQualifier=""
-                         Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
-                         ></saml:NameID>
-            <saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
-                <saml:SubjectConfirmationData NotOnOrAfter=""
-                                              Recipient=""
-                                              InResponseTo=""
-                                              />
-            </saml:SubjectConfirmation>
-        </saml:Subject>
-        <saml:Conditions NotBefore=""
-                         NotOnOrAfter=""
-                         >
-            <saml:AudienceRestriction>
-                <saml:Audience></saml:Audience>
-            </saml:AudienceRestriction>
-        </saml:Conditions>
-        <saml:AuthnStatement AuthnInstant=""
-                             SessionNotOnOrAfter=""
-                             SessionIndex=""
-                             >
-            <saml:AuthnContext>
-                <saml:AuthnContextClassRef></saml:AuthnContextClassRef>
-            </saml:AuthnContext>
-        </saml:AuthnStatement>
-        <saml:AttributeStatement xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xs="http://www.w3.org/2001/XMLSchema">
-        </saml:AttributeStatement>
-    </saml:Assertion>
-</samlp:Response>`
+	template := `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0">
+	<saml:Issuer></saml:Issuer>
+	<samlp:Status>
+		<samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success" />
+	</samlp:Status>
+	<saml:Assertion Version="2.0">
+		<saml:Issuer></saml:Issuer>
+		<saml:Subject>
+			<saml:NameID></saml:NameID>
+			<saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
+				<saml:SubjectConfirmationData/>
+			</saml:SubjectConfirmation>
+		</saml:Subject>
+		<saml:Conditions>
+			<saml:AudienceRestriction>
+				<saml:Audience>
+				</saml:Audience>
+			</saml:AudienceRestriction>
+		</saml:Conditions>
+		<saml:AuthnStatement>
+			<saml:AuthnContext>
+				<saml:AuthnContextClassRef>
+				</saml:AuthnContextClassRef>
+			</saml:AuthnContext>
+		</saml:AuthnStatement>
+		<saml:AttributeStatement>
+		</saml:AttributeStatement>
+	</saml:Assertion>
+</samlp:Response>
+`
 
 	response = goxml.NewXp(template)
 
@@ -596,7 +641,9 @@ func NewResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *
 	authstatement := response.Query(assertion, "saml:AuthnStatement")[0]
 	response.QueryDashP(authstatement, "@AuthnInstant", assertionIssueInstant, nil)
 	response.QueryDashP(authstatement, "@SessionNotOnOrAfter", sessionNotOnOrAfter, nil)
-	response.QueryDashP(authstatement, "@SessionIndex", "missing", nil)
+	//response.QueryDashP(authstatement, "@SessionIndex", "missing", nil)
+
+	response.QueryDashP(authstatement, "saml:AuthnContext/saml:AuthenticatingAuthority", sourceResponse.Query1(nil, "./saml:Issuer"), nil)
 	response.QueryDashP(authstatement, "saml:AuthnContext/saml:AuthnContextClassRef", sourceResponse.Query1(nil, "//saml:AuthnContextClassRef"), nil)
 
 	sourceResponse = goxml.NewXp(sourceResponse.Doc.Dump(true))

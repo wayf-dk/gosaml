@@ -221,6 +221,8 @@ Wk7ii+Su2RCnqP9H
         </ds:X509Data>
       </ds:KeyInfo>
     </md:KeyDescriptor>
+    <md:NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:transient</md:NameIDFormat>
+    <md:NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:persistent</md:NameIDFormat>
     <md:ArtifactResolutionService Binding="urn:oasis:names:tc:SAML:1.0:bindings:SOAP-binding" Location="https://aai-logon.switch.ch/idp/profile/SAML1/SOAP/ArtifactResolution" index="1"/>
     <md:ArtifactResolutionService Binding="urn:oasis:names:tc:SAML:2.0:bindings:SOAP" Location="https://aai-logon.switch.ch/idp/profile/SAML2/SOAP/ArtifactResolution" index="2"/>
     <md:NameIDFormat>urn:mace:shibboleth:1.0:nameIdentifier</md:NameIDFormat>
@@ -705,6 +707,7 @@ G6aFKaqQfOXKCyWoUiVknQJAXrlgySFci/2ueKlIE1QqIiLSZ8V8OlpFLRnb1pzI
 )
 
 func TestMain(m *testing.M) {
+	Config.NameIDFormats = []string{Transient, Persistent}
 	spmetadata = goxml.NewXp(spmetadatxml)    // NewMD(mdq+"EDUGAIN", "https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth")
 	idpmetadata = goxml.NewXp(idpmetadataxml) // NewMD(mdq+"EDUGAIN", "https://aai-logon.switch.ch/idp/shibboleth")
 	//wayfmetadata = NewMD(mdq, "wayf-hub-public", "https://wayf.wayf.dk")
@@ -719,20 +722,20 @@ func ExampleMetadata() {
 	fmt.Println(idpmetadata.Query1(nil, "/md:EntityDescriptor/md:IDPSSODescriptor/md:NameIDFormat"))
 	// Output:
 	// https://aai-logon.switch.ch/idp/shibboleth
-	// urn:mace:shibboleth:1.0:nameIdentifier
+	// urn:oasis:names:tc:SAML:2.0:nameid-format:transient
 }
 
 func ExampleAuthnRequest() {
 	spmd := spmetadata
 	idpmd := idpmetadata
 
-	request := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, spmd, idpmd)
+	request := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmd, idpmd)
 	fmt.Print(request.Doc.Dump(false))
 	// Output:
 	// <?xml version="1.0" encoding="UTF-8"?>
-	// <samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" ID="ID" IssueInstant="0001-01-01T00:00:00Z" Destination="https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO" AssertionConsumerServiceURL="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST" ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST">
+	// <samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" ID="ID" IssueInstant="0001-01-01T00:00:00Z" Destination="https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO" AssertionConsumerServiceURL="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
 	// <saml:Issuer>https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth</saml:Issuer>
-	// <samlp:NameIDPolicy Format="urn:mace:shibboleth:1.0:nameIdentifier" AllowCreate="true"/>
+	// <samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" AllowCreate="true"/>
 	// </samlp:AuthnRequest>
 }
 
@@ -741,38 +744,38 @@ func ExampleResponse() {
 	spmd := spmetadata
 
 	sourceResponse := goxml.NewXp(response)
-	request := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, spmd, idpmd)
+	request := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmd, idpmd)
 	response := NewResponse(IdAndTiming{time.Time{}, 4 * time.Minute, 4 * time.Hour, "ID", "AssertionID"}, idpmd, spmd, request, sourceResponse)
 
 	fmt.Print(response.Doc.Dump(true))
 	// Output:
 	// <?xml version="1.0" encoding="UTF-8"?>
-	// <samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="ID" Version="2.0" IssueInstant="0001-01-01T00:00:00Z" InResponseTo="ID" Destination="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
-	//     <saml:Issuer xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">https://aai-logon.switch.ch/idp/shibboleth</saml:Issuer>
-	//     <samlp:Status>
-	//         <samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
-	//     </samlp:Status>
-	//     <saml:Assertion xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="AssertionID" Version="2.0" IssueInstant="0001-01-01T00:00:00Z">
-	//         <saml:Issuer>https://aai-logon.switch.ch/idp/shibboleth</saml:Issuer>
-	//         <saml:Subject>
-	//             <saml:NameID SPNameQualifier="https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth" Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient">_6c41e4c164d64aee825cdecc23ca67187f4741f390</saml:NameID>
-	//             <saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
-	//                 <saml:SubjectConfirmationData NotOnOrAfter="0001-01-01T00:04:00Z" Recipient="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST" InResponseTo="ID"/>
-	//             </saml:SubjectConfirmation>
-	//         </saml:Subject>
-	//         <saml:Conditions NotBefore="0001-01-01T00:00:00Z" NotOnOrAfter="0001-01-01T00:04:00Z">
-	//             <saml:AudienceRestriction>
-	//                 <saml:Audience>https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth</saml:Audience>
-	//             </saml:AudienceRestriction>
-	//         </saml:Conditions>
-	//         <saml:AuthnStatement AuthnInstant="0001-01-01T00:00:00Z" SessionNotOnOrAfter="0001-01-01T04:00:00Z" SessionIndex="missing">
-	//             <saml:AuthnContext>
-	//                 <saml:AuthnContextClassRef>urn:oasis:names:tc:SAML:2.0:ac:classes:Password</saml:AuthnContextClassRef>
-	//             </saml:AuthnContext>
-	//         </saml:AuthnStatement>
-	//         <saml:AttributeStatement xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xs="http://www.w3.org/2001/XMLSchema">
-	//         <saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.6" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">gikcaswid@orphanage.wayf.dk</saml:AttributeValue><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">only@thisone.example.com</saml:AttributeValue></saml:Attribute></saml:AttributeStatement>
-	//     </saml:Assertion>
+	// <samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" ID="ID" IssueInstant="0001-01-01T00:00:00Z" InResponseTo="ID" Destination="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
+	// 	<saml:Issuer>https://aai-logon.switch.ch/idp/shibboleth</saml:Issuer>
+	// 	<samlp:Status>
+	// 		<samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
+	// 	</samlp:Status>
+	// 	<saml:Assertion Version="2.0" ID="AssertionID" IssueInstant="0001-01-01T00:00:00Z">
+	// 		<saml:Issuer>https://aai-logon.switch.ch/idp/shibboleth</saml:Issuer>
+	// 		<saml:Subject>
+	// 			<saml:NameID SPNameQualifier="https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth" Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient">_6c41e4c164d64aee825cdecc23ca67187f4741f390</saml:NameID>
+	// 			<saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
+	// 				<saml:SubjectConfirmationData NotOnOrAfter="0001-01-01T00:04:00Z" Recipient="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST" InResponseTo="ID"/>
+	// 			</saml:SubjectConfirmation>
+	// 		</saml:Subject>
+	// 		<saml:Conditions NotBefore="0001-01-01T00:00:00Z" NotOnOrAfter="0001-01-01T00:04:00Z">
+	// 			<saml:AudienceRestriction>
+	// 				<saml:Audience>https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth</saml:Audience>
+	// 			</saml:AudienceRestriction>
+	// 		</saml:Conditions>
+	// 		<saml:AuthnStatement AuthnInstant="0001-01-01T00:00:00Z" SessionNotOnOrAfter="0001-01-01T04:00:00Z" SessionIndex="missing">
+	// 			<saml:AuthnContext>
+	// 				<saml:AuthnContextClassRef>urn:oasis:names:tc:SAML:2.0:ac:classes:Password</saml:AuthnContextClassRef>
+	// 			<saml:AuthenticatingAuthority>https://birk.wayf.dk/birk.php/orphanage.wayf.dk</saml:AuthenticatingAuthority></saml:AuthnContext>
+	// 		</saml:AuthnStatement>
+	// 		<saml:AttributeStatement>
+	// 		<saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.6" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">gikcaswid@orphanage.wayf.dk</saml:AttributeValue><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">only@thisone.example.com</saml:AttributeValue></saml:Attribute></saml:AttributeStatement>
+	// 	</saml:Assertion>
 	// </samlp:Response>
 }
 
@@ -781,7 +784,7 @@ func xExampleEncryptAndDecrypt() {
 	spmd := spmetadata
 
 	sourceResponse := goxml.NewXp(response)
-	request := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, spmd, idpmd)
+	request := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmd, idpmd)
 	response := NewResponse(IdAndTiming{time.Time{}, 4 * time.Minute, 4 * time.Hour, "ID", "AssertionID"}, idpmd, spmd, request, sourceResponse)
 	assertion := response.Query(nil, "saml:Assertion[1]")[0]
 
