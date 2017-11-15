@@ -261,6 +261,7 @@ func AttributeCanonicalDump(w io.Writer, xp *goxml.Xp) {
 // ReceiveSAMLResponse handles the SAML minutiae when receiving a SAMLResponse
 // Currently the only supported binding is POST
 // Receives the metadatasets for resp. the sender and the receiver
+// For
 // Returns metadata for the sender and the receiver
 func ReceiveSAMLResponse(r *http.Request, issuerMdSet, destinationMdSet Md) (xp, md, memd *goxml.Xp, relayState string, err error) {
 
@@ -290,7 +291,9 @@ func CheckSAMLResponse(xp, md, memd *goxml.Xp) (err error) {
 		return
 	}
 
+	fmt.Println("SAMLResponse pre", xp.PP())
 	signatures := xp.Query(nil, "/samlp:Response[1]/ds:Signature[1]/..")
+	fmt.Println("SAMLResponse pre check", len(signatures))
 	if len(signatures) == 1 {
 		providedSignatures++
 		if err = VerifySign(xp, certificates, signatures); err != nil {
@@ -342,7 +345,7 @@ func CheckSAMLResponse(xp, md, memd *goxml.Xp) (err error) {
 		err = fmt.Errorf("only 1 EncryptedAssertion allowed, %d found", len(encryptedAssertions))
 	}
 
-	fmt.Println("SAMLRespose", xp.PP())
+	fmt.Println("SAMLResponse", xp.PP())
 
 	//no ds:Object in signatures
 	signatures = xp.Query(nil, "/samlp:Response[1]/saml:Assertion[1]/ds:Signature[1]/..")
@@ -507,6 +510,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, parameterN
 	xp = goxml.NewXp(string(bmsg))
 	errs, err := xp.SchemaValidate(Config.SamlSchema)
 	if err != nil {
+		fmt.Println(xp.PP())
 		fmt.Println("schemaerrs:", errs)
 		return
 	}
@@ -699,5 +703,15 @@ func NewResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *
 		}
 		//		}
 	}
+	return
+}
+
+func NewErrorResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *goxml.Xp) (response *goxml.Xp) {
+	idpEntityID := idpmd.Query1(nil, `/md:EntityDescriptor/@entityID`)
+	response = goxml.NewXpFromNode(*sourceResponse.DocGetRootElement())
+	acs := authnrequest.Query1(nil, "@AssertionConsumerServiceURL")
+	response.QueryDashP(nil, "./@InResponseTo", authnrequest.Query1(nil, "@ID"), nil)
+	response.QueryDashP(nil, "./@Destination", acs, nil)
+	response.QueryDashP(nil, "./saml:Issuer", idpEntityID, nil)
 	return
 }
