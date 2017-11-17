@@ -194,10 +194,18 @@ func Url2SAMLRequest(url *url.URL, err error) (samlrequest *goxml.Xp, relayState
 
 // SAMLRequest2Url creates a redirect URL from a saml request
 func SAMLRequest2Url(samlrequest *goxml.Xp, relayState, privatekey, pw, algo string) (destination *url.URL, err error) {
+    var paramName string
+    switch samlrequest.QueryString(nil, "local-name(/*)") {
+        case "LogoutResponse":
+            paramName = "SAMLResponse="
+        default:
+            paramName = "SAMLRequest="
+    }
+
 	req := base64.StdEncoding.EncodeToString(Deflate(samlrequest.Doc.Dump(false)))
 
 	destination, _ = url.Parse(samlrequest.Query1(nil, "@Destination"))
-	q := "SAMLRequest=" + url.QueryEscape(req)
+	q := paramName + url.QueryEscape(req)
 	if relayState != "" {
 		q += "&RelayState=" + url.QueryEscape(relayState)
 	}
@@ -217,7 +225,6 @@ func SAMLRequest2Url(samlrequest *goxml.Xp, relayState, privatekey, pw, algo str
 		fmt.Println("signature", signaturevalue, signatureval)
 		q += "&Signature=" + url.QueryEscape(signatureval)
 	}
-	fmt.Println("query", q)
 
 	destination.RawQuery = q
 	return
