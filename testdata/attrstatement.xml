@@ -1,0 +1,141 @@
+<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
+                xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
+                xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                >
+        <saml:AttributeStatement>
+            <saml:Attribute Name="cn"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            >
+                <saml:AttributeValue xsi:type="xs:string">Mads Freek Petersen</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="eduPersonEntitlement"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            >
+                <saml:AttributeValue xsi:type="xs:string">https://wayf.dk/kanja/admin</saml:AttributeValue>
+                <saml:AttributeValue xsi:type="xs:string">https://wayf.dk/orphanage/admin</saml:AttributeValue>
+                <saml:AttributeValue xsi:type="xs:string">https://wayf.dk/vo/admin</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="organizationName"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            >
+                <saml:AttributeValue xsi:type="xs:string">WAYF Where Are You From</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="preferredLanguage"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            >
+                <saml:AttributeValue xsi:type="xs:string">da</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="mail"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            >
+                <saml:AttributeValue xsi:type="xs:string">freek@wayf.dk</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="eduPersonPrincipalName"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            >
+                <saml:AttributeValue xsi:type="xs:string">gikcaswid@orphanage.wayf.dk</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="gn"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            >
+                <saml:AttributeValue xsi:type="xs:string">Mads Freek</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="sn"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            >
+                <saml:AttributeValue xsi:type="xs:string">Petersen</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="eduPersonPrimaryAffiliation"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            >
+                <saml:AttributeValue xsi:type="xs:string">member</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="eduPersonAssurance"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            >
+                <saml:AttributeValue xsi:type="xs:string">1</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="schacHomeOrganization"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            >
+                <saml:AttributeValue xsi:type="xs:string">orphanage.wayf.dk</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="schacHomeOrganizationType"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            >
+                <saml:AttributeValue xsi:type="xs:string">urn:mace:terena.org:schac:homeOrganizationType:int:NRENAffiliate</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="eduPersonTargetedID"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            >
+                <saml:AttributeValue xsi:type="xs:string">WAYF-DK-a462971438f09f28b0cf806965a5b5461376815b</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="urn:oid:2.5.4.3"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            >
+                <saml:AttributeValue xsi:type="xs:string">Mads Freek Petersen</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.7"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            >
+                <saml:AttributeValue xsi:type="xs:string">https://wayf.dk/kanja/admin</saml:AttributeValue>
+                <saml:AttributeValue xsi:type="xs:string">https://wayf.dk/orphanage/admin</saml:AttributeValue>
+                <saml:AttributeValue xsi:type="xs:string">https://wayf.dk/vo/admin</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="urn:oid:2.5.4.10"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            >
+                <saml:AttributeValue xsi:type="xs:string">WAYF Where Are You From</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="urn:oid:2.16.840.1.113730.3.1.39"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            >
+                <saml:AttributeValue xsi:type="xs:string">da</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="urn:oid:0.9.2342.19200300.100.1.3"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            >
+                <saml:AttributeValue xsi:type="xs:string">freek@wayf.dk</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.6"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            >
+                <saml:AttributeValue xsi:type="xs:string">gikcaswid@orphanage.wayf.dk</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="urn:oid:2.5.4.42"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            >
+                <saml:AttributeValue xsi:type="xs:string">Mads Freek</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="urn:oid:2.5.4.4"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            >
+                <saml:AttributeValue xsi:type="xs:string">Petersen</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.5"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            >
+                <saml:AttributeValue xsi:type="xs:string">member</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.11"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            >
+                <saml:AttributeValue xsi:type="xs:string">1</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="urn:oid:1.3.6.1.4.1.25178.1.2.9"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            >
+                <saml:AttributeValue xsi:type="xs:string">orphanage.wayf.dk</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="urn:oid:1.3.6.1.4.1.25178.1.2.10"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            >
+                <saml:AttributeValue xsi:type="xs:string">urn:mace:terena.org:schac:homeOrganizationType:int:NRENAffiliate</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.10"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            >
+                <saml:AttributeValue xsi:type="xs:string">WAYF-DK-a462971438f09f28b0cf806965a5b5461376815b</saml:AttributeValue>
+            </saml:Attribute>
+        </saml:AttributeStatement>
+</samlp:Response>
