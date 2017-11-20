@@ -43,6 +43,14 @@ const (
 
 type (
 	// Interface for metadata provider
+	simplemd struct {
+		entities map[string]*goxml.Xp
+	}
+	
+	metadata struct {
+		Hub, Internal, External string
+	}
+	
 	Md interface {
 		MDQ(key string) (xp *goxml.Xp, err error)
 	}
@@ -57,6 +65,7 @@ type (
 
 	Conf struct {
 		SamlSchema string
+		
 	}
 )
 
@@ -75,6 +84,36 @@ func PublicKeyInfo(cert string) (keyname string, publickey *rsa.PublicKey, err e
 	}
 	publickey = pk.PublicKey.(*rsa.PublicKey)
 	keyname = fmt.Sprintf("%x", sha1.Sum([]byte(fmt.Sprintf("Modulus=%X\n", publickey.N))))
+	return
+}
+
+func SimplePrepareMD(metadata string, index *simplemd) {
+	indextargets := []string{
+		"./md:IDPSSODescriptor/md:SingleSignOnService[@Binding='urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect']/@Location",
+		"./md:SPSSODescriptor/md:AssertionConsumerService[@Binding='urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST']/@Location",
+	}
+
+	x := goxml.NewXp(metadata)
+	entities := x.Query(nil, "md:EntityDescriptor")
+
+	for _, entity := range entities {
+		newentity := goxml.NewXpFromNode(entity)
+		entityID, _ := entity.(types.Element).GetAttribute("entityID")
+		index.entities[entityID.Value()] = newentity
+		for _, target := range indextargets {
+			locations := newentity.Query(nil, target)
+			for _, location := range locations {
+				index.entities[location.NodeValue()] = newentity
+			}
+		}
+	}
+}
+
+func (m simplemd) MDQ(key string) (xp *goxml.Xp, err error) {
+	xp = m.entities[key]
+	if xp == nil {
+		err = fmt.Errorf("Not found: " + key)
+	}
 	return
 }
 
@@ -172,7 +211,7 @@ func SAMLRequest2Url(samlrequest *goxml.Xp, relayState, privatekey, pw, algo str
 	q := url.Query()
 	q.Set("SAMLRequest", req)
 	q.Set("RelayState", relayState)
-
+	
 	if privatekey != "" {
 		digest := goxml.Hash(goxml.Algos[algo].Algo, req)
 
@@ -190,7 +229,7 @@ func SAMLRequest2Url(samlrequest *goxml.Xp, relayState, privatekey, pw, algo str
 	url.RawQuery = q.Encode()
 	return
 }
-
+// Remember to look at it
 func AttributeCanonicalDump(xp *goxml.Xp) {
 	attrsmap := map[string][]string{}
 	keys := []string{}
@@ -287,7 +326,7 @@ func ReceiveSAMLResponse(r *http.Request, issuerMdSet, destinationMdSet Md) (xp,
 		err = fmt.Errorf("only 1 EncryptedAssertion allowed, %d found", len(encryptedAssertions))
 	}
 
-	fmt.Println("SAMLRespose", xp.PP())
+	//fmt.Println("SAMLRespose", xp.PP())
 
 	//no ds:Object in signatures
 	signatures = xp.Query(nil, "/samlp:Response[1]/saml:Assertion[1]/ds:Signature[1]/..")
@@ -339,6 +378,7 @@ func VerifySign(xp *goxml.Xp, certificates, signatures types.NodeList) (err erro
 	return
 }
 
+// We need to fix this
 func VerifyTiming(xp *goxml.Xp) (err error) {
 	// 3 minutes skew allowed
 	now := time.Now().Add(time.Duration(3) * time.Minute).UTC().Format(xsDateTime)
@@ -372,7 +412,7 @@ func ReceiveSAMLRequest(r *http.Request, issuerMdSet, destinationMdSet Md) (xp, 
 
 	acs := xp.Query1(nil, "@AssertionConsumerServiceURL")
 	validacs := len(md.Query(nil, "./md:SPSSODescriptor/md:AssertionConsumerService[@Location='"+acs+"']")) == 1
-	log.Println("acs", acs, validacs)
+	//log.Println("acs", acs, validacs)
 	if acs == "" || !validacs {
 		err = fmt.Errorf("AssertionConsumerServiceURL missing or not present in metadata: '%s'", acs)
 		return
@@ -396,7 +436,7 @@ func ReceiveSAMLRequest(r *http.Request, issuerMdSet, destinationMdSet Md) (xp, 
 }
 
 func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, parameterName string) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, err error) {
-	supportedBindings := map[string]map[string]bool{"SAMLRequest": {"GET": true}, "SAMLResponse": {"GET": true, "POST": true}}
+	supportedBindings := map[string]map[string]bool{"SAMLRequest": {"GET": true, "POST": true}, "SAMLResponse": {"POST": true}}	
 	location := "https://" + r.Host + r.URL.Path
 	r.ParseForm()
 	method := r.Method
@@ -413,6 +453,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, parameterN
 
 	relayState = r.Form.Get("RelayState")
 	msg := r.Form.Get(parameterName)
+	
 	if msg == "" {
 		err = fmt.Errorf("no %s found", parameterName)
 		return
