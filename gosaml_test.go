@@ -3,9 +3,9 @@ package gosaml
 import (
 	"crypto"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
-	"encoding/base64"
 	"fmt"
 	//"github.com/wayf-dk/go-libxml2/types"
 	"github.com/wayf-dk/goxml"
@@ -39,12 +39,11 @@ var (
 	_  = log.Printf // For debugging; delete when done.
 	wg sync.WaitGroup
 
-	mdq = "https://phph.wayf.dk/MDQ/"
-	hub, external, internal                                         simplemd // mddb
+	mdq                                                                                     = "https://phph.wayf.dk/MDQ/"
+	hub, external, internal                                                                 simplemd // mddb
 	spmetadata, idpmetadata, hubmetadata, response, testidpmetadata, testidpviabirkmetadata *goxml.Xp
-	privatekey string
+	privatekey                                                                              string
 )
-
 
 func xpFromFile(file string) (res *goxml.Xp) {
 	xml, err := ioutil.ReadFile(file)
@@ -54,31 +53,31 @@ func xpFromFile(file string) (res *goxml.Xp) {
 	res = goxml.NewXp(string(xml))
 	return
 }
-	
+
 func TestMain(m *testing.M) {
 
 	//Config.NameIDFormats = []string{Transient, Persistent}
-	
-	spmetadata = xpFromFile("testdata/spmetadata.xml")//goxml.NewXp(spmetadatxml)    // NewMD(mdq+"EDUGAIN", "https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth")
-	idpmetadata = xpFromFile("testdata/idpmetadata.xml")//goxml.NewXp(idpmetadataxml) // NewMD(mdq+"EDUGAIN", "https://aai-logon.switch.ch/idp/shibboleth")
+
+	spmetadata = xpFromFile("testdata/spmetadata.xml")   //goxml.NewXp(spmetadatxml)    // NewMD(mdq+"EDUGAIN", "https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth")
+	idpmetadata = xpFromFile("testdata/idpmetadata.xml") //goxml.NewXp(idpmetadataxml) // NewMD(mdq+"EDUGAIN", "https://aai-logon.switch.ch/idp/shibboleth")
 	hubmetadata = xpFromFile("testdata/wayfmd.xml")
 	response = xpFromFile("testdata/response.xml")
-	
+
 	pkey, _ := ioutil.ReadFile("testdata/private.key.pem")
 	privatekey = string(pkey)
-	
+
 	hubmd, _ := ioutil.ReadFile("testdata/hub.xml")
 	hub = simplemd{entities: make(map[string]*goxml.Xp)}
 	SimplePrepareMD(string(hubmd), &hub)
-	
+
 	internalmd, _ := ioutil.ReadFile("testdata/internal.xml")
 	internal = simplemd{entities: make(map[string]*goxml.Xp)}
 	SimplePrepareMD(string(internalmd), &internal)
-	
+
 	externalmd, _ := ioutil.ReadFile("testdata/external.xml")
 	external = simplemd{entities: make(map[string]*goxml.Xp)}
 	SimplePrepareMD(string(externalmd), &external)
-	
+
 	/*internal = md{entities: make(map[string]*goxml.Xp)}
 	prepareMetadata(config.Metadata.Internal, &internal)
 	external = md{entities: make(map[string]*goxml.Xp)}
@@ -124,7 +123,7 @@ func ExampleResponse() {
 	idpmd := idpmetadata
 	spmd := spmetadata
 	sourceResponse := response
-	
+
 	request := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, spmd, idpmd)
 	response := NewResponse(IdAndTiming{time.Time{}, 4 * time.Minute, 4 * time.Hour, "ID", "AssertionID"}, idpmd, spmd, request, sourceResponse)
 	fmt.Print(base64.StdEncoding.EncodeToString(goxml.Hash(crypto.SHA1, response.Doc.Dump(true))))
@@ -136,8 +135,8 @@ func ExampleAttributeCanonicalDump() {
 	AttributeCanonicalDump(response)
 	// Output:
 	// x urn:oid:1.3.6.1.4.1.5923.1.1.1.6 urn:oasis:names:tc:SAML:2.0:attrname-format:uri
-   	//     gikcaswid@orphanage.wayf.dk
-    //     only@thisone.example.com
+	//     gikcaswid@orphanage.wayf.dk
+	//     only@thisone.example.com
 }
 
 func ExamplePublicKeyInfo() {
@@ -152,7 +151,7 @@ func ExamplePublicKeyInfo() {
 func ExampleSAMLRequest2Url() {
 	newrequest := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, spmetadata, idpmetadata)
 	url, err := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
-	fmt.Println(url,err)
+	fmt.Println(url, err)
 	// Output:
 	// https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO?RelayState=anton-banton&SAMLRequest=pJJBi9swEIXv%2ByuM7ra8ORURZ0k3LA1suyH29tCbYk%2FWA7KUzoyT9t9XUZJiKORSGDBY8%2BZ9vJn506%2FBZUcgxuAr9ViUKgPfhg79R6Xem5f8k3paPMzZDu5glqP0fgs%2FR2DJotCzSQ%2BVGsmbYBnZeDsAG2lNvfz6amZFaQ4UJLTBqYnkvsIyA0kkUtn3G9rsjLZeVWq9il%2FmEdaexXqpVFmWj3mqpixNqh8qW0VI9FaSuhc5sNHaWsxd%2BAi%2B4BNK2xdtr7E76Mi4Rwf6jDDTW%2BiQoBVd128qW95onoPncQCqgY7Ywvv2dTJYhHA3CuRHhBNQEZ2mHl6A9tABJaBcIpyue9ztggPpC%2BZw9d681Y3KNtfMPqO%2FrOJeXLtLE5svTbPJ04DrykwKihb%2FQ8l%2FKed6OvN2FN8iz3q1CQ7b39lLoMHKfdzzH%2BzyfWo1QtYzgpcYtHPh9ExgBSolNILS0UX%2Fe3uLhz8BAAD%2F%2Fw%3D%3D <nil>
 }
@@ -160,7 +159,7 @@ func ExampleSAMLRequest2Url() {
 func ExampleUrl2SAMLRequest() {
 	newrequest := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, spmetadata, idpmetadata)
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
-	xp, relayState := Url2SAMLRequest(url, nil) 
+	xp, relayState := Url2SAMLRequest(url, nil)
 	fmt.Print(base64.StdEncoding.EncodeToString(goxml.Hash(crypto.SHA1, xp.Doc.Dump(true))))
 	fmt.Println(relayState)
 	// Output:
@@ -207,7 +206,6 @@ func xExampleEncryptAndDecrypt() {
 	idpmd := idpmetadata
 	spmd := spmetadata
 
-
 	//sourceResponse := response
 	//request := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, spmd, idpmd)
 
@@ -217,15 +215,15 @@ func xExampleEncryptAndDecrypt() {
 	fmt.Println(response)
 	//assertion := response.Query(nil, "saml:Assertion[1]")[0]
 
-	//pk := privatekey 
- /*	ea := goxml.NewXp(`<saml:EncryptedAssertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"></saml:EncryptedAssertion>`)
-	response.Encrypt(assertion.(types.Element), &privatekey.PublicKey, ea)
+	//pk := privatekey
+	/*	ea := goxml.NewXp(`<saml:EncryptedAssertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"></saml:EncryptedAssertion>`)
+		response.Encrypt(assertion.(types.Element), &privatekey.PublicKey, ea)
 
-	assertion = response.Query(nil, "//saml:EncryptedAssertion")[0]
-	//response.Decrypt(assertion.(types.Element), privatekey)
-	fmt.Print(response.Doc.Dump(true))
+		assertion = response.Query(nil, "//saml:EncryptedAssertion")[0]
+		//response.Decrypt(assertion.(types.Element), privatekey)
+		fmt.Print(response.Doc.Dump(true))
 
-*/
+	*/
 	// Output:
 	//<?xml version="1.0"?>
 	//<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="ID" Version="2.0" IssueInstant="0001-01-01T00:00:00Z" InResponseTo="ID" Destination="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">

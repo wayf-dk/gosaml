@@ -849,19 +849,19 @@ func NewErrorResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceRespo
 */
 
 func NewLogoutRequest(params IdAndTiming, issuer, destination, sourceLogoutRequest *goxml.Xp, sloinfo SLOInfo) (request *goxml.Xp) {
-    template := `<samlp:LogoutRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
+	template := `<samlp:LogoutRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
                      xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
                      Version="2.0">
 </samlp:LogoutRequest>
 `
-   	request = goxml.NewXp(template)
+	request = goxml.NewXp(template)
 	slo := destination.Query1(nil, `/md:EntityDescriptor/md:IDPSSODescriptor/md:SingleLogoutService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"]/@Location`)
 	request.QueryDashP(nil, "./@IssueInstant", params.Now.Format(XsDateTime), nil)
 	request.QueryDashP(nil, "./@ID", sourceLogoutRequest.Query1(nil, "@ID"), nil)
 	request.QueryDashP(nil, "./@Destination", slo, nil)
 	request.QueryDashP(nil, "./saml:Issuer", sloinfo.Issuer, nil)
 	request.QueryDashP(nil, "./saml:NameID/@Format", sloinfo.Format, nil)
-   	request.QueryDashP(nil, "./saml:NameID/@SPNameQualifier", sloinfo.SPNameQualifier, nil)
+	request.QueryDashP(nil, "./saml:NameID/@SPNameQualifier", sloinfo.SPNameQualifier, nil)
 	request.QueryDashP(nil, "./saml:NameID", sloinfo.NameID, nil)
 	return
 }
@@ -882,7 +882,6 @@ func NewLogoutRequest(params IdAndTiming, issuer, destination, sourceLogoutReque
 </samlp:LogoutResponse>
 */
 
-
 func NewLogoutResponse(params IdAndTiming, source, destination, request, sourceResponse *goxml.Xp) (response *goxml.Xp) {
 	response = goxml.NewXpFromNode(*sourceResponse.DocGetRootElement())
 	response.QueryDashP(nil, "./@InResponseTo", request.Query1(nil, "@ID"), nil)
@@ -893,20 +892,19 @@ func NewLogoutResponse(params IdAndTiming, source, destination, request, sourceR
 	return
 }
 
-func NewSLOInfo(response, destination *goxml.Xp) (SLOInfo) {
-    entityID := response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Issuer")
-    nameID := response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID")
-    format := response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID/@Format")
-    spnamequalifier := response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID/@SPNameQualifier")
-    issuer := destination.Query1(nil, "@entityID")
-    return SLOInfo{NameID: nameID, EntityID: entityID, Format: format, SPNameQualifier: spnamequalifier, Issuer: issuer}
+func NewSLOInfo(response, destination *goxml.Xp) SLOInfo {
+	entityID := response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Issuer")
+	nameID := response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID")
+	format := response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID/@Format")
+	spnamequalifier := response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID/@SPNameQualifier")
+	issuer := destination.Query1(nil, "@entityID")
+	return SLOInfo{NameID: nameID, EntityID: entityID, Format: format, SPNameQualifier: spnamequalifier, Issuer: issuer}
 }
 
-func NameIDHash(xp *goxml.Xp) (string) {
-    nameID := xp.Query1(nil, "//saml:NameID")
-    format := xp.Query1(nil, "//saml:NameID/@Format")
-    spNameQualifier := xp.Query1(nil, "//saml:NameID/@SPNameQualifier")
+func NameIDHash(xp *goxml.Xp) string {
+	nameID := xp.Query1(nil, "//saml:NameID")
+	format := xp.Query1(nil, "//saml:NameID/@Format")
+	spNameQualifier := xp.Query1(nil, "//saml:NameID/@SPNameQualifier")
 
-    return fmt.Sprintf("%x", goxml.Hash(crypto.SHA1, nameID+"#"+format+"#"+spNameQualifier))
+	return fmt.Sprintf("%x", goxml.Hash(crypto.SHA1, nameID+"#"+format+"#"+spNameQualifier))
 }
-
