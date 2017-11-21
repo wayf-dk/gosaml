@@ -1,4 +1,3 @@
-// Gosaml is a library for doing SAML stuff in Go.
 
 package gosaml
 
@@ -65,7 +64,6 @@ type (
 
 	Conf struct {
 		SamlSchema string
-		
 	}
 )
 

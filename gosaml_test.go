@@ -45,6 +45,7 @@ var (
 	privatekey string
 )
 
+
 func xpFromFile(file string) (res *goxml.Xp) {
 	xml, err := ioutil.ReadFile(file)
 	if err != nil {
@@ -53,9 +54,9 @@ func xpFromFile(file string) (res *goxml.Xp) {
 	res = goxml.NewXp(string(xml))
 	return
 }
-
-
+	
 func TestMain(m *testing.M) {
+
 	//Config.NameIDFormats = []string{Transient, Persistent}
 	
 	spmetadata = xpFromFile("testdata/spmetadata.xml")//goxml.NewXp(spmetadatxml)    // NewMD(mdq+"EDUGAIN", "https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth")
@@ -86,6 +87,10 @@ func TestMain(m *testing.M) {
 	fmt.Println("hub = ", hub)
 	fmt.Println("internal = ", internal)
 	fmt.Println("external = ", external)
+
+	//Config.NameIDFormats = []string{Transient, Persistent}
+	//spmetadata = goxml.NewXp(spmetadatxml)    // NewMD(mdq+"EDUGAIN", "https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth")
+	//idpmetadata = goxml.NewXp(idpmetadataxml) // NewMD(mdq+"EDUGAIN", "https://aai-logon.switch.ch/idp/shibboleth")
 	//wayfmetadata = NewMD(mdq, "wayf-hub-public", "https://wayf.wayf.dk")
 	//hubmetadata = //goxml.NewXp(wayfmdxml)
 	//	testidpmetadata = NewMD(mdq+"HUB-OPS", "https://this.is.not.a.valid.idp")
@@ -118,11 +123,10 @@ func ExampleAuthnRequest() {
 func ExampleResponse() {
 	idpmd := idpmetadata
 	spmd := spmetadata
-
 	sourceResponse := response
+	
 	request := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, spmd, idpmd)
 	response := NewResponse(IdAndTiming{time.Time{}, 4 * time.Minute, 4 * time.Hour, "ID", "AssertionID"}, idpmd, spmd, request, sourceResponse)
-
 	fmt.Print(base64.StdEncoding.EncodeToString(goxml.Hash(crypto.SHA1, response.Doc.Dump(true))))
 	// Output:
 	// u8Lm3KAuBcX0q4VqX+qQYmF2OdY=
@@ -203,9 +207,13 @@ func xExampleEncryptAndDecrypt() {
 	idpmd := idpmetadata
 	spmd := spmetadata
 
-	sourceResponse := response
+
+	//sourceResponse := response
+	//request := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, spmd, idpmd)
+
+	//sourceResponse := goxml.NewXp(response)
 	request := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, spmd, idpmd)
-	response := NewResponse(IdAndTiming{time.Time{}, 4 * time.Minute, 4 * time.Hour, "ID", "AssertionID"}, idpmd, spmd, request, sourceResponse)
+	response := NewResponse(IdAndTiming{time.Time{}, 4 * time.Minute, 4 * time.Hour, "ID", "AssertionID"}, idpmd, spmd, request, response)
 	fmt.Println(response)
 	//assertion := response.Query(nil, "saml:Assertion[1]")[0]
 
