@@ -39,8 +39,8 @@ const (
 
 const (
 	XsDateTime   = "2006-01-02T15:04:05Z"
-	IdpCertQuery = `./md:IDPSSODescriptor/md:KeyDescriptor[@use="signing" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
-	spCertQuery  = `./md:SPSSODescriptor/md:KeyDescriptor[@use="encryption" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
+	signingCertQuery = `/md:KeyDescriptor[@use="signing" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
+	encryptionCertQuery  = `./md:SPSSODescriptor/md:KeyDescriptor[@use="encryption" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
 
 	Transient  = "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
 	Persistent = "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
@@ -337,24 +337,20 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 	// Look for Bindings for the destination in metadata
 	// We don't check that we are the destination here - that should be done in the specific Functions,
 	// otherwise we won't be able to let responses go to a test sp
-	// do we need to distinques btw SPs and IdPs?
 	service := ""
-	var certQueries []string
 	minSignatures := 1
 	switch xp.QueryString(nil, "local-name(/*)") {
 	case "LogoutRequest", "LogoutResponse":
 		minSignatures = 0
 		service = "md:SingleLogoutService"
-		certQueries = []string{IdpCertQuery, spCertQuery} // we don't know if it is from an IdP or a SP !!!
 	case "Response":
 		service = "md:AssertionConsumerService"
-		certQueries = []string{IdpCertQuery}
 	case "AuthnRequest":
 		minSignatures = 0
 		service = "md:SingleSignOnService"
-		certQueries = []string{spCertQuery}
 	}
 
+    checkSignatures := minSignatures > 0
 	mdRole := Roles[role]
 
 	destination := xp.Query1(nil, "./@Destination")
@@ -364,16 +360,14 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 		usedBindings[v] = true
 	}
 
-	certificates := types.NodeList{}
-	for _, query := range certQueries {
-		certificates = append(certificates, md.Query(nil, query)...)
-	}
+	certificates := md.Query(nil, `./`+Roles[(role+1)%2]+signingCertQuery)  // the issuer's role
+
 	if len(certificates) == 0 {
 		err = errors.New("no certificates found in metadata")
 		return
 	}
 
-	if usedBindings["urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"] {
+	if checkSignatures && usedBindings["urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"] {
 		sigAlg := ""
 		rawValues := parseQueryRaw(r.URL.RawQuery)
 		q := ""
@@ -387,31 +381,56 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 			q += "&RelayState=" + rawValues["RelayState"][0]
 		}
 		if _, ok := rawValues["SigAlg"]; ok {
-			sigAlg = rawValues["SigAlg"][0]
-			q += "&SigAlg=" + sigAlg
+			q += "&SigAlg=" + rawValues["SigAlg"][0]
+			sigAlg = r.Form.Get("SigAlg") // needed as decoded value
 		}
-		/*
-		           digest := goxml.Hash(goxml.Algos[sigAlg].Algo, q)
 
-		   		var pub *rsa.PublicKey
-		   		_, pub, err = PublicKeyInfo(certificate.NodeValue())
+		digest := goxml.Hash(goxml.Algos[sigAlg].Algo, q)
 
-		           err := rsa.VerifyPKCS1v15(pub, Algos[signatureMethod].Algo, digest[:], digest)
-		*/
+        verified := 0
+        signerrors := []error{}
+        for _, certificate := range certificates {
+            var pub *rsa.PublicKey
+            _, pub, err = PublicKeyInfo(certificate.NodeValue())
+            fmt.Println("cert", certificate.NodeValue())
+
+            if err != nil {
+                return
+            }
+            signature, _ :=  base64.StdEncoding.DecodeString(r.Form.Get("Signature"))
+            signerror := rsa.VerifyPKCS1v15(pub, goxml.Algos[sigAlg].Algo, digest[:], signature)
+            if signerror != nil {
+                signerrors = append(signerrors, signerror)
+            } else {
+                verified++
+                break
+            }
+        }
+        if verified != 1 {
+            errorstring := ""
+            delim := ""
+            for _, e := range signerrors {
+                errorstring += e.Error() + delim
+                delim = ", "
+            }
+            err = fmt.Errorf("unable to validate signature: %s", errorstring)
+            return
+        }
 	}
 
 	if usedBindings["urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"] {
-		signatures := xp.Query(nil, "/samlp:Response[1]/ds:Signature[1]/..")
-		if len(signatures) == 1 {
-			providedSignatures++
-			if err = VerifySign(xp, certificates, signatures); err != nil {
-				return
-			}
-		}
-
+		if checkSignatures {
+            signatures := xp.Query(nil, "/samlp:Response[1]/ds:Signature[1]/..")
+            if len(signatures) == 1 {
+                providedSignatures++
+                if err = VerifySign(xp, certificates, signatures); err != nil {
+                    return
+                }
+            }
+        }
 		encryptedAssertions := xp.Query(nil, "/samlp:Response/saml:EncryptedAssertion")
 		if len(encryptedAssertions) == 1 {
-			cert := memd.Query1(nil, spCertQuery) // actual encryption key is always first
+			cert := memd.Query1(nil, encryptionCertQuery) // actual encryption key is always first
 			var keyname string
 			keyname, _, err = PublicKeyInfo(cert)
 			if err != nil {
@@ -454,17 +473,20 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 		}
 
 		//no ds:Object in signatures
-		signatures = xp.Query(nil, "/samlp:Response[1]/saml:Assertion[1]/ds:Signature[1]/..")
-		if len(signatures) == 1 {
-			providedSignatures++
-			if err = VerifySign(xp, certificates, signatures); err != nil {
-				return
-			}
+		if checkSignatures {
+            signatures := xp.Query(nil, "/samlp:Response[1]/saml:Assertion[1]/ds:Signature[1]/..")
+            if len(signatures) == 1 {
+                providedSignatures++
+                if err = VerifySign(xp, certificates, signatures); err != nil {
+                    return
+                }
+            }
 		}
 	}
+
 	if providedSignatures < minSignatures {
 		err = fmt.Errorf("No signatures found")
-		return
+ 		return
 	}
 
 	err = checkACS(xp, md, memd, role)
@@ -873,7 +895,7 @@ func NameIDHash(xp *goxml.Xp) string {
 }
 
 func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp) (err error) {
-	cert := md.Query1(nil, IdpCertQuery) // actual signing key is always first
+	cert := md.Query1(nil, "md:IDPSSODescriptor"+signingCertQuery) // actual signing key is always first
 	var keyname string
 	keyname, _, err = PublicKeyInfo(cert)
 	if err != nil {
