@@ -38,9 +38,9 @@ const (
 )
 
 const (
-	XsDateTime   = "2006-01-02T15:04:05Z"
-	signingCertQuery = `/md:KeyDescriptor[@use="signing" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
-	encryptionCertQuery  = `./md:SPSSODescriptor/md:KeyDescriptor[@use="encryption" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
+	XsDateTime          = "2006-01-02T15:04:05Z"
+	signingCertQuery    = `/md:KeyDescriptor[@use="signing" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
+	encryptionCertQuery = `./md:SPSSODescriptor/md:KeyDescriptor[@use="encryption" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
 
 	Transient  = "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
 	Persistent = "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
@@ -72,8 +72,9 @@ type (
 )
 
 var (
-	Roles  = []string{"md:IDPSSODescriptor", "md:SPSSODescriptor"}
-	Config = Conf{}
+	Roles    = []string{"md:IDPSSODescriptor", "md:SPSSODescriptor"}
+	Config   = Conf{}
+	ACSError = errors.New("invalid AsssertionConsumerService or AsssertionConsumerServiceIndex")
 )
 
 // PublicKeyInfo extracts the keyname, publickey and cert (base64 DER - no PEM) from the given certificate.
@@ -135,7 +136,7 @@ func Html2SAMLResponse(html []byte) (samlresponse *goxml.Xp, relayState string) 
 func Url2SAMLRequest(url *url.URL, err error) (samlrequest *goxml.Xp, relayState string) {
 	query := url.Query()
 	req, _ := base64.StdEncoding.DecodeString(query.Get("SAMLRequest"))
-	relayState = query.Get("SAMLRequest")
+	relayState = query.Get("RelayState")
 	samlrequest = goxml.NewXp(string(Inflate(req)))
 	return
 }
@@ -227,11 +228,13 @@ func ReceiveAuthnRequest(r *http.Request, issuerMdSet, destinationMdSet Md) (xp,
 		err = fmt.Errorf("nameidpolicy format: %s is not supported")
 		return
 	}
-	allowcreate := xp.Query1(nil, "./samlp:NameIDPolicy/@AllowCreate")
-	if allowcreate != "true" && allowcreate != "1" {
-		err = fmt.Errorf("only supported value for NameIDPolicy @AllowCreate is true/1, got: %s", allowcreate)
-		return
-	}
+	/*
+		allowcreate := xp.Query1(nil, "./samlp:NameIDPolicy/@AllowCreate")
+		if allowcreate != "true" && allowcreate != "1" {
+			err = fmt.Errorf("only supported value for NameIDPolicy @AllowCreate is true/1, got: %s", allowcreate)
+			return
+		}
+	*/
 	return
 }
 
@@ -281,8 +284,10 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 	}
 
 	xp = goxml.NewXp(string(bmsg))
+	fmt.Println(xp.PP())
 	_, err = xp.SchemaValidate(Config.SamlSchema)
 	if err != nil {
+		err = goxml.Wrap(err)
 		return
 	}
 
@@ -350,7 +355,7 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 		service = "md:SingleSignOnService"
 	}
 
-    checkSignatures := minSignatures > 0
+	checkSignatures := minSignatures > 0
 	mdRole := Roles[role]
 
 	destination := xp.Query1(nil, "./@Destination")
@@ -360,7 +365,7 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 		usedBindings[v] = true
 	}
 
-	certificates := md.Query(nil, `./`+Roles[(role+1)%2]+signingCertQuery)  // the issuer's role
+	certificates := md.Query(nil, `./`+Roles[(role+1)%2]+signingCertQuery) // the issuer's role
 
 	if len(certificates) == 0 {
 		err = errors.New("no certificates found in metadata")
@@ -387,47 +392,47 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 
 		digest := goxml.Hash(goxml.Algos[sigAlg].Algo, q)
 
-        verified := 0
-        signerrors := []error{}
-        for _, certificate := range certificates {
-            var pub *rsa.PublicKey
-            _, pub, err = PublicKeyInfo(certificate.NodeValue())
-            fmt.Println("cert", certificate.NodeValue())
+		verified := 0
+		signerrors := []error{}
+		for _, certificate := range certificates {
+			var pub *rsa.PublicKey
+			_, pub, err = PublicKeyInfo(certificate.NodeValue())
+			fmt.Println("cert", certificate.NodeValue())
 
-            if err != nil {
-                return
-            }
-            signature, _ :=  base64.StdEncoding.DecodeString(r.Form.Get("Signature"))
-            signerror := rsa.VerifyPKCS1v15(pub, goxml.Algos[sigAlg].Algo, digest[:], signature)
-            if signerror != nil {
-                signerrors = append(signerrors, signerror)
-            } else {
-                verified++
-                break
-            }
-        }
-        if verified != 1 {
-            errorstring := ""
-            delim := ""
-            for _, e := range signerrors {
-                errorstring += e.Error() + delim
-                delim = ", "
-            }
-            err = fmt.Errorf("unable to validate signature: %s", errorstring)
-            return
-        }
+			if err != nil {
+				return
+			}
+			signature, _ := base64.StdEncoding.DecodeString(r.Form.Get("Signature"))
+			signerror := rsa.VerifyPKCS1v15(pub, goxml.Algos[sigAlg].Algo, digest[:], signature)
+			if signerror != nil {
+				signerrors = append(signerrors, signerror)
+			} else {
+				verified++
+				break
+			}
+		}
+		if verified != 1 {
+			errorstring := ""
+			delim := ""
+			for _, e := range signerrors {
+				errorstring += e.Error() + delim
+				delim = ", "
+			}
+			err = fmt.Errorf("unable to validate signature: %s", errorstring)
+			return
+		}
 	}
 
 	if usedBindings["urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"] {
 		if checkSignatures {
-            signatures := xp.Query(nil, "/samlp:Response[1]/ds:Signature[1]/..")
-            if len(signatures) == 1 {
-                providedSignatures++
-                if err = VerifySign(xp, certificates, signatures); err != nil {
-                    return
-                }
-            }
-        }
+			signatures := xp.Query(nil, "/samlp:Response[1]/ds:Signature[1]/..")
+			if len(signatures) == 1 {
+				providedSignatures++
+				if err = VerifySign(xp, certificates, signatures); err != nil {
+					return
+				}
+			}
+		}
 		encryptedAssertions := xp.Query(nil, "/samlp:Response/saml:EncryptedAssertion")
 		if len(encryptedAssertions) == 1 {
 			cert := memd.Query1(nil, encryptionCertQuery) // actual encryption key is always first
@@ -474,19 +479,19 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 
 		//no ds:Object in signatures
 		if checkSignatures {
-            signatures := xp.Query(nil, "/samlp:Response[1]/saml:Assertion[1]/ds:Signature[1]/..")
-            if len(signatures) == 1 {
-                providedSignatures++
-                if err = VerifySign(xp, certificates, signatures); err != nil {
-                    return
-                }
-            }
+			signatures := xp.Query(nil, "/samlp:Response[1]/saml:Assertion[1]/ds:Signature[1]/..")
+			if len(signatures) == 1 {
+				providedSignatures++
+				if err = VerifySign(xp, certificates, signatures); err != nil {
+					return
+				}
+			}
 		}
 	}
 
 	if providedSignatures < minSignatures {
 		err = fmt.Errorf("No signatures found")
- 		return
+		return
 	}
 
 	err = checkACS(xp, md, memd, role)
@@ -503,7 +508,7 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 // Returns metadata for the sender and the receiver
 func checkACS(message, issuer, destination *goxml.Xp, role int) (err error) {
 	var checkedDest string
-	var acsIndex int
+	var acsIndex string
 	dest := message.Query1(nil, "./@Destination")
 	mdRole := "./" + Roles[role]
 	protocol := message.QueryString(nil, "local-name(/*)")
@@ -517,8 +522,7 @@ func checkACS(message, issuer, destination *goxml.Xp, role int) (err error) {
 
 		checkedAcs := issuer.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" and @Location=`+strconv.Quote(acs)+`]/@Location`)
 		if checkedAcs == "" {
-			err = fmt.Errorf("AssertionConsumerServiceURL %s or AttributeConsumingServiceIndex %d is not valid", dest, acsIndex)
-			return
+			return goxml.Wrap(ACSError, "acs:"+acs, "acsindex:"+acsIndex)
 		}
 		checkedDest = destination.Query1(nil, `./md:IDPSSODescriptor/md:SingleSignOnService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" and @Location=`+strconv.Quote(dest)+`]/@Location`)
 		if checkedDest == "" {
@@ -917,4 +921,3 @@ func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp) (err er
 	err = response.Sign(element[0].(types.Element), before.(types.Element), string(privatekey), "-", cert, "sha1")
 	return
 }
-
