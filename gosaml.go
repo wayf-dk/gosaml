@@ -284,7 +284,6 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 	}
 
 	xp = goxml.NewXp(string(bmsg))
-	fmt.Println(xp.PP())
 	_, err = xp.SchemaValidate(Config.SamlSchema)
 	if err != nil {
 		err = goxml.Wrap(err)
@@ -397,7 +396,6 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 		for _, certificate := range certificates {
 			var pub *rsa.PublicKey
 			_, pub, err = PublicKeyInfo(certificate.NodeValue())
-			fmt.Println("cert", certificate.NodeValue())
 
 			if err != nil {
 				return
@@ -629,7 +627,7 @@ func VerifyTiming(xp *goxml.Xp) (err error) {
     - The Issuer is the entityID ín the idpmetadata
     - The NameID defaults to transient
 */
-func NewAuthnRequest(params IdAndTiming, originalRequest, spmd, idpmd *goxml.Xp) (request *goxml.Xp) {
+func NewAuthnRequest(params IdAndTiming, originalRequest, spmd, idpmd *goxml.Xp) (request *goxml.Xp, err error) {
 	template := `<samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
                     xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
                     Version="2.0"
@@ -677,7 +675,8 @@ func NewAuthnRequest(params IdAndTiming, originalRequest, spmd, idpmd *goxml.Xp)
 		}
 	}
 	if !found {
-		panic("no supported NameID format")
+		err = errors.New("no supported NameID format")
+		return
 	}
 	request.QueryDashP(nil, "./samlp:NameIDPolicy/@Format", nameIDFormat, nil)
 	return
