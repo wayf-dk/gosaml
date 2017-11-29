@@ -1,468 +1,1259 @@
-<?xml version="1.0"?>
-<md:EntitiesDescriptor Name="urn:mace:shibboleth:testshib:two"
-    xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
-    xmlns:mdalg="urn:oasis:names:tc:SAML:metadata:algsupport" xmlns:mdui="urn:oasis:names:tc:SAML:metadata:ui"
-    xmlns:shibmd="urn:mace:shibboleth:metadata:1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-<md:EntityDescriptor xmlns:wayf="http://wayf.dk/2014/08/wayf" xmlns:remd="http://refeds.org/metadata" xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:mdattr="urn:oasis:names:tc:SAML:metadata:attribute" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" xmlns:mdrpi="urn:oasis:names:tc:SAML:metadata:rpi" xmlns:shibmd="urn:mace:shibboleth:metadata:1.0" xmlns:mdui="urn:oasis:names:tc:SAML:metadata:ui" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="https://birk.wayf.dk/birk.php/wayf.ait.dtu.dk/saml2/idp/metadata.php">
-  <md:Extensions>
-    <mdattr:EntityAttributes>
-      <saml:Attribute Name="http://macedir.org/entity-category-support" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">
-        <saml:AttributeValue>http://refeds.org/category/research-and-scholarship</saml:AttributeValue>
-      </saml:Attribute>
-      <saml:Attribute NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" Name="urn:oasis:names:tc:SAML:attribute:assurance-certification">
-        <saml:AttributeValue>https://refeds.org/sirtfi</saml:AttributeValue>
-      </saml:Attribute>
-    </mdattr:EntityAttributes>
-    <mdrpi:RegistrationInfo registrationInstant="2012-02-03T13:34:44Z" registrationAuthority="https://www.wayf.dk">
-      <mdrpi:RegistrationPolicy xml:lang="en">http://wayf.dk/images/stories/WAYF-filer/metadataregistrationpracticestatementwayf.pdf</mdrpi:RegistrationPolicy>
-    </mdrpi:RegistrationInfo>
-  </md:Extensions>
-  <md:IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
-    <md:Extensions>
-      <shibmd:Scope regexp="false">dtu.dk</shibmd:Scope>
-      <mdui:UIInfo>
-        <mdui:DisplayName xml:lang="da">Danmarks Tekniske Universitet</mdui:DisplayName>
-        <mdui:DisplayName xml:lang="en">Technical University of Denmark</mdui:DisplayName>
-        <mdui:Logo width="73" height="100">data:image/png;base64,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</mdui:Logo>
-      </mdui:UIInfo>
-      <mdui:DiscoHints>
-        <mdui:DomainHint>dtu.dk</mdui:DomainHint>
-      </mdui:DiscoHints>
-    </md:Extensions>
-    <md:KeyDescriptor>
-      <ds:KeyInfo>
-        <ds:X509Data>
-          <ds:X509Certificate>MIICtjCCAZ4CAQcwDQYJKoZIhvcNAQELBQAwITEfMB0GA1UEAwwWaHR0cHM6Ly93
-YXlmc3Aud2F5Zi5kazAeFw0xNTAxMDEwMDAwMDBaFw0yNTEyMzEyMzU5NTlaMCEx
-HzAdBgNVBAMMFmh0dHBzOi8vd2F5ZnNwLndheWYuZGswggEiMA0GCSqGSIb3DQEB
-AQUAA4IBDwAwggEKAoIBAQCfa+CetxGFykkAtZT0lRfspF6vIiRt7nd1MksUflqK
-sRY0wxzqqNs8uuP8oJN09CuTUY+ysrifHWee5LY7FpCzjjBefdVtlHaPCo11jLvM
-PlaL1avNdbc2DBcUjpqaEo3bY6SI112U7miIFX/KG8P+1pBRkoRI5SGuIVNODrtn
-36VENzizGxCPyUj18lWks1reNFi49WLyCFFJcRmgjBlF2t8XdUgJi2Le/EJuHibp
-eydQR8l3IWUIfZlfQy4QCFpuHSERh42Bj4RAnrP07xawzR23HHpyLQ/LMm3X77HS
-JAxkzDy3wqDA3VXiOJrftsfD+ZY5kruloScX2Ck+ciHdAgMBAAEwDQYJKoZIhvcN
-AQELBQADggEBAI5f9RoiSlarcKvIx/HnGeo6t98iUPXaX/tyt5i/t4aRP+Kyr9n9
-pK4hKR+WZhzOMx/GAGjzq7LuyjtlKhfVRu81uRt+zdltXF1JvF8mrejT+elljwqq
-tn1eeT44hLykzj0LI8OB6gWGkxC2r1t3oWBWGlrrfVu9yXRtAzNkc59MF1Qa006B
-MEQA6+2Eslr4Fr86etnZgXPjOQHKSsN2TnrLb/XKFJsbVuMqe72rUInchpGUOi7F
-FKVZwXtNoFJ0HGQqX6ZRPfTaWBN4IH6MHoxbvYDfkfTwMra2+2J/vBCypWZvbpWN
-+I+5HyxXbemzwaKK7zonmrBZ9PDi+JUctko=
-</ds:X509Certificate>
-        </ds:X509Data>
-      </ds:KeyInfo>
-    </md:KeyDescriptor>
-    <md:NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:transient</md:NameIDFormat>
-    <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://birk.wayf.dk/birk.php/wayf.ait.dtu.dk/saml2/idp/SSOService.php"/>
-  </md:IDPSSODescriptor>
-  <md:Organization>
-    <md:OrganizationName xml:lang="da">Danmarks Tekniske Universitet</md:OrganizationName>
-    <md:OrganizationName xml:lang="en">Technical University of Denmark</md:OrganizationName>
-    <md:OrganizationDisplayName xml:lang="da">Danmarks Tekniske Universitet</md:OrganizationDisplayName>
-    <md:OrganizationDisplayName xml:lang="en">Technical University of Denmark</md:OrganizationDisplayName>
-    <md:OrganizationURL xml:lang="da">http://www.dtu.dk</md:OrganizationURL>
-    <md:OrganizationURL xml:lang="en">http://www.dtu.dk/English.aspx</md:OrganizationURL>
-  </md:Organization>
-  <md:ContactPerson contactType="technical">
-    <md:EmailAddress>mailto:afos@adm.dtu.dk</md:EmailAddress>
-  </md:ContactPerson>
-  <md:ContactPerson contactType="other" remd:contactType="http://refeds.org/metadata/contactType/security">
-    <md:GivenName>Morten</md:GivenName>
-    <md:SurName>Als</md:SurName>
-    <md:EmailAddress>mailto:mals@dtu.dk</md:EmailAddress>
-    <md:TelephoneNumber>+4540804661</md:TelephoneNumber>
-  </md:ContactPerson>
-  <md:ContactPerson contactType="technical">
-    <md:GivenName>WAYF</md:GivenName>
-    <md:SurName>Operations</md:SurName>
-    <md:EmailAddress>operations@wayf.dk</md:EmailAddress>
-  </md:ContactPerson>
-</md:EntityDescriptor>
-<md:EntityDescriptor xmlns:mdrpi="urn:oasis:names:tc:SAML:metadata:rpi" xmlns:wayf="http://wayf.dk/2014/08/wayf" xmlns:mdui="urn:oasis:names:tc:SAML:metadata:ui" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="https://krib.wayf.dk/krib.php/wayfsp.wayf.dk" ID="KRIB-WAYF000279">
-  <md:Extensions xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata">
-    <mdrpi:RegistrationInfo xmlns:mdrpi="urn:oasis:names:tc:SAML:metadata:rpi" registrationInstant="2011-01-19T09:25:59Z" registrationAuthority="https://www.wayf.dk">
-      <mdrpi:RegistrationPolicy xml:lang="en">http://wayf.dk/images/stories/WAYF-filer/metadataregistrationpracticestatementwayf.pdf</mdrpi:RegistrationPolicy>
-    </mdrpi:RegistrationInfo>
-    <wayf:wayf xmlns:wayf="http://wayf.dk/2014/08/wayf">
-      <wayf:active>yes</wayf:active>
-      <wayf:AttributeNameFormat/>
-      <wayf:certFingerprint>da39a3ee5e6b4b0d3255bfef95601890afd80709</wayf:certFingerprint>
-      <wayf:eduGAIN/>
-      <wayf:eid>279</wayf:eid>
-      <wayf:env>prod</wayf:env>
-      <wayf:federation>WAYF</wayf:federation>
-      <wayf:federation>nemlog-in.dk</wayf:federation>
-      <wayf:federation>qa.kmd.dk</wayf:federation>
-      <wayf:icon>1324561724_logo.png</wayf:icon>
-      <wayf:kalmar>0</wayf:kalmar>
-      <wayf:modified>2017-05-24T13:36:07Z</wayf:modified>
-      <wayf:redirect.sign/>
-      <wayf:redirect.validate/>
-      <wayf:revisionid>181</wayf:revisionid>
-      <wayf:RegistrationInstant2>2011-01-19T09:25:59Z</wayf:RegistrationInstant2>
-      <wayf:type>saml20-sp</wayf:type>
-      <wayf:url xml:lang="da">http://www.wayf.dk</wayf:url>
-      <wayf:url xml:lang="en">http://www.wayf.dk</wayf:url>
-    </wayf:wayf>
-  </md:Extensions>
-  <md:SPSSODescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol" AuthnRequestsSigned="false">
-    <md:Extensions>
-      <mdui:UIInfo xmlns:mdui="urn:oasis:names:tc:SAML:metadata:ui">
-        <mdui:Description xml:lang="da">Form&#xE5;let er at give udviklere mulighed for at unders&#xF8;ge omfang og syntaktisk kvalitet af de oplysninger som en institution oversender hver gang en af dens brugere fors&#xF8;ger at logge ind p&#xE5; en webtjeneste via WAYF.</mdui:Description>
-        <mdui:Description xml:lang="en">The purpose is to enable developers to inspect the extent and syntactical quality of the information sent from an institution every time one of its users attempts to log into a web service through WAYF.</mdui:Description>
-        <mdui:DisplayName xml:lang="da">WAYF Testtjeneste</mdui:DisplayName>
-        <mdui:DisplayName xml:lang="en">WAYF Testing Service</mdui:DisplayName>
-        <mdui:Logo width="300" height="128">data:image/png;base64,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</mdui:Logo>
-      </mdui:UIInfo>
-    </md:Extensions>
-    <md:KeyDescriptor>
-      <ds:KeyInfo>
-        <ds:X509Data>
-          <ds:X509Certificate>MIICtjCCAZ4CAQcwDQYJKoZIhvcNAQELBQAwITEfMB0GA1UEAwwWaHR0cHM6Ly93
-YXlmc3Aud2F5Zi5kazAeFw0xNTAxMDEwMDAwMDBaFw0yNTEyMzEyMzU5NTlaMCEx
-HzAdBgNVBAMMFmh0dHBzOi8vd2F5ZnNwLndheWYuZGswggEiMA0GCSqGSIb3DQEB
-AQUAA4IBDwAwggEKAoIBAQCfa+CetxGFykkAtZT0lRfspF6vIiRt7nd1MksUflqK
-sRY0wxzqqNs8uuP8oJN09CuTUY+ysrifHWee5LY7FpCzjjBefdVtlHaPCo11jLvM
-PlaL1avNdbc2DBcUjpqaEo3bY6SI112U7miIFX/KG8P+1pBRkoRI5SGuIVNODrtn
-36VENzizGxCPyUj18lWks1reNFi49WLyCFFJcRmgjBlF2t8XdUgJi2Le/EJuHibp
-eydQR8l3IWUIfZlfQy4QCFpuHSERh42Bj4RAnrP07xawzR23HHpyLQ/LMm3X77HS
-JAxkzDy3wqDA3VXiOJrftsfD+ZY5kruloScX2Ck+ciHdAgMBAAEwDQYJKoZIhvcN
-AQELBQADggEBAI5f9RoiSlarcKvIx/HnGeo6t98iUPXaX/tyt5i/t4aRP+Kyr9n9
-pK4hKR+WZhzOMx/GAGjzq7LuyjtlKhfVRu81uRt+zdltXF1JvF8mrejT+elljwqq
-tn1eeT44hLykzj0LI8OB6gWGkxC2r1t3oWBWGlrrfVu9yXRtAzNkc59MF1Qa006B
-MEQA6+2Eslr4Fr86etnZgXPjOQHKSsN2TnrLb/XKFJsbVuMqe72rUInchpGUOi7F
-FKVZwXtNoFJ0HGQqX6ZRPfTaWBN4IH6MHoxbvYDfkfTwMra2+2J/vBCypWZvbpWN
-+I+5HyxXbemzwaKK7zonmrBZ9PDi+JUctko=
-</ds:X509Certificate>
-        </ds:X509Data>
-      </ds:KeyInfo>
-    </md:KeyDescriptor>
-    <md:NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:transient</md:NameIDFormat>
-    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" index="0" Location="https://krib.wayf.dk/krib.php/wayfsp.wayf.dk/ss/module.php/saml/sp/saml2-acs.php/default-sp"/>
-    <md:AttributeConsumingService index="1" isDefault="true">
-      <md:ServiceName xml:lang="da">WAYF Testtjeneste</md:ServiceName>
-      <md:ServiceName xml:lang="en">WAYF Testing Service</md:ServiceName>
-      <md:ServiceDescription xml:lang="da">Form&#xE5;let er at give udviklere mulighed for at unders&#xF8;ge omfang og syntaktisk kvalitet af de oplysninger som en institution oversender hver gang en af dens brugere fors&#xF8;ger at logge ind p&#xE5; en webtjeneste via WAYF.</md:ServiceDescription>
-      <md:ServiceDescription xml:lang="en">The purpose is to enable developers to inspect the extent and syntactical quality of the information sent from an institution every time one of its users attempts to log into a web service through WAYF.</md:ServiceDescription>
-      <md:RequestedAttribute FriendlyName="cn" Name="urn:oid:2.5.4.3" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="eduPersonAssurance" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.11" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="eduPersonEntitlement" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.7" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="eduPersonPrimaryAffiliation" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.5" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="eduPersonPrincipalName" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.6" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="eduPersonScopedAffiliation" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.9" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="eduPersonTargetedID" Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.10" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="gn" Name="urn:oid:2.5.4.42" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="mail" Name="urn:oid:0.9.2342.19200300.100.1.3" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="norEduPersonLIN" Name="urn:oid:1.3.6.1.4.1.2428.90.1.4" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="norEduPersonNIN" Name="urn:oid:1.3.6.1.4.1.2428.90.1.5" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="organizationName" Name="urn:oid:2.5.4.10" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="preferredLanguage" Name="urn:oid:2.16.840.1.113730.3.1.39" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="schacCountryOfCitizenship" Name="urn:oid:1.3.6.1.4.1.25178.1.2.5" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="schacDateOfBirth" Name="urn:oid:1.3.6.1.4.1.25178.1.2.3" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="schacHomeOrganization" Name="urn:oid:1.3.6.1.4.1.25178.1.2.9" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="schacPersonalUniqueID" Name="urn:oid:1.3.6.1.4.1.25178.1.2.15" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="schacYearOfBirth" Name="urn:oid:1.3.6.1.4.1.25178.1.0.2.3" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="sn" Name="urn:oid:2.5.4.4" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-      <md:RequestedAttribute FriendlyName="schacHomeOrganizationType" Name="urn:oid:1.3.6.1.4.1.25178.1.2.10" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" isRequired="true"/>
-    </md:AttributeConsumingService>
-  </md:SPSSODescriptor>
-  <md:ContactPerson xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" contactType="technical">
-    <md:EmailAddress>mailto:benji@wayf.dk</md:EmailAddress>
-  </md:ContactPerson>
-  <md:ContactPerson contactType="technical">
-    <md:GivenName>WAYF</md:GivenName>
-    <md:SurName>Operations</md:SurName>
-    <md:EmailAddress>operations@wayf.dk</md:EmailAddress>
-  </md:ContactPerson>
-</md:EntityDescriptor>
-
-    <EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="https://birk.wayf.dk/birk.php/idp.testshib.org/idp/shibboleth">
-
-        <Extensions>
-            <mdalg:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512" />
-            <mdalg:DigestMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#sha384" />
-            <mdalg:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256" />
-            <mdalg:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1" />
-            <mdalg:SigningMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha512" />
-            <mdalg:SigningMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha384" />
-            <mdalg:SigningMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256" />
-            <mdalg:SigningMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1" />
-        </Extensions>
-
-        <IDPSSODescriptor
-            protocolSupportEnumeration="urn:oasis:names:tc:SAML:1.1:protocol urn:mace:shibboleth:1.0 urn:oasis:names:tc:SAML:2.0:protocol">
-            <Extensions>
-                <shibmd:Scope regexp="false">testshib.org</shibmd:Scope>
-                <mdui:UIInfo>
-                    <mdui:DisplayName xml:lang="en">TestShib Test IdP</mdui:DisplayName>
-                    <mdui:Description xml:lang="en">TestShib IdP. Use this as a source of attributes
-                        for your test SP.</mdui:Description>
-                    <mdui:Logo height="88" width="253"
-                        >https://www.testshib.org/testshibtwo.jpg</mdui:Logo>
+<md:EntitiesDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+                       xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+                       xmlns:mdalg="urn:oasis:names:tc:SAML:metadata:algsupport"
+                       xmlns:mdui="urn:oasis:names:tc:SAML:metadata:ui"
+                       xmlns:shibmd="urn:mace:shibboleth:metadata:1.0"
+                       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                       Name="urn:mace:shibboleth:testshib:two">
+    <md:EntityDescriptor xmlns:shibmd="urn:mace:shibboleth:metadata:1.0"
+                         xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+                         xmlns:mdui="urn:oasis:names:tc:SAML:metadata:ui"
+                         xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+                         xmlns:wayf="http://wayf.dk/2014/08/wayf"
+                         xmlns:mdrpi="urn:oasis:names:tc:SAML:metadata:rpi"
+                         entityID="https://wayf.wayf.dk"
+                         validUntil="2017-08-28T12:10:08Z"
+                         cacheDuration="PT6H"
+                         ID="_1e4f9a5876271b6ce042fa2354351e13863a6d3e">
+        <ds:Signature>
+            <ds:SignedInfo>
+                <ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
+                <ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>
+                <ds:Reference URI="#_1e4f9a5876271b6ce042fa2354351e13863a6d3e">
+                    <ds:Transforms>
+                        <ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/>
+                        <ds:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
+                    </ds:Transforms>
+                    <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+                    <ds:DigestValue>
+                         zKJ0/t+h8nnzqlJzukWsEN7Y+J274C+CXtwWK7FDvqE=
+                    </ds:DigestValue>
+                </ds:Reference>
+            </ds:SignedInfo>
+            <ds:SignatureValue>
+               gwWJS+ygw45g5jjlaH/Ey1Woy1sVumHJkKTmNoxNf3v//SkyzblpqC/fQDP8gGWsvNdJhcX2IE5/4GX0tloXkR0MprP2jfSVeno+E04W5QYWE1M0orwK0ojx+KpImZEYCCAWipS+tY0Bwa5iKOtzQ4QTMgjI0l/3iik35/ZYe3D1+KyAn9uiVls3qSoP3gsd7eblRtYDcRqLdeUQZzbjO5gUhtMqrAeaWR9u5y3MaO3EUq7EQSFMVUdTNEq6k2cVUqnBZ/G6T/rsgkfg1Ut9GwBoUtBRmmcRo8wWT0rDrspdb6VmvtK82IWEAUde5NiUTqMCAKmWct6gfv3xYGPf3Q==
+            </ds:SignatureValue>
+            <ds:KeyInfo>
+                <ds:X509Data>
+                    <ds:X509Certificate>
+                         MIIDNjCCAh4CCQDsE0eLyC+FjDANBgkqhkiG9w0BAQUFADCBiDELMAkGA1UEBhMC
+REsxEDAOBgNVBAgTB0Rlbm1hcmsxEzARBgNVBAcUCkvDuGJlbmhhdm4xFzAVBgNV
+BAoTDnRlc3QgV0FZRiB0ZXN0MRswGQYDVQQDExJ0ZXN0IFdBWUYgdGVzdC5sYW4x
+HDAaBgkqhkiG9w0BCQEWDWZpbm5kQHdheWYuZGswHhcNMTUwNjEwMDc1NjEwWhcN
+MjAwNTE0MDc1NjEwWjAxMQswCQYDVQQGEwJESzENMAsGA1UEChMEV0FZRjETMBEG
+A1UEAxQKKi50ZXN0LmxhbjCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEB
+AJ9r4J63EYXKSQC1lPSVF+ykXq8iJG3ud3UySxR+WoqxFjTDHOqo2zy64/ygk3T0
+K5NRj7KyuJ8dZ57ktjsWkLOOMF591W2Udo8KjXWMu8w+VovVq811tzYMFxSOmpoS
+jdtjpIjXXZTuaIgVf8obw/7WkFGShEjlIa4hU04Ou2ffpUQ3OLMbEI/JSPXyVaSz
+Wt40WLj1YvIIUUlxGaCMGUXa3xd1SAmLYt78Qm4eJul7J1BHyXchZQh9mV9DLhAI
+Wm4dIRGHjYGPhECes/TvFrDNHbccenItD8sybdfvsdIkDGTMPLfCoMDdVeI4mt+2
+x8P5ljmSu6WhJxfYKT5yId0CAwEAATANBgkqhkiG9w0BAQUFAAOCAQEAeVWElKLi
+aIkX2SYpxoePn2Atxb/mKIV1ttm4hZLJWAhMwUk9xYRQCim9X1aO8OMpMI346omr
+ED/wTbPjAC4wG0M0K/n+7GVC+xFbyup+N8D5P1fIlbB+hs/hQih1W3N7WAtcRCHc
+kBhYOnUtNYZTgKbilXFLYIRRCmFNGN2vRU9KfYoQ19AYHuK5+vGVzeYqRFY6EJx0
+ttXZVVH8Yc7FYjue6rheNaE4ZGOMSjVMoeqps7q6jqrbw1eMdhdFZnD7HzrRndpq
+zjvT0OgSAWqrjznERRb5hu/2410d0N1nGqLOHfgSm5otnltg+/3WvuaqxTfMnkgL
+/qJPaVd8ZDeWBg==
+                    </ds:X509Certificate>
+                </ds:X509Data>
+            </ds:KeyInfo>
+        </ds:Signature>
+        <md:Extensions>
+            <mdrpi:PublicationInfo xmlns:mdrpi="urn:oasis:names:tc:SAML:metadata:rpi"
+                                   creationInstant="2017-08-21T12:10:08Z"
+                                   publisher="http://www.wayf.dk"/>
+        </md:Extensions>
+        <md:SPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+            <md:KeyDescriptor>
+                <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+                    <ds:X509Data>
+                        <ds:X509Certificate>
+                              MIIDBjCCAe4CCQCvl2HRkyt2TzANBgkqhkiG9w0BAQsFADBFMQswCQYDVQQGEwJB
+VTETMBEGA1UECAwKU29tZS1TdGF0ZTEhMB8GA1UECgwYSW50ZXJuZXQgV2lkZ2l0
+cyBQdHkgTHRkMB4XDTE2MDQxNDA5MTAyOVoXDTI2MDQxMjA5MTAyOVowRTELMAkG
+A1UEBhMCQVUxEzARBgNVBAgMClNvbWUtU3RhdGUxITAfBgNVBAoMGEludGVybmV0
+IFdpZGdpdHMgUHR5IEx0ZDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEB
+ALBXCOY6P3Ry9TgpYYGUcSSoD4E2IpHJ5mtPJTGsQk5qaXWWLHOsT8Lm+WJT+GZc
+Wxp45+4nSPvs/hk3bTyJOWiheHFw0KP6Wot26TbN/urtxOftDm3cUZu4qY5mhsxc
+oOvEGsh1NaS58B8P1MJ1RhzahnXeYD2WOImSSlXZR1utsjNvaDk1TqoOoNHskU6g
+1jni6xsRaC+ne5h5vclAy+0VX7fttWmLyjaQOcu8ODPUTK59R3eRRCYvkHQ0Baw5
+ANgXSfqluwPP5l7PEFeyOmV7XzqXlJavag8YwajyhpF+I5hWiTa9/WLi2hr0A7bE
+BUNfbHXR34fV57jnhg5w1KMCAwEAATANBgkqhkiG9w0BAQsFAAOCAQEALkResnSD
+ng9aQXLyp6N084kzlK98mI2m2t3D26atU56l/GJYaIfRNzjXQcsuVyR50rUf5jzW
+iRS4PtiHSznhnuIAxMV5j/Z1Rv5fq2fiI25t3PpAgVUsKG14n9mpZQh0UCw30RQT
+7Dkae0B07riuxbNIb2RnjeypSJZ9FTQtmahh4Ij/HgATf2z5ZBWcAPG2S6heh3wR
+T5VFFdmfEhaEPcb5Do8Siwm9n9V2nWUfx9tAmzboMpfBJvEcIKUtvzhCmnnNg3nT
+ljKDtzitUSOpJ3iFo4w5L1f/yXkjHP3mwmaMnZzIfn7nB6QtHOLVJHEG6roe/FDo
+/gYRNauufEOP8Q==
+                        </ds:X509Certificate>
+                    </ds:X509Data>
+                </ds:KeyInfo>
+            </md:KeyDescriptor>
+            <md:SingleLogoutService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+                                    Location="https://wayf.wayf.dk/module.php/saml/sp/saml2-logout.php/wayf.wayf.dk"/>
+            <md:NameIDFormat>
+               urn:oasis:names:tc:SAML:2.0:nameid-format:transient
+            </md:NameIDFormat>
+            <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+                                         Location="https://wayf.wayf.dk/module.php/saml/sp/saml2-acs.php/wayf.wayf.dk"
+                                         index="0"/>
+            <md:AttributeConsumingService xmlns:wayf="http://wayf.dk/2014/08/wayf"
+                                          index="0">
+                <md:ServiceName xml:lang="da">
+                    WAYF - Where Are You From
+                </md:ServiceName>
+                <md:ServiceName xml:lang="en">
+                    WAYF - Where Are You From
+                </md:ServiceName>
+                <md:ServiceDescription xml:lang="da">
+                    WAYF - Where Are You From
+                </md:ServiceDescription>
+                <md:ServiceDescription xml:lang="en">
+                    WAYF - Where Are You From
+                </md:ServiceDescription>
+                <md:RequestedAttribute FriendlyName="sn"
+                                       wayf:singular="true"
+                                       wayf:must="true"
+                                       Name="sn"
+                                       isRequired="true"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"/>
+                <md:RequestedAttribute FriendlyName="gn"
+                                       wayf:singular="true"
+                                       wayf:must="true"
+                                       Name="gn"
+                                       isRequired="true"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"/>
+                <md:RequestedAttribute FriendlyName="cn"
+                                       wayf:singular="true"
+                                       wayf:must="true"
+                                       Name="cn"
+                                       isRequired="true"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"/>
+                <md:RequestedAttribute FriendlyName="eduPersonPrincipalName"
+                                       wayf:singular="true"
+                                       wayf:mandatory="true"
+                                       Name="eduPersonPrincipalName"
+                                       isRequired="true"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"/>
+                <md:RequestedAttribute FriendlyName="mail"
+                                       Name="mail"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"/>
+                <md:RequestedAttribute FriendlyName="eduPersonPrimaryAffiliation"
+                                       wayf:singular="true"
+                                       wayf:must="true"
+                                       Name="eduPersonPrimaryAffiliation"
+                                       isRequired="true"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"/>
+                <md:RequestedAttribute FriendlyName="organizationName"
+                                       wayf:singular="true"
+                                       wayf:must="true"
+                                       Name="organizationName"
+                                       isRequired="true"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"/>
+                <md:RequestedAttribute FriendlyName="eduPersonAssurance"
+                                       wayf:singular="true"
+                                       wayf:must="true"
+                                       Name="eduPersonAssurance"
+                                       isRequired="true"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"/>
+                <md:RequestedAttribute FriendlyName="schacPersonalUniqueID"
+                                       Name="schacPersonalUniqueID"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"/>
+                <md:RequestedAttribute FriendlyName="schacCountryOfCitizenship"
+                                       wayf:singular="true"
+                                       Name="schacCountryOfCitizenship"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"/>
+                <md:RequestedAttribute FriendlyName="eduPersonScopedAffiliation"
+                                       Name="eduPersonScopedAffiliation"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"/>
+                <md:RequestedAttribute FriendlyName="preferredLanguage"
+                                       Name="preferredLanguage"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"/>
+                <md:RequestedAttribute FriendlyName="eduPersonEntitlement"
+                                       Name="eduPersonEntitlement"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"/>
+                <md:RequestedAttribute FriendlyName="norEduPersonLIN"
+                                       Name="norEduPersonLIN"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"/>
+                <md:RequestedAttribute FriendlyName="schacHomeOrganization"
+                                       wayf:computed="true"
+                                       Name="schacHomeOrganization"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"/>
+                <md:RequestedAttribute FriendlyName="eduPersonTargetedID"
+                                       wayf:computed="true"
+                                       Name="eduPersonTargetedID"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"/>
+                <md:RequestedAttribute FriendlyName="schacDateOfBirth"
+                                       Name="schacDateOfBirth"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"/>
+                <md:RequestedAttribute FriendlyName="schacYearOfBirth"
+                                       Name="schacYearOfBirth"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"/>
+                <md:RequestedAttribute FriendlyName="schacHomeOrganizationType"
+                                       wayf:computed="true"
+                                       Name="schacHomeOrganizationType"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"/>
+                <md:RequestedAttribute FriendlyName="eduPersonAffiliation"
+                                       Name="eduPersonAffiliation"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"/>
+                <md:RequestedAttribute FriendlyName="displayName"
+                                       Name="displayName"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"/>
+            </md:AttributeConsumingService>
+        </md:SPSSODescriptor>
+        <md:IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+            <md:Extensions>
+                <mdui:UIInfo xmlns:mdui="urn:oasis:names:tc:SAML:metadata:ui">
+                    <mdui:Description xml:lang="da">
+                         WAYF - den danske identitetsføderation for forskning og uddannelse
+                    </mdui:Description>
+                    <mdui:Description xml:lang="en">
+                         WAYF - The Danish identity federation for research and higher education
+                    </mdui:Description>
+                    <mdui:DisplayName xml:lang="da">
+                         WAYF - Where Are You From
+                    </mdui:DisplayName>
+                    <mdui:DisplayName xml:lang="en">
+                         WAYF - Where Are You From
+                    </mdui:DisplayName>
                 </mdui:UIInfo>
-
-            </Extensions>
-
-            <!-- new signing key -->
-            <KeyDescriptor>
-                <ds:KeyInfo>
+                <shibmd:Scope regexp="false">
+                    adm.aau.dk@aau.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    aub.aau.dk@aau.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    civil.aau.dk@aau.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    create.aau.dk@aau.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    es.aau.dk@aau.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    hst.aau.dk@aau.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    id.aau.dk@aau.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    its.aau.dk@aau.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    learning.aau.dk@aau.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    m-tech.aau.dk@aau.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    plan.aau.dk@aau.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    sbi.aau.dk@aau.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    staff.aau.dk@aau.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    student.aau.dk@aau.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    kb.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    hi.is
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    ruc.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    orphanage.wayf.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    ucl.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    aau.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    viauc.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    ucc.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    drlund-gym.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    sdu.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    itu.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    paderup-gym.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    grenaa-gym.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    marselisborg-gym.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    sosuaarhus.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    sss.itsf.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    its.itsf.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    sikker-adgang.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    ibc.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    rungsted-gym.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    ucsj.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    zbc.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    frsgym.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    cbs.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    ku.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    vordingborg-gym.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    dmjx.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    apoteket.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    erhvervsakademiaarhus.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    dtu.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    ucn.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    frhavn-gym.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    sde.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    eal.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    hrs.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    au.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    knord.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    eucnord.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    handelsskolen.com
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    cphbusiness.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    eadania.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    dansidp-test.stads.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    dansidp-qa.stads.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    dansidp.stads.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    umit.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    rosborg-gym.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    basyd.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    statsbiblioteket.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    eamv.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    aams.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    regionsjaelland.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    dskd.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    fms.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    smk.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    msk.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    drcmr.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    simac.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    ucsyd.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    kmduni.dans.kmd.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    this.is.not.a.valid.idp
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    nybuni.dans.kmd.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    peduni.dans.kmd
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    dansidp-udv.stads.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    dansidp-test2.stads.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    oess.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    kadk.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    musikkons.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    easj.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    easv.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    dsl.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    phmetropol.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    rm.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    fak.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    pha.dk
+                </shibmd:Scope>
+                <shibmd:Scope regexp="false">
+                    kea.dk
+                </shibmd:Scope>
+            </md:Extensions>
+            <md:KeyDescriptor>
+                <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
                     <ds:X509Data>
                         <ds:X509Certificate>
-                            MIIDAzCCAeugAwIBAgIVAPX0G6LuoXnKS0Muei006mVSBXbvMA0GCSqGSIb3DQEB
-                            CwUAMBsxGTAXBgNVBAMMEGlkcC50ZXN0c2hpYi5vcmcwHhcNMTYwODIzMjEyMDU0
-                            WhcNMzYwODIzMjEyMDU0WjAbMRkwFwYDVQQDDBBpZHAudGVzdHNoaWIub3JnMIIB
-                            IjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAg9C4J2DiRTEhJAWzPt1S3ryh
-                            m3M2P3hPpwJwvt2q948vdTUxhhvNMuc3M3S4WNh6JYBs53R+YmjqJAII4ShMGNEm
-                            lGnSVfHorex7IxikpuDPKV3SNf28mCAZbQrX+hWA+ann/uifVzqXktOjs6DdzdBn
-                            xoVhniXgC8WCJwKcx6JO/hHsH1rG/0DSDeZFpTTcZHj4S9MlLNUtt5JxRzV/MmmB
-                            3ObaX0CMqsSWUOQeE4nylSlp5RWHCnx70cs9kwz5WrflnbnzCeHU2sdbNotBEeTH
-                            ot6a2cj/pXlRJIgPsrL/4VSicPZcGYMJMPoLTJ8mdy6mpR6nbCmP7dVbCIm/DQID
-                            AQABoz4wPDAdBgNVHQ4EFgQUUfaDa2mPi24x09yWp1OFXmZ2GPswGwYDVR0RBBQw
-                            EoIQaWRwLnRlc3RzaGliLm9yZzANBgkqhkiG9w0BAQsFAAOCAQEASKKgqTxhqBzR
-                            OZ1eVy++si+eTTUQZU4+8UywSKLia2RattaAPMAcXUjO+3cYOQXLVASdlJtt+8QP
-                            dRkfp8SiJemHPXC8BES83pogJPYEGJsKo19l4XFJHPnPy+Dsn3mlJyOfAa8RyWBS
-                            80u5lrvAcr2TJXt9fXgkYs7BOCigxtZoR8flceGRlAZ4p5FPPxQR6NDYb645jtOT
-                            MVr3zgfjP6Wh2dt+2p04LG7ENJn8/gEwtXVuXCsPoSCDx9Y0QmyXTJNdV1aB0AhO
-                            RkWPlFYwp+zOyOIR+3m1+pqWFpn0eT/HrxpdKa74FA3R2kq4R7dXe4G0kUgXTdqX
-                            MLRKhDgdmA==
+                              MIIDNjCCAh4CCQDsE0eLyC+FjDANBgkqhkiG9w0BAQUFADCBiDELMAkGA1UEBhMC
+REsxEDAOBgNVBAgTB0Rlbm1hcmsxEzARBgNVBAcUCkvDuGJlbmhhdm4xFzAVBgNV
+BAoTDnRlc3QgV0FZRiB0ZXN0MRswGQYDVQQDExJ0ZXN0IFdBWUYgdGVzdC5sYW4x
+HDAaBgkqhkiG9w0BCQEWDWZpbm5kQHdheWYuZGswHhcNMTUwNjEwMDc1NjEwWhcN
+MjAwNTE0MDc1NjEwWjAxMQswCQYDVQQGEwJESzENMAsGA1UEChMEV0FZRjETMBEG
+A1UEAxQKKi50ZXN0LmxhbjCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEB
+AJ9r4J63EYXKSQC1lPSVF+ykXq8iJG3ud3UySxR+WoqxFjTDHOqo2zy64/ygk3T0
+K5NRj7KyuJ8dZ57ktjsWkLOOMF591W2Udo8KjXWMu8w+VovVq811tzYMFxSOmpoS
+jdtjpIjXXZTuaIgVf8obw/7WkFGShEjlIa4hU04Ou2ffpUQ3OLMbEI/JSPXyVaSz
+Wt40WLj1YvIIUUlxGaCMGUXa3xd1SAmLYt78Qm4eJul7J1BHyXchZQh9mV9DLhAI
+Wm4dIRGHjYGPhECes/TvFrDNHbccenItD8sybdfvsdIkDGTMPLfCoMDdVeI4mt+2
+x8P5ljmSu6WhJxfYKT5yId0CAwEAATANBgkqhkiG9w0BAQUFAAOCAQEAeVWElKLi
+aIkX2SYpxoePn2Atxb/mKIV1ttm4hZLJWAhMwUk9xYRQCim9X1aO8OMpMI346omr
+ED/wTbPjAC4wG0M0K/n+7GVC+xFbyup+N8D5P1fIlbB+hs/hQih1W3N7WAtcRCHc
+kBhYOnUtNYZTgKbilXFLYIRRCmFNGN2vRU9KfYoQ19AYHuK5+vGVzeYqRFY6EJx0
+ttXZVVH8Yc7FYjue6rheNaE4ZGOMSjVMoeqps7q6jqrbw1eMdhdFZnD7HzrRndpq
+zjvT0OgSAWqrjznERRb5hu/2410d0N1nGqLOHfgSm5otnltg+/3WvuaqxTfMnkgL
+/qJPaVd8ZDeWBg==
                         </ds:X509Certificate>
                     </ds:X509Data>
                 </ds:KeyInfo>
-                <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"/>
-                <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes192-cbc" />
-                <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes128-cbc"/>
-                <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#tripledes-cbc"/>
-                <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#rsa-oaep-mgf1p"/>
-                <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#rsa-1_5"/>
-            </KeyDescriptor>
-
-            <ArtifactResolutionService Binding="urn:oasis:names:tc:SAML:1.0:bindings:SOAP-binding"
-                Location="https://idp.testshib.org:8443/idp/profile/SAML1/SOAP/ArtifactResolution"
-                index="1"/>
-            <ArtifactResolutionService Binding="urn:oasis:names:tc:SAML:2.0:bindings:SOAP"
-                Location="https://idp.testshib.org:8443/idp/profile/SAML2/SOAP/ArtifactResolution"
-                index="2"/>
-
-            <NameIDFormat>urn:mace:shibboleth:1.0:nameIdentifier</NameIDFormat>
-            <NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:transient</NameIDFormat>
-
-            <SingleSignOnService Binding="urn:mace:shibboleth:1.0:profiles:AuthnRequest"
-                Location="https://idp.testshib.org/idp/profile/Shibboleth/SSO"/>
-            <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
-                Location="https://idp.testshib.org/idp/profile/SAML2/POST/SSO"/>
-            <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
-                Location="https://birk.wayf.dk/birk.php/idp.testshib.org/idp/profile/SAML2/Redirect/SSO"/>
-            <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:SOAP"
-                Location="https://idp.testshib.org/idp/profile/SAML2/SOAP/ECP"/>
-
-        </IDPSSODescriptor>
-
-        <AttributeAuthorityDescriptor
-            protocolSupportEnumeration="urn:oasis:names:tc:SAML:1.1:protocol urn:oasis:names:tc:SAML:2.0:protocol">
-
-            <!-- new SSL/TLS -->
-            <KeyDescriptor>
-                <ds:KeyInfo>
-                    <ds:X509Data>
-                        <ds:X509Certificate>
-                            MIIDAzCCAeugAwIBAgIVAPX0G6LuoXnKS0Muei006mVSBXbvMA0GCSqGSIb3DQEB
-                            CwUAMBsxGTAXBgNVBAMMEGlkcC50ZXN0c2hpYi5vcmcwHhcNMTYwODIzMjEyMDU0
-                            WhcNMzYwODIzMjEyMDU0WjAbMRkwFwYDVQQDDBBpZHAudGVzdHNoaWIub3JnMIIB
-                            IjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAg9C4J2DiRTEhJAWzPt1S3ryh
-                            m3M2P3hPpwJwvt2q948vdTUxhhvNMuc3M3S4WNh6JYBs53R+YmjqJAII4ShMGNEm
-                            lGnSVfHorex7IxikpuDPKV3SNf28mCAZbQrX+hWA+ann/uifVzqXktOjs6DdzdBn
-                            xoVhniXgC8WCJwKcx6JO/hHsH1rG/0DSDeZFpTTcZHj4S9MlLNUtt5JxRzV/MmmB
-                            3ObaX0CMqsSWUOQeE4nylSlp5RWHCnx70cs9kwz5WrflnbnzCeHU2sdbNotBEeTH
-                            ot6a2cj/pXlRJIgPsrL/4VSicPZcGYMJMPoLTJ8mdy6mpR6nbCmP7dVbCIm/DQID
-                            AQABoz4wPDAdBgNVHQ4EFgQUUfaDa2mPi24x09yWp1OFXmZ2GPswGwYDVR0RBBQw
-                            EoIQaWRwLnRlc3RzaGliLm9yZzANBgkqhkiG9w0BAQsFAAOCAQEASKKgqTxhqBzR
-                            OZ1eVy++si+eTTUQZU4+8UywSKLia2RattaAPMAcXUjO+3cYOQXLVASdlJtt+8QP
-                            dRkfp8SiJemHPXC8BES83pogJPYEGJsKo19l4XFJHPnPy+Dsn3mlJyOfAa8RyWBS
-                            80u5lrvAcr2TJXt9fXgkYs7BOCigxtZoR8flceGRlAZ4p5FPPxQR6NDYb645jtOT
-                            MVr3zgfjP6Wh2dt+2p04LG7ENJn8/gEwtXVuXCsPoSCDx9Y0QmyXTJNdV1aB0AhO
-                            RkWPlFYwp+zOyOIR+3m1+pqWFpn0eT/HrxpdKa74FA3R2kq4R7dXe4G0kUgXTdqX
-                            MLRKhDgdmA==
-                        </ds:X509Certificate>
-                    </ds:X509Data>
-                </ds:KeyInfo>
-                <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"/>
-                <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes192-cbc" />
-                <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes128-cbc"/>
-                <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#tripledes-cbc"/>
-                <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#rsa-oaep-mgf1p"/>
-                <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#rsa-1_5"/>
-            </KeyDescriptor>
-
-            <AttributeService Binding="urn:oasis:names:tc:SAML:1.0:bindings:SOAP-binding"
-                Location="https://idp.testshib.org:8443/idp/profile/SAML1/SOAP/AttributeQuery"/>
-            <AttributeService Binding="urn:oasis:names:tc:SAML:2.0:bindings:SOAP"
-                Location="https://idp.testshib.org:8443/idp/profile/SAML2/SOAP/AttributeQuery"/>
-
-            <NameIDFormat>urn:mace:shibboleth:1.0:nameIdentifier</NameIDFormat>
-            <NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:transient</NameIDFormat>
-
-        </AttributeAuthorityDescriptor>
-
-        <Organization>
-            <OrganizationName xml:lang="en">TestShib Two Identity Provider</OrganizationName>
-            <OrganizationDisplayName xml:lang="en">TestShib Two</OrganizationDisplayName>
-            <OrganizationURL xml:lang="en">http://www.testshib.org/testshib-two/</OrganizationURL>
-        </Organization>
-        <ContactPerson contactType="technical">
-            <GivenName>Nate</GivenName>
-            <SurName>Klingenstein</SurName>
-            <EmailAddress>ndk@internet2.edu</EmailAddress>
-        </ContactPerson>
-    </EntityDescriptor>
-
-    <!-- = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = -->
-    <!--             Metadata for SP.TESTSHIB.ORG                    -->
-    <!-- = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = -->
-
-    <EntityDescriptor entityID="https://sp.testshib.org/shibboleth-sp">
-
-        <Extensions>
-            <mdalg:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"/>
-            <mdalg:DigestMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#sha384"/>
-            <mdalg:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
-            <mdalg:DigestMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#sha224"/>
-            <mdalg:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/>
-            <mdalg:SigningMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha512"/>
-            <mdalg:SigningMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha384"/>
-            <mdalg:SigningMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha256"/>
-            <mdalg:SigningMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha224"/>
-            <mdalg:SigningMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha512"/>
-            <mdalg:SigningMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha384"/>
-            <mdalg:SigningMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>
-            <mdalg:SigningMethod Algorithm="http://www.w3.org/2009/xmldsig11#dsa-sha256"/>
-            <mdalg:SigningMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha1"/>
-            <mdalg:SigningMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"/>
-            <mdalg:SigningMethod Algorithm="http://www.w3.org/2000/09/xmldsig#dsa-sha1"/>
-        </Extensions>
-
-
-        <!-- An SP supporting SAML 1 and 2 contains this element with protocol support as shown. -->
-        <SPSSODescriptor
-            protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol urn:oasis:names:tc:SAML:1.1:protocol http://schemas.xmlsoap.org/ws/2003/07/secext">
-
-            <Extensions>
-                <!-- A request initiator at /Testshib that you can use to customize authentication requests issued to your IdP by TestShib. -->
-                <init:RequestInitiator xmlns:init="urn:oasis:names:tc:SAML:profiles:SSO:request-init" Binding="urn:oasis:names:tc:SAML:profiles:SSO:request-init" Location="https://sp.testshib.org/Shibboleth.sso/TestShib"/>
-
-                <mdui:UIInfo>
-                    <mdui:DisplayName xml:lang="en">TestShib Test SP</mdui:DisplayName>
-                    <mdui:Description xml:lang="en">TestShib SP. Log into this to test your machine.
-                        Once logged in check that all attributes that you expected have been
-                        released.</mdui:Description>
-                    <mdui:Logo height="88" width="253">https://www.testshib.org/testshibtwo.jpg</mdui:Logo>
+            </md:KeyDescriptor>
+            <md:SingleLogoutService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+                                    Location="https://wayf.wayf.dk/saml2/idp/SingleLogoutService.php"/>
+            <md:NameIDFormat>
+               urn:oasis:names:tc:SAML:2.0:nameid-format:transient
+            </md:NameIDFormat>
+            <md:NameIDFormat>
+               urn:oasis:names:tc:SAML:2.0:nameid-format:persistent
+            </md:NameIDFormat>
+            <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+                                    Location="https://wayf.wayf.dk/saml2/idp/SSOService2.php"/>
+        </md:IDPSSODescriptor>
+        <md:Organization>
+            <md:OrganizationName xml:lang="en">
+               WAYF - Where Are You From
+            </md:OrganizationName>
+            <md:OrganizationName xml:lang="da">
+               WAYF - Where Are You From
+            </md:OrganizationName>
+            <md:OrganizationDisplayName xml:lang="en">
+               WAYF - Where Are You From
+            </md:OrganizationDisplayName>
+            <md:OrganizationDisplayName xml:lang="da">
+               WAYF - Where Are You From
+            </md:OrganizationDisplayName>
+            <md:OrganizationURL xml:lang="da">
+               http://wayf.dk/index.php/da
+            </md:OrganizationURL>
+            <md:OrganizationURL xml:lang="en">
+               http://wayf.dk/index.php/en
+            </md:OrganizationURL>
+        </md:Organization>
+        <md:ContactPerson contactType="technical">
+            <md:GivenName>
+               WAYF
+            </md:GivenName>
+            <md:SurName>
+               Operations
+            </md:SurName>
+            <md:EmailAddress>
+               operations@wayf.dk
+            </md:EmailAddress>
+        </md:ContactPerson>
+    </md:EntityDescriptor>
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+                     xmlns:mdrpi="urn:oasis:names:tc:SAML:metadata:rpi"
+                     xmlns:mdattr="urn:oasis:names:tc:SAML:metadata:attribute"
+                     xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
+                     xmlns:mdui="urn:oasis:names:tc:SAML:metadata:ui"
+                     xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+                     entityID="https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth">
+    <md:Extensions>
+        <mdrpi:RegistrationInfo registrationAuthority="http://rr.aai.switch.ch/"
+                                registrationInstant="2017-06-21T10:32:46Z">
+            <mdrpi:RegistrationPolicy xml:lang="en">
+               https://www.switch.ch/aai/federation/switchaai/metadata-registration-practice-statement-20110711.txt
+            </mdrpi:RegistrationPolicy>
+        </mdrpi:RegistrationInfo>
+        <mdattr:EntityAttributes>
+            <saml:Attribute Name="http://macedir.org/entity-category"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">
+                <saml:AttributeValue>
+                    http://www.geant.net/uri/dataprotection-code-of-conduct/v1
+                </saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute FriendlyName="swissEduPersonHomeOrganization"
+                            Name="urn:oid:2.16.756.1.2.5.1.1.4"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">
+                <saml:AttributeValue>
+                    switch.ch
+                </saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute FriendlyName="swissEduPersonHomeOrganizationType"
+                            Name="urn:oid:2.16.756.1.2.5.1.1.5"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">
+                <saml:AttributeValue>
+                    others
+                </saml:AttributeValue>
+            </saml:Attribute>
+        </mdattr:EntityAttributes>
+    </md:Extensions>
+    <md:SPSSODescriptor errorURL="http://www.switch.ch/aai/support/help"
+                        protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+        <md:Extensions>
+            <mdui:UIInfo>
+                <mdui:DisplayName xml:lang="en">
+                    AAI Viewer Interfederation Test
+                </mdui:DisplayName>
+                <mdui:Description xml:lang="en">
+                    This service is used to test the interfederation readiness of SWITCHaai Identity Providers.
+                </mdui:Description>
+                <mdui:Logo height="16"
+                           width="16">
+                    data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAAXNSR0IArs4c6QAAACF0RVh0U29mdHdhcmUAR3JhcGhpY0NvbnZlcnRlciAoSW50ZWwpd4f6GQAAAZJJREFUeJyUk08og2Ecx5+SHNSW/DtQlHKg1MhByjIpLRNx0NZKk0kbbSStHXZdHOVP4bCi5swuXNxQLjiN5UBNc1AzbeR936/39zz7c7B/Dt+e31PP9/P8ft/3eRkARpKPnVDuQsjsy1W2kA8skKwM8tEsEH8tG5QDqEZpqZILdgblbB34+igJygG2RrlRWqsXcqi1pwXKdaAoJLehtk99kJa1wkxrupb9OihPl3lBf6kqiPLg3ThER3BVCRDl8/aI4oC0lFhYGOyiG9nTKIAECjqzQZdMmVqnEbBaAfi0gLeaQ6grGrkkIPqexJjFi+E+PSZGTDANGjHQq8dQdz8CPndhY+Q5hjnPPlirGazDBta5CNakrrVmmGybiETj+UegG3cOz8Gap4V6FgSgYRLthhXcP7zkDzH1/cONmjYrP8xNXXZea9Q6dHELOlPwM1pX98BqxoWRpLZep5uHf/cEic9UwceULaZc22LetGj+eCJZ/lOmYBgzwDizAQrw3z+T2x/E1U24bGNGvwAAAP//AwCkGcs+iePLFQAAAABJRU5ErkJggg==
+                </mdui:Logo>
+                <mdui:Logo height="60"
+                           width="80">
+                    data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAAA8CAIAAAB+RarbAAAC0GlDQ1BJQ0NQcm9maWxlAAB4nI2Uz0sUYRjHv7ONGChBYGZ7iKFDSKhMFmVE5a6/2LRtWX+UEsTs7Lu7k7Oz08zsmiIRXjpm0T0qDx76Azx46JSXwsAsAuluUUSCl5LteWfG3RHtxwsz83mfH9/ned/hfYEaWTFNPSQBecOxkn1R6fromFT7ESEcQR3CqFNU24wkEgOgwWOxa2y+h8C/K617+/866tK2mgeE/UDoR5rZKrDvF9kLWWoEELlew4RjOsT3OFue/THnlMfzrn0o2UW8SHxANS0e/5q4Q80paaBGJG7JBmJSAc7rRdXv5yA99cwYHqTvcerpLrN7fBZm0kp3P3Eb8ec06+7hmsTzGa03RtxMz1rG6h32WDihObEhj0Mjhh4f8LnJSMWv+pqi6UST2/p2abBn235LuZwgDhMnxwv9PKaRcjunckPXPBb0qVxX3Od3VjHJ6x6jmDlTd/8X9RZ6hVHoYNBg0NuAhCT6EEUrTFgoIEMejSI0sjI3xiK2Mb5npI5EgCXyr1POuptzG0XK5lkjiMYx01JRkOQP8ld5VX4qz8lfZsPF5qpnxrqpqcsPvpMur7yt63v9njx9lepGyKsjS9Z8ZU12oNNAdxljNlxV4jXY/fhmYJUsUKkVKVdp3K1Ucn02vSOBan/aPYpdml5sqtZaFRdurNQvTe/Yq8KuVbHKqnbOq3HBfCYeFU+KMbFDPAdJvCR2ihfFbpqdFwcqGcOkomHCVbKhUJaBSfKaO/6ZFwvvrLmjoY8ZzNJUiZ//hFXIaDoLHNF/uP9z8HvFo7Ei8MIGDp+u2jaS7h0iNC5Xbc4V4MI3ug/eVm3NdB4OPQEWzqhFq+RLC8IbimZ3HD7pKpiTlpbNOVK7LJ+VInQlMSlmqG0tkqLrkuuyJYvZzCqxdBvszKl2T6WedqXmU7m8Qeev9hGw9bBc/vmsXN56Tj2sAS/138C8/UXN/ALEAAAJI2lUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4KPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iWE1QIENvcmUgNC40LjAiPgogICA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5bnRheC1ucyMiPgogICAgICA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIi8+CiAgIDwvcmRmOlJERj4KPC94OnhtcG1ldGE+CiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIAogICAgICAgICAgICAgICAgICAgICAgICAgICAKPD94cGFja2V0IGVuZD0idyI/Pqfd9JIAAAAhdEVYdFNvZnR3YXJlAEdyYXBoaWNDb252ZXJ0ZXIgKEludGVsKXeH+hkAAAaRSURBVHic7JZpUFNXFMf92A+dsR8ECrQ6Fq2tlVVELVQEZLNaoSwV1FEsy6CMuyJhFRAQQiAJEBCIiCigaAUFFARZlE0EAReoiiCgLGUnJIQktyc8GpKXSPnUzjzefzKZ9+4979z7u/fcc+4StMi05P+ewH8tEpjoIoGJLhKY6CKBiS4SmOgigYkuEpjoIoGJLhKY6CKBia5FDMyZnLpT/Nzl+FXbgykObmw719TopLKe3hHoEolE2bkN9NTy8XGe9Me37zUHUQu7P4pt0EgHqo5EnRUy7qd56CkLteXBo0AovJRZc7f4BdbTNzAenfgwKqEkGn6sUkZKGS3pYRSrlMoqjaAX5z94Ie3mz/Z+WkrZbs/LtgdT7VzZ9m7snPxnXN60xIA/LUjOqCoqb5UnnOTykzKrwLMM8NgEz9krfc2WsF0uKY4elxzg535J35q63opa19gJBtl5jUqavuysGmlfj2rffrb8hBclR/xSehrRl6G+JpnRXuUg2lL0Oh8ep/gCw12xHt7XsZ62t31We1iWzizrPYnmTqyVm4MNdtC270uycmaZOcZFJpTMrphAeJ5e9K1RqJFNrL27GNXBnf2LS7LGjyFup7N4U9MSKj3LqFMhufLAg8McGHfpGm8ZYFjdlZuCi8tbBQKhxLS98y/tbRfcz2RjA8MCw+uHvlFpdyfP3f58tU99eSliqaOSkzJD8UZR2kZ0yw4JhdgmGNsxvHxzsE6hSARbxOXxebzpzu4hLbMLjNRyWBRogR8YY2aFZa/U1wcw2RVDIxyJY5hkes4TNV3/ipo3EmCDn6O9z+cpBDa2Y6rrBcgAw/Js+ZU5OsbFWZ8Nu+PpcwN7rn/2/iv9QL/IfGkD4FfXjzhmswOlrUGjnTIf1zMR7QvUXYW94YBxTtaZRsRcfCjfFRxzD7rGJ3i49o6uQY3NwUlXZp1zuPwN8wEz8MBGtnSIXtzugSBmpI/KmdC8FRuDnrd+lLahJtd4WpqipxHSjSLOAErUQAVukpZ5gCFTiIGTFAAHUAuM7ZmSDZcItjS/5Pnr9n7J64bt0ZSIO/IexiemTOzjVHX9ZYAhXcHuuRy/llfUUv30XW1jR/PLnvc9w9NSEQ7q6hleaxJ+8ESmSCiSNA6M8K/QqIjbK20pqAwRMVTRYNscMF8MfJiieIe1tl1QuMOB1AITxzh5YJy4XP6mnTG/n8x80tQJk5f8IAGVVLZt3hmjrOkrAwzKvd8CWcHQhg5faptH6phH/mASbr47obahQ9p1fNojFR2/4oq5fMgXoJrCXNHU+JwRcDJVURlF+sP5Qrp3RNMsgqYI2D+qwHQBwLDDP9nSVxmG6lqIZ65jESl+mHkGllWGIV/rB+KB0Uz5gS+HRyY/9o3CIamsfQvwkEVhcyQ2E5wpM8d4C6cEKGNYy+PG3qD99ujV5TlHxUdErFVorGuhwDM7HK0opAOphaaO8QsB3riDdjTg1sDgRO/AWG//GPbfNzDW+qYP1gK/w4+ftDe2dPOnhThHUCchMw8OT0g33n3wUlnbDytRsEZ7j988tssCXd2AuEPi7v5mxFAV1DFwruY/w5/a4aDoQghI4MG1Q6KGip2V24C9cmbOsE+4gjM8PDq51V4uSytr+ULuhj6cNTO1HIBh2XCDOR1K17WIgliorn+nph+SwWCgBGVUFwMrgHKdEVsP8YYWDoyFtMKkFRp7/3vjMMi0uHZILlBZvPxmvc2WpTAFwFhZUsMlLbhvrDYKrW2QqSucSf5vnmmmDnHSIY2pvun9CoMgmM2ew+lwbRBn8gJXxNJAzWmIoYKa2PID/2tI0xQB3y9rVdMLyLhZh2uvqn+33CAoPq1SFnjBZamza8h6byKcctdTWYd8bnh4Z3ucybZwZsEqZN1ukPeCZkr0lzr+yw3OQYYXvw+9RqxvEF0FXdsmvnLICS4VRjb0Q/9UdWlBSK/dGhadWCrfBWsNdxuYBlwEYVZwC4KJ7TuSsXZrOOSRrg/DmBmEtJ5V1OlP3LRg3GXrKDLA4gmPcJipFbqWkUpaFGUtP0jFTofTG5q75F1ggqJ14NhVmM1cRqlnirKtUXuRQnswOxH0R2xyuXwXHJn9RzOu5yleWaFQlHuv5TvjMCVNioq2n9I6CgQ5hMOQVJzDfcHz7PWLGdXyn4+N847637Q5kIwHXiQigYkuEpjoIoGJLhKY6CKBiS4SmOgigYkuEpjoIoGJLhKY6CKBia5FB/w3AAAA//8DABFh2N/+esWhAAAAAElFTkSuQmCC
+                </mdui:Logo>
+                <mdui:InformationURL xml:lang="en">
+                    https://attribute-viewer.aai.switch.ch/interfederation-test/
+                </mdui:InformationURL>
+                <mdui:PrivacyStatementURL xml:lang="en">
+                    https://attribute-viewer.aai.switch.ch/interfederation-test/privacy-statement.html
+                </mdui:PrivacyStatementURL>
+            </mdui:UIInfo>
+        </md:Extensions>
+        <md:KeyDescriptor>
+            <ds:KeyInfo>
+                <ds:X509Data>
+                    <ds:X509Certificate>
+                         MIIEazCCAtOgAwIBAgIJAMzpWW4jK45pMA0GCSqGSIb3DQEBCwUAMCkxJzAlBgNV
+BAMTHmF0dHJpYnV0ZS12aWV3ZXIuYWFpLnN3aXRjaC5jaDAeFw0xNzA1MDIxMzEx
+MDVaFw0yMDA1MDExMzExMDVaMCkxJzAlBgNVBAMTHmF0dHJpYnV0ZS12aWV3ZXIu
+YWFpLnN3aXRjaC5jaDCCAaIwDQYJKoZIhvcNAQEBBQADggGPADCCAYoCggGBANAo
+zd3IqeB3uhUk3ibftET4UbbZIZozq00Zs7aIR8RvTyEPh31LC3MprQiFOG2GRZr1
+XKwGvMTkolFKLyF1ylYpTxZr0MRx3R+Zvgzx+l5pQkE1/6NiEJpM+8K0IQmJraGS
+exZ+EFkR1aBB/HrSyhfHUJ5bsD+gGmQa+w/lJNs0PJ+BDkwRc4gIAOrJuOWZ2OAt
+uhO77LYTeOteYH4RpH3NOJXt9V47O+XVWr89pu3JZpwlV/ARx39jnqN7bCTbGEAh
++q0Iogk04ygJ1CyFy89g8Bt2Ov8ug4AwU6em0BrmHSCXkTpHH0y56lNhQYh9VoDL
+G+vAdoIXYMpRmYn05FPlbHGMx/HJangKpulCKGu7+uf5u3zYjpbNUnWZllNQp4Oy
+BAbQD4cKFtD4feYa32XBUL7zAQxCq0eOm5dvBen4da+QPeaO67YbflF2eK+9qDtB
+OruM4jKAnOWhXmEGOjm9oiikmhe8i5TX06GA+dU1Srlx0ACZ0BrYNp/ogS/8CwID
+AQABo4GVMIGSMHEGA1UdEQRqMGiCHmF0dHJpYnV0ZS12aWV3ZXIuYWFpLnN3aXRj
+aC5jaIZGaHR0cHM6Ly9hdHRyaWJ1dGUtdmlld2VyLmFhaS5zd2l0Y2guY2gvaW50
+ZXJmZWRlcmF0aW9uLXRlc3Qvc2hpYmJvbGV0aDAdBgNVHQ4EFgQUDb5B6ltdkhzV
+LOXRU+EQjrIEHbAwDQYJKoZIhvcNAQELBQADggGBAKxwMmaDDhu84c7TrFmayfvW
+hXxey0HiauxGr4RrtmoUV00N48TOaX7rsVji/8u9cz2kxShQAWFYvpe/mCRBkZhy
+y9D87zqdw7EksKmj/7/vGD1D15wMqtK98SLHRRiUoUAAsckn4C9nAtY7Hvvz4Xxb
+BCJ2mfwhYHw02gzGeDSsH0xKdAKI17HxSx7+BG/220g1FP+1PMdcJTi8h5b5lDmf
+Q4bmcPiyIjvqEhYB4gAafXr9w96L/u2H2vQQCsxn8kmCV6SCruIkL/3mg++z0vQB
+q12vFZw6ITX+iPayPjw1cKbL/3t/W3EUEB9IegRtu/9YIazyyObEf1Y67wjL2KE6
+hI/yn+W8fyS340deg7IlWsogDKSrahTnF8g1HDb06gnRwqQzsGcqHY7KCArbh5Ks
+X+QsxofV054+Ex6vtMd0fgnKA7DaInnmrIiN2OWl3TC2exSjt5O5zK6suX+3Rzzy
+o62EePTDB7SHh4OWulz08Em6RtbKgyiKmNvHdmT4Ww==
+                    </ds:X509Certificate>
+                </ds:X509Data>
+            </ds:KeyInfo>
+        </md:KeyDescriptor>
+        <md:NameIDFormat>
+          urn:oasis:names:tc:SAML:2.0:nameid-format:persistent
+        </md:NameIDFormat>
+        <md:NameIDFormat>
+          urn:oasis:names:tc:SAML:2.0:nameid-format:transient
+        </md:NameIDFormat>
+        <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+                                     Location="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST"
+                                     index="1"/>
+        <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST-SimpleSign"
+                                     Location="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST-SimpleSign"
+                                     index="2"/>
+        <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Artifact"
+                                     Location="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/Artifact"
+                                     index="3"/>
+        <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:PAOS"
+                                     Location="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/ECP"
+                                     index="4"/>
+        <md:AttributeConsumingService index="1">
+            <md:ServiceName xml:lang="en">
+               AAI Viewer Interfederation Test
+            </md:ServiceName>
+            <md:ServiceDescription xml:lang="en">
+               This service is used to test the interfederation readiness of SWITCHaai Identity Providers.
+            </md:ServiceDescription>
+            <md:RequestedAttribute FriendlyName="eduPersonAffiliation"
+                                   Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.1"
+                                   NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+                                   isRequired="true"/>
+            <md:RequestedAttribute FriendlyName="email"
+                                   Name="urn:oid:0.9.2342.19200300.100.1.3"
+                                   NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+                                   isRequired="true"/>
+            <md:RequestedAttribute FriendlyName="eduPersonScopedAffiliation"
+                                   Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.9"
+                                   NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+                                   isRequired="true"/>
+            <md:RequestedAttribute FriendlyName="eduPersonTargetedID"
+                                   Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.10"
+                                   NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+                                   isRequired="true"/>
+            <md:RequestedAttribute FriendlyName="commonName"
+                                   Name="urn:oid:2.5.4.3"
+                                   NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+                                   isRequired="true"/>
+            <md:RequestedAttribute FriendlyName="displayName"
+                                   Name="urn:oid:2.16.840.1.113730.3.1.241"
+                                   NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+                                   isRequired="true"/>
+            <md:RequestedAttribute FriendlyName="eduPersonUniqueId"
+                                   Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.13"
+                                   NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+                                   isRequired="true"/>
+            <md:RequestedAttribute FriendlyName="eduPersonPrincipalName"
+                                   Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.6"
+                                   NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+                                   isRequired="true"/>
+            <md:RequestedAttribute FriendlyName="schacHomeOrganization"
+                                   Name="urn:oid:1.3.6.1.4.1.25178.1.2.9"
+                                   NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+                                   isRequired="true"/>
+            <md:RequestedAttribute FriendlyName="schacHomeOrganizationType"
+                                   Name="urn:oid:1.3.6.1.4.1.25178.1.2.10"
+                                   NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+                                   isRequired="true"/>
+        </md:AttributeConsumingService>
+    </md:SPSSODescriptor>
+    <md:Organization>
+        <md:OrganizationName xml:lang="en">
+          switch.ch
+        </md:OrganizationName>
+        <md:OrganizationDisplayName xml:lang="de">
+          SWITCH
+        </md:OrganizationDisplayName>
+        <md:OrganizationDisplayName xml:lang="en">
+          SWITCH
+        </md:OrganizationDisplayName>
+        <md:OrganizationDisplayName xml:lang="fr">
+          SWITCH
+        </md:OrganizationDisplayName>
+        <md:OrganizationDisplayName xml:lang="it">
+          SWITCH
+        </md:OrganizationDisplayName>
+        <md:OrganizationURL xml:lang="de">
+          http://www.switch.ch/
+        </md:OrganizationURL>
+        <md:OrganizationURL xml:lang="en">
+          http://www.switch.ch/
+        </md:OrganizationURL>
+        <md:OrganizationURL xml:lang="fr">
+          http://www.switch.ch/
+        </md:OrganizationURL>
+        <md:OrganizationURL xml:lang="it">
+          http://www.switch.ch/
+        </md:OrganizationURL>
+    </md:Organization>
+    <md:ContactPerson contactType="support">
+        <md:GivenName>
+          AAI
+        </md:GivenName>
+        <md:SurName>
+          Team
+        </md:SurName>
+        <md:EmailAddress>
+          mailto:aai@switch.ch
+        </md:EmailAddress>
+        <md:TelephoneNumber>
+          +41 44 268 1505
+        </md:TelephoneNumber>
+    </md:ContactPerson>
+    <md:ContactPerson contactType="technical">
+        <md:GivenName>
+          AAI
+        </md:GivenName>
+        <md:SurName>
+          Team
+        </md:SurName>
+        <md:EmailAddress>
+          mailto:aai@switch.ch
+        </md:EmailAddress>
+        <md:TelephoneNumber>
+          +41 44 268 1505
+        </md:TelephoneNumber>
+    </md:ContactPerson>
+</md:EntityDescriptor>
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+                     xmlns:mdrpi="urn:oasis:names:tc:SAML:metadata:rpi"
+                     xmlns:mdattr="urn:oasis:names:tc:SAML:metadata:attribute"
+                     xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
+                     xmlns:shibmd="urn:mace:shibboleth:metadata:1.0"
+                     xmlns:mdui="urn:oasis:names:tc:SAML:metadata:ui"
+                     xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+                     xmlns:remd="http://refeds.org/metadata"
+                     entityID="https://aai-logon.switch.ch/idp/shibboleth">
+    <md:Extensions>
+        <mdrpi:RegistrationInfo registrationAuthority="http://rr.aai.switch.ch/"
+                                registrationInstant="2017-05-18T14:28:03Z">
+            <mdrpi:RegistrationPolicy xml:lang="en">
+               https://www.switch.ch/aai/federation/switchaai/metadata-registration-practice-statement-20110711.txt
+            </mdrpi:RegistrationPolicy>
+        </mdrpi:RegistrationInfo>
+        <mdattr:EntityAttributes>
+            <saml:Attribute Name="http://macedir.org/entity-category-support"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">
+                <saml:AttributeValue>
+                    http://www.geant.net/uri/dataprotection-code-of-conduct/v1
+                </saml:AttributeValue>
+                <saml:AttributeValue>
+                    http://refeds.org/category/research-and-scholarship
+                </saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="urn:oasis:names:tc:SAML:attribute:assurance-certification"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">
+                <saml:AttributeValue>
+                    https://refeds.org/sirtfi
+                </saml:AttributeValue>
+            </saml:Attribute>
+        </mdattr:EntityAttributes>
+    </md:Extensions>
+    <md:IDPSSODescriptor errorURL="http://www.switch.ch/aai/contact/"
+                         protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol urn:oasis:names:tc:SAML:1.1:protocol urn:mace:shibboleth:1.0">
+        <md:Extensions>
+            <shibmd:Scope regexp="false">
+               switch.ch
+            </shibmd:Scope>
+            <mdui:UIInfo>
+                <mdui:DisplayName xml:lang="de">
+                    SWITCH
+                </mdui:DisplayName>
+                <mdui:DisplayName xml:lang="en">
+                    SWITCH
+                </mdui:DisplayName>
+                <mdui:DisplayName xml:lang="fr">
+                    SWITCH
+                </mdui:DisplayName>
+                <mdui:DisplayName xml:lang="it">
+                    SWITCH
+                </mdui:DisplayName>
+                <mdui:Description xml:lang="de">
+                    SWITCH erbringt innovative, einzigartige Internet-Dienstleistungen für die Schweizer Hochschulen und Internetbenutzer.
+                </mdui:Description>
+                <mdui:Description xml:lang="en">
+                    SWITCH provides innovative, unique internet services for the Swiss universities and internet users.
+                </mdui:Description>
+                <mdui:Description xml:lang="fr">
+                    SWITCH fournit des prestations innovantes et uniques pour les hautes écoles suisses et les utilisateurs d'Internet.
+                </mdui:Description>
+                <mdui:Description xml:lang="it">
+                    SWITCH eroga servizi Internet innovativi e unici per le scuole universitarie svizzere e per gli utenti di Internet.
+                </mdui:Description>
+                <mdui:Keywords xml:lang="en">
+                    Zurich
+                </mdui:Keywords>
+                <mdui:Keywords xml:lang="de">
+                    Zürich
+                </mdui:Keywords>
+                <mdui:Keywords xml:lang="fr">
+                    Zurich
+                </mdui:Keywords>
+                <mdui:Keywords xml:lang="it">
+                    Zurigo
+                </mdui:Keywords>
+                <mdui:Logo height="16"
+                           width="16">
+                    data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAAXNSR0IArs4c6QAAACF0RVh0U29mdHdhcmUAR3JhcGhpY0NvbnZlcnRlciAoSW50ZWwpd4f6GQAAAgFJREFUeJxi+P//P8PHXd1nfj484w1ik4rBxNsVeR+f1Kr+/7ira/Pfr++USTbg3aqCj4/LJP8/Lpf6/6LP8ce38+tb/v/7y0W8AWtKnj8qFvn/pFrp/+NKOTB+syD+0a/HF0KJMuD324eS79eVzwd64+/jCpn/T2qABgHpp/Ua/z9sadz759NLbbwGwPDP+ydNXs+NPPK4UhbsiifVimBvPe+2+f3l1LL+f39+8eM1AIz//mH8em5N5Is+p0cgzU+BhjytAhpWIf3/zeywF7/uH08EqmPEbQAU//v2nuvnockNj1uMv96r1vh/r0bz/70K5f/367T/P1pVc/zr2+cmeA348+8/49KtZ8Nt/ItvGzklvzd2SX2vZ5/0Xtc24X1xWevVp48e+uI04PCZW0YeKb2HWLWT/7PopIExg2rif1WP6p/z1x/v/P7rLy9WL9x59EoivW7hXF6jzL/Mmkn/ufTT/jMBaRHz3P9VfWt2vH73WR1rIL7/+JW9a862Mhn7oo+MGolgjSDb2XVT/gflTLl3/trDALzRmN+69DKDcux/Dt3U/xx6qf9BhhgF1H9bu+tM3b9//zkJJqSEyjkfGdUT/jMBNUpYF/xvnbF57ftP3+SJTsoJFXM+MgM1x5TOunbj3nNXkjNTet2Cx/PWHCoGsllJ0QzCAAAAAP//AwC4nrtuPmwfNwAAAABJRU5ErkJggg==
+                </mdui:Logo>
+                <mdui:Logo height="60"
+                           width="80">
+                    data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAAA8CAYAAADxJz2MAAAC0GlDQ1BJQ0NQcm9maWxlAAB4nI2Uz0sUYRjHv7ONGChBYGZ7iKFDSKhMFmVE5a6/2LRtWX+UEsTs7Lu7k7Oz08zsmiIRXjpm0T0qDx76Azx46JSXwsAsAuluUUSCl5LteWfG3RHtxwsz83mfH9/ned/hfYEaWTFNPSQBecOxkn1R6fromFT7ESEcQR3CqFNU24wkEgOgwWOxa2y+h8C/K617+/866tK2mgeE/UDoR5rZKrDvF9kLWWoEELlew4RjOsT3OFue/THnlMfzrn0o2UW8SHxANS0e/5q4Q80paaBGJG7JBmJSAc7rRdXv5yA99cwYHqTvcerpLrN7fBZm0kp3P3Eb8ec06+7hmsTzGa03RtxMz1rG6h32WDihObEhj0Mjhh4f8LnJSMWv+pqi6UST2/p2abBn235LuZwgDhMnxwv9PKaRcjunckPXPBb0qVxX3Od3VjHJ6x6jmDlTd/8X9RZ6hVHoYNBg0NuAhCT6EEUrTFgoIEMejSI0sjI3xiK2Mb5npI5EgCXyr1POuptzG0XK5lkjiMYx01JRkOQP8ld5VX4qz8lfZsPF5qpnxrqpqcsPvpMur7yt63v9njx9lepGyKsjS9Z8ZU12oNNAdxljNlxV4jXY/fhmYJUsUKkVKVdp3K1Ucn02vSOBan/aPYpdml5sqtZaFRdurNQvTe/Yq8KuVbHKqnbOq3HBfCYeFU+KMbFDPAdJvCR2ihfFbpqdFwcqGcOkomHCVbKhUJaBSfKaO/6ZFwvvrLmjoY8ZzNJUiZ//hFXIaDoLHNF/uP9z8HvFo7Ei8MIGDp+u2jaS7h0iNC5Xbc4V4MI3ug/eVm3NdB4OPQEWzqhFq+RLC8IbimZ3HD7pKpiTlpbNOVK7LJ+VInQlMSlmqG0tkqLrkuuyJYvZzCqxdBvszKl2T6WedqXmU7m8Qeev9hGw9bBc/vmsXN56Tj2sAS/138C8/UXN/ALEAAAJI2lUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4KPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iWE1QIENvcmUgNC40LjAiPgogICA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5bnRheC1ucyMiPgogICAgICA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIi8+CiAgIDwvcmRmOlJERj4KPC94OnhtcG1ldGE+CiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIAogICAgICAgICAgICAgICAgICAgICAgICAgICAKPD94cGFja2V0IGVuZD0idyI/Pqfd9JIAAAAhdEVYdFNvZnR3YXJlAEdyYXBoaWNDb252ZXJ0ZXIgKEludGVsKXeH+hkAAAiDSURBVHic7Fh7bFPXGT9x4vgR29fva1/HsRM78StODE0CCTQoJiEPh7wgNoFAgkt4jpF2/aNTira0/2za2qGC1IcoUwlTaaF0XRJRaLRB2QCxTtAHrxUWNfQBnWAPprFNNN5377UTO7GzKop2dKQc6ed7z3dev/O73znnO0aRSATNY/bAToB0YCdAOrATIB3YCZAO7ARIB3YCpAM7AdKBnQDpwE6AdGAnQDqwEyAd2AmQDuwESAd2AqQDOwHSgZ0A6cBOgHRgJ0A6sBMgHdgJkA7sBEgHdgKkg/9hk1jlkJvKX1LmN/9B62y/oXe03YTnNWV+06CMWbQBxSWpqWKv0tZwRiBjsnlLWqwoU5pTdUJhrdmPxBRnyFYj40AbdbqvSvyDWKUMAf/sKBbuOhpSXgiXiCr4AimSWfw/zzJXvslmTSZaMDh0HF4azirtjROgbIHJdwBC/rNjtz5ndj/9dDxNeZZh4ePKvLphtXP1ZXY+eseqm1oAZVkO3E01PPX0iQbpipx0hS0wLNF5f4pSJ4HcunwPlVf7m0kBhTKruqDlnrE4/GfaFTqhdwWPAF7Xu0Lv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
+                </mdui:Logo>
+                <mdui:InformationURL xml:lang="en">
+                    http://www.switch.ch/about/
+                </mdui:InformationURL>
+                <mdui:InformationURL xml:lang="de">
+                    http://www.switch.ch/de/about/
+                </mdui:InformationURL>
+                <mdui:InformationURL xml:lang="fr">
+                    http://www.switch.ch/fr/about/
+                </mdui:InformationURL>
+                <mdui:InformationURL xml:lang="it">
+                    http://www.switch.ch/it/about/
+                </mdui:InformationURL>
+            </mdui:UIInfo>
+            <mdui:DiscoHints>
+                <mdui:IPHint>
+                    130.59.0.0/16
+                </mdui:IPHint>
+                <mdui:IPHint>
+                    2001:620::/48
+                </mdui:IPHint>
+                <mdui:DomainHint>
+                    switch.ch
+                </mdui:DomainHint>
+                <mdui:GeolocationHint>
+                    geo:47.37333,8.53111
+                </mdui:GeolocationHint>
+            </mdui:DiscoHints>
+        </md:Extensions>
+        <md:KeyDescriptor use="signing">
+            <ds:KeyInfo>
+                <ds:X509Data>
+                    <ds:X509Certificate>
+                         MIIDODCCAiCgAwIBAgIVAOHRUcIpcc6WV15j+aah9ZXVVyJZMA0GCSqGSIb3DQEB
+CwUAMB4xHDAaBgNVBAMME2FhaS1sb2dvbi5zd2l0Y2guY2gwHhcNMTYxMDI3MTQy
+MjM4WhcNMTkxMDI3MTUyMjM4WjAeMRwwGgYDVQQDDBNhYWktbG9nb24uc3dpdGNo
+LmNoMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArLd72HcN5+YRFvU4
+Rl+xw6pq2eRFTUQ4j3TyN5q1xcWkkmpX3CAYQA86X465Jj7wc/RVryn9PZMQvv0p
+XesDO4cjjp3S2w4QqtrInjFNIPXZZeamAr2QX3BHhWFnDkmCynmOiJyS4ngV7NUl
+Rai3wsHjF7dEBXpJgmiMRxNUYcvr8BoAZzhO3Vu9SoM6ufoBHhup6oUQNegfmm/n
+KD/3JPvqIQRKZbh+8/qxVVTIafuPVuTrVeF8Xnax7FA91XdwhmOMZPHS2E4uMRFI
+R1TcY+D0jshWhoEEtBMb/SmCNxSvZm04hgcWyOwoXotaHu22PpoyKylVHkBRo6YH
+t0xNgQIDAQABo20wazAdBgNVHQ4EFgQUbHSsyKFXxRa/CbTsl/rzWU2S4qMwSgYD
+VR0RBEMwQYITYWFpLWxvZ29uLnN3aXRjaC5jaIYqaHR0cHM6Ly9hYWktbG9nb24u
+c3dpdGNoLmNoL2lkcC9zaGliYm9sZXRoMA0GCSqGSIb3DQEBCwUAA4IBAQBT2U1g
+r9O1Sd3cOOwDMrn/js5SUp7eBES1p6DBodrxgNBcL6JFX4qnE0eN9p4k/YdnbblZ
+lB1/BSgz5ywnN0vdJILGmTK9qYRH3aN76fmX0mTvYK0pvBDKXhfQChcy60sb+asW
+PG5ew1mG1ygfaCU4shIvUr//RaOHJOwtGKMQDXc9O+TOSOCGd+MzLXpxsq//a8ZJ
+ZXwnpCEmUJoymMlOoEHAUxX7IdhrJwjtRm+b91dQpZk/jAEU/T7hfRUdhyznPaVt
+bmjMq7ionfJYA34hS6c/2PXki5INUn9cPbi0GUZayF0hsspr85iPkD9u9MsrI48Z
+Wk7ii+Su2RCnqP9H
+                    </ds:X509Certificate>
+                </ds:X509Data>
+            </ds:KeyInfo>
+        </md:KeyDescriptor>
+        <md:ArtifactResolutionService Binding="urn:oasis:names:tc:SAML:1.0:bindings:SOAP-binding"
+                                      Location="https://aai-logon.switch.ch/idp/profile/SAML1/SOAP/ArtifactResolution"
+                                      index="1"/>
+        <md:ArtifactResolutionService Binding="urn:oasis:names:tc:SAML:2.0:bindings:SOAP"
+                                      Location="https://aai-logon.switch.ch/idp/profile/SAML2/SOAP/ArtifactResolution"
+                                      index="2"/>
+        <md:NameIDFormat>
+          urn:mace:shibboleth:1.0:nameIdentifier
+        </md:NameIDFormat>
+        <md:NameIDFormat>
+          urn:oasis:names:tc:SAML:2.0:nameid-format:transient
+        </md:NameIDFormat>
+        <md:NameIDFormat>
+          urn:oasis:names:tc:SAML:2.0:nameid-format:persistent
+        </md:NameIDFormat>
+        <md:SingleSignOnService Binding="urn:mace:shibboleth:1.0:profiles:AuthnRequest"
+                                Location="https://aai-logon.switch.ch/idp/profile/Shibboleth/SSO"/>
+        <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+                                Location="https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO"/>
+        <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+                                Location="https://aai-logon.switch.ch/idp/profile/SAML2/POST/SSO"/>
+    </md:IDPSSODescriptor>
+    <md:AttributeAuthorityDescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol urn:oasis:names:tc:SAML:1.1:protocol">
+        <md:Extensions>
+            <shibmd:Scope regexp="false">
+               switch.ch
+            </shibmd:Scope>
+        </md:Extensions>
+        <md:KeyDescriptor use="signing">
+            <ds:KeyInfo>
+                <ds:X509Data>
+                    <ds:X509Certificate>
+                         MIIDODCCAiCgAwIBAgIVAOHRUcIpcc6WV15j+aah9ZXVVyJZMA0GCSqGSIb3DQEB
+CwUAMB4xHDAaBgNVBAMME2FhaS1sb2dvbi5zd2l0Y2guY2gwHhcNMTYxMDI3MTQy
+MjM4WhcNMTkxMDI3MTUyMjM4WjAeMRwwGgYDVQQDDBNhYWktbG9nb24uc3dpdGNo
+LmNoMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArLd72HcN5+YRFvU4
+Rl+xw6pq2eRFTUQ4j3TyN5q1xcWkkmpX3CAYQA86X465Jj7wc/RVryn9PZMQvv0p
+XesDO4cjjp3S2w4QqtrInjFNIPXZZeamAr2QX3BHhWFnDkmCynmOiJyS4ngV7NUl
+Rai3wsHjF7dEBXpJgmiMRxNUYcvr8BoAZzhO3Vu9SoM6ufoBHhup6oUQNegfmm/n
+KD/3JPvqIQRKZbh+8/qxVVTIafuPVuTrVeF8Xnax7FA91XdwhmOMZPHS2E4uMRFI
+R1TcY+D0jshWhoEEtBMb/SmCNxSvZm04hgcWyOwoXotaHu22PpoyKylVHkBRo6YH
+t0xNgQIDAQABo20wazAdBgNVHQ4EFgQUbHSsyKFXxRa/CbTsl/rzWU2S4qMwSgYD
+VR0RBEMwQYITYWFpLWxvZ29uLnN3aXRjaC5jaIYqaHR0cHM6Ly9hYWktbG9nb24u
+c3dpdGNoLmNoL2lkcC9zaGliYm9sZXRoMA0GCSqGSIb3DQEBCwUAA4IBAQBT2U1g
+r9O1Sd3cOOwDMrn/js5SUp7eBES1p6DBodrxgNBcL6JFX4qnE0eN9p4k/YdnbblZ
+lB1/BSgz5ywnN0vdJILGmTK9qYRH3aN76fmX0mTvYK0pvBDKXhfQChcy60sb+asW
+PG5ew1mG1ygfaCU4shIvUr//RaOHJOwtGKMQDXc9O+TOSOCGd+MzLXpxsq//a8ZJ
+ZXwnpCEmUJoymMlOoEHAUxX7IdhrJwjtRm+b91dQpZk/jAEU/T7hfRUdhyznPaVt
+bmjMq7ionfJYA34hS6c/2PXki5INUn9cPbi0GUZayF0hsspr85iPkD9u9MsrI48Z
+Wk7ii+Su2RCnqP9H
+                    </ds:X509Certificate>
+                </ds:X509Data>
+            </ds:KeyInfo>
+        </md:KeyDescriptor>
+        <md:AttributeService Binding="urn:oasis:names:tc:SAML:1.0:bindings:SOAP-binding"
+                             Location="https://aai-logon.switch.ch/idp/profile/SAML1/SOAP/AttributeQuery"/>
+        <md:AttributeService Binding="urn:oasis:names:tc:SAML:2.0:bindings:SOAP"
+                             Location="https://aai-logon.switch.ch/idp/profile/SAML2/SOAP/AttributeQuery"/>
+        <md:NameIDFormat>
+          urn:mace:shibboleth:1.0:nameIdentifier
+        </md:NameIDFormat>
+        <md:NameIDFormat>
+          urn:oasis:names:tc:SAML:2.0:nameid-format:transient
+        </md:NameIDFormat>
+        <md:NameIDFormat>
+          urn:oasis:names:tc:SAML:2.0:nameid-format:persistent
+        </md:NameIDFormat>
+    </md:AttributeAuthorityDescriptor>
+    <md:Organization>
+        <md:OrganizationName xml:lang="en">
+          switch.ch
+        </md:OrganizationName>
+        <md:OrganizationDisplayName xml:lang="de">
+          SWITCH
+        </md:OrganizationDisplayName>
+        <md:OrganizationDisplayName xml:lang="en">
+          SWITCH
+        </md:OrganizationDisplayName>
+        <md:OrganizationDisplayName xml:lang="fr">
+          SWITCH
+        </md:OrganizationDisplayName>
+        <md:OrganizationDisplayName xml:lang="it">
+          SWITCH
+        </md:OrganizationDisplayName>
+        <md:OrganizationURL xml:lang="de">
+          http://www.switch.ch/
+        </md:OrganizationURL>
+        <md:OrganizationURL xml:lang="en">
+          http://www.switch.ch/
+        </md:OrganizationURL>
+        <md:OrganizationURL xml:lang="fr">
+          http://www.switch.ch/
+        </md:OrganizationURL>
+        <md:OrganizationURL xml:lang="it">
+          http://www.switch.ch/
+        </md:OrganizationURL>
+    </md:Organization>
+    <md:ContactPerson contactType="support">
+        <md:GivenName>
+          SWITCHaai
+        </md:GivenName>
+        <md:SurName>
+          Team
+        </md:SurName>
+        <md:EmailAddress>
+          mailto:aai@switch.ch
+        </md:EmailAddress>
+        <md:TelephoneNumber>
+          +41 44 268 1505
+        </md:TelephoneNumber>
+    </md:ContactPerson>
+    <md:ContactPerson contactType="technical">
+        <md:GivenName>
+          SWITCHaai
+        </md:GivenName>
+        <md:SurName>
+          Team
+        </md:SurName>
+        <md:EmailAddress>
+          mailto:aai@switch.ch
+        </md:EmailAddress>
+        <md:TelephoneNumber>
+          +41 44 268 1505
+        </md:TelephoneNumber>
+    </md:ContactPerson>
+    <md:ContactPerson xmlns:remd="http://refeds.org/metadata"
+                      contactType="other"
+                      remd:contactType="http://refeds.org/metadata/contactType/security">
+        <md:GivenName>
+          SWITCHaai
+        </md:GivenName>
+        <md:SurName>
+          Team
+        </md:SurName>
+        <md:EmailAddress>
+          mailto:aai@switch.ch
+        </md:EmailAddress>
+        <md:TelephoneNumber>
+          +41 44 268 1505
+        </md:TelephoneNumber>
+    </md:ContactPerson>
+</md:EntityDescriptor>
+    <md:EntityDescriptor xmlns:mdrpi="urn:oasis:names:tc:SAML:metadata:rpi"
+                         xmlns:wayf="http://wayf.dk/2014/08/wayf"
+                         xmlns:mdui="urn:oasis:names:tc:SAML:metadata:ui"
+                         xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+                         xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+                         entityID="https://wayfsp.wayf.dk"
+                         ID="WAYF000279">
+        <md:Extensions xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata">
+            <mdrpi:RegistrationInfo xmlns:mdrpi="urn:oasis:names:tc:SAML:metadata:rpi"
+                                    registrationInstant="2011-01-19T09:25:59Z"/>
+            <wayf:wayf xmlns:wayf="http://wayf.dk/2014/08/wayf">
+                <wayf:active>
+                    yes
+                </wayf:active>
+                <wayf:AttributeNameFormat/>
+                <wayf:certFingerprint>
+                    da39a3ee5e6b4b0d3255bfef95601890afd80709
+                </wayf:certFingerprint>
+                <wayf:eduGAIN/>
+                <wayf:eid>
+                    279
+                </wayf:eid>
+                <wayf:env>
+                    prod
+                </wayf:env>
+                <wayf:federation>
+                    WAYF
+                </wayf:federation>
+                <wayf:federation>
+                    nemlog-in.dk
+                </wayf:federation>
+                <wayf:federation>
+                    qa.kmd.dk
+                </wayf:federation>
+                <wayf:icon>
+                    1324561724_logo.png
+                </wayf:icon>
+                <wayf:kalmar>
+                    0
+                </wayf:kalmar>
+                <wayf:modified>
+                    2017-05-24T13:36:07Z
+                </wayf:modified>
+                <wayf:redirect.sign/>
+                <wayf:redirect.validate/>
+                <wayf:revisionid>
+                    181
+                </wayf:revisionid>
+                <wayf:RegistrationInstant2>
+                    2011-01-19T09:25:59Z
+                </wayf:RegistrationInstant2>
+                <wayf:type>
+                    saml20-sp
+                </wayf:type>
+                <wayf:url xml:lang="da">
+                    http://www.wayf.dk
+                </wayf:url>
+                <wayf:url xml:lang="en">
+                    http://www.wayf.dk
+                </wayf:url>
+            </wayf:wayf>
+        </md:Extensions>
+        <md:SPSSODescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+                            protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol"
+                            AuthnRequestsSigned="false">
+            <md:Extensions>
+                <mdui:UIInfo xmlns:mdui="urn:oasis:names:tc:SAML:metadata:ui">
+                    <mdui:Description xml:lang="da">
+                         Formålet er at give udviklere mulighed for at undersøge omfang og syntaktisk kvalitet af de oplysninger som en institution oversender hver gang en af dens brugere forsøger at logge ind på en webtjeneste via WAYF.
+                    </mdui:Description>
+                    <mdui:Description xml:lang="en">
+                         The purpose is to enable developers to inspect the extent and syntactical quality of the information sent from an institution every time one of its users attempts to log into a web service through WAYF.
+                    </mdui:Description>
+                    <mdui:DisplayName xml:lang="da">
+                         WAYF Testtjeneste
+                    </mdui:DisplayName>
+                    <mdui:DisplayName xml:lang="en">
+                         WAYF Testing Service
+                    </mdui:DisplayName>
                 </mdui:UIInfo>
-            </Extensions>
-
-            <KeyDescriptor>
-                <ds:KeyInfo>
+            </md:Extensions>
+            <md:KeyDescriptor>
+                <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
                     <ds:X509Data>
                         <ds:X509Certificate>
-                            MIIEPjCCAyagAwIBAgIBADANBgkqhkiG9w0BAQUFADB3MQswCQYDVQQGEwJVUzEV
-                            MBMGA1UECBMMUGVubnN5bHZhbmlhMRMwEQYDVQQHEwpQaXR0c2J1cmdoMSIwIAYD
-                            VQQKExlUZXN0U2hpYiBTZXJ2aWNlIFByb3ZpZGVyMRgwFgYDVQQDEw9zcC50ZXN0
-                            c2hpYi5vcmcwHhcNMDYwODMwMjEyNDM5WhcNMTYwODI3MjEyNDM5WjB3MQswCQYD
-                            VQQGEwJVUzEVMBMGA1UECBMMUGVubnN5bHZhbmlhMRMwEQYDVQQHEwpQaXR0c2J1
-                            cmdoMSIwIAYDVQQKExlUZXN0U2hpYiBTZXJ2aWNlIFByb3ZpZGVyMRgwFgYDVQQD
-                            Ew9zcC50ZXN0c2hpYi5vcmcwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIB
-                            AQDJyR6ZP6MXkQ9z6RRziT0AuCabDd3x1m7nLO9ZRPbr0v1LsU+nnC363jO8nGEq
-                            sqkgiZ/bSsO5lvjEt4ehff57ERio2Qk9cYw8XCgmYccVXKH9M+QVO1MQwErNobWb
-                            AjiVkuhWcwLWQwTDBowfKXI87SA7KR7sFUymNx5z1aoRvk3GM++tiPY6u4shy8c7
-                            vpWbVfisfTfvef/y+galxjPUQYHmegu7vCbjYP3On0V7/Ivzr+r2aPhp8egxt00Q
-                            XpilNai12LBYV3Nv/lMsUzBeB7+CdXRVjZOHGuQ8mGqEbsj8MBXvcxIKbcpeK5Zi
-                            JCVXPfarzuriM1G5y5QkKW+LAgMBAAGjgdQwgdEwHQYDVR0OBBYEFKB6wPDxwYrY
-                            StNjU5P4b4AjBVQVMIGhBgNVHSMEgZkwgZaAFKB6wPDxwYrYStNjU5P4b4AjBVQV
-                            oXukeTB3MQswCQYDVQQGEwJVUzEVMBMGA1UECBMMUGVubnN5bHZhbmlhMRMwEQYD
-                            VQQHEwpQaXR0c2J1cmdoMSIwIAYDVQQKExlUZXN0U2hpYiBTZXJ2aWNlIFByb3Zp
-                            ZGVyMRgwFgYDVQQDEw9zcC50ZXN0c2hpYi5vcmeCAQAwDAYDVR0TBAUwAwEB/zAN
-                            BgkqhkiG9w0BAQUFAAOCAQEAc06Kgt7ZP6g2TIZgMbFxg6vKwvDL0+2dzF11Onpl
-                            5sbtkPaNIcj24lQ4vajCrrGKdzHXo9m54BzrdRJ7xDYtw0dbu37l1IZVmiZr12eE
-                            Iay/5YMU+aWP1z70h867ZQ7/7Y4HW345rdiS6EW663oH732wSYNt9kr7/0Uer3KD
-                            9CuPuOidBacospDaFyfsaJruE99Kd6Eu/w5KLAGG+m0iqENCziDGzVA47TngKz2v
-                            PVA+aokoOyoz3b53qeti77ijatSEoKjxheBWpO+eoJeGq/e49Um3M2ogIX/JAlMa
-                            Inh+vYSYngQB2sx9LGkR9KHaMKNIGCDehk93Xla4pWJx1w==
+                              MIIEZzCCA0+gAwIBAgILAQAAAAABID3xVZIwDQYJKoZIhvcNAQEFBQAwajEjMCEGA1UECxMaT3JnYW5pemF0aW9uIFZhbGlkYXRpb24gQ0ExEzARBgNVBAoTCkdsb2JhbFNpZ24xLjAsBgNVBAMTJUdsb2JhbFNpZ24gT3JnYW5pemF0aW9uIFZhbGlkYXRpb24gQ0EwHhcNMDkwMzI1MTMwNTE0WhcNMTIwNTA5MDcwNzU3WjCBgzELMAkGA1UEBhMCREsxETAPBgNVBAgTCE9kZW5zZSBNMREwDwYDVQQHEwhPZGVuc2UgTTEbMBkGA1UECxMSV0FZRiAtIFNlY3JldGFyaWF0MR0wGwYDVQQKExRTeWRkYW5zayBVbml2ZXJzaXRldDESMBAGA1UEAxQJKi53YXlmLmRrMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDBsuiyO84OVwkKR0TL6w8viWV4jMg+Jy7LgiEtYfHdnVBCvdM9XJJetS0MiJtulBH4/4ZWrfeGeHgLPvSjp6FiRdI1nDg/33ofc0TdNytxX4tBCzvxM0C4yCCaEXda+tqXJmGua+mVubMhS8kizHjL+s7A8xUqXoEFqOMHtgqoAQIDAQABo4IBdjCCAXIwHwYDVR0jBBgwFoAUfW0q7Garp1E2qwJp8XCPxFkLmh8wSQYIKwYBBQUHAQEEPTA7MDkGCCsGAQUFBzAChi1odHRwOi8vc2VjdXJlLmdsb2JhbHNpZ24ubmV0L2NhY2VydC9vcmd2MS5jcnQwPwYDVR0fBDgwNjA0oDKgMIYuaHR0cDovL2NybC5nbG9iYWxzaWduLm5ldC9Pcmdhbml6YXRpb25WYWwxLmNybDAdBgNVHQ4EFgQUvlkjTc0iuzcvi752QgktLT01obgwCQYDVR0TBAIwADAOBgNVHQ8BAf8EBAMCBaAwKQYDVR0lBCIwIAYIKwYBBQUHAwEGCCsGAQUFBwMCBgorBgEEAYI3CgMDMEsGA1UdIAREMEIwQAYJKwYBBAGgMgEUMDMwMQYIKwYBBQUHAgEWJWh0dHA6Ly93d3cuZ2xvYmFsc2lnbi5uZXQvcmVwb3NpdG9yeS8wEQYJYIZIAYb4QgEBBAQDAgbAMA0GCSqGSIb3DQEBBQUAA4IBAQCKPVJYHjKOrzWtjPBTEJOwIzE0wSIcA+9+GNR5Pvk+6OTf2QTUDDHpXiiIEcYPL1kN/BEvA+N2y+7qyI5MlL7DNIu9clx1lcqhXiQ0lWcu7Bmb7VNPKq5WS1W81GhbZrO6BJtsQctU6odDXMoORay7FxnaxGHOaJlCSQDgT7QrRhzyd80X8NxrSV25byCTb31du8xoO+WagnqAp6xbKs6IsESDw2r/i3rLOXbL37B7lnbjcLC963xN6j7+kiyqiCjvrP0GLfSV4/FN9i9hWrdMlcbnvr23yz5Jflc1oFPtJx7GZqtV0uTijGxCr+aRaUzBPqc3kyavHJcCsn5TcL1t
                         </ds:X509Certificate>
                     </ds:X509Data>
                 </ds:KeyInfo>
-                <EncryptionMethod Algorithm="http://www.w3.org/2009/xmlenc11#aes128-gcm"/>
-                <EncryptionMethod Algorithm="http://www.w3.org/2009/xmlenc11#aes192-gcm"/>
-                <EncryptionMethod Algorithm="http://www.w3.org/2009/xmlenc11#aes256-gcm"/>
-                <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes128-cbc"/>
-                <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes192-cbc"/>
-                <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"/>
-                <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#tripledes-cbc"/>
-                <EncryptionMethod Algorithm="http://www.w3.org/2009/xmlenc11#rsa-oaep"/>
-                <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#rsa-oaep-mgf1p"/>
-            </KeyDescriptor>
-
-            <!-- This tells IdPs that Single Logout is supported and where/how to request it. -->
-
-            <SingleLogoutService Location="https://sp.testshib.org/Shibboleth.sso/SLO/SOAP"
-                Binding="urn:oasis:names:tc:SAML:2.0:bindings:SOAP"/>
-            <SingleLogoutService Location="https://sp.testshib.org/Shibboleth.sso/SLO/Redirect"
-                Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"/>
-            <SingleLogoutService Location="https://sp.testshib.org/Shibboleth.sso/SLO/POST"
-                Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"/>
-            <SingleLogoutService Location="https://sp.testshib.org/Shibboleth.sso/SLO/Artifact"
-                Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Artifact"/>
-
-
-            <!-- This tells IdPs that you only need transient identifiers. -->
-            <NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:transient</NameIDFormat>
-            <NameIDFormat>urn:mace:shibboleth:1.0:nameIdentifier</NameIDFormat>
-
-            <!--
-    This tells IdPs where and how to send authentication assertions. Mostly
-    the SP will tell the IdP what location to use in its request, but this
-    is how the IdP validates the location and also figures out which
-    SAML version/binding to use.
-    -->
-
-            <AssertionConsumerService index="1" isDefault="true"
-                Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
-                Location="https://sp.testshib.org/Shibboleth.sso/SAML2/POST"/>
-            <AssertionConsumerService index="2"
-                Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST-SimpleSign"
-                Location="https://sp.testshib.org/Shibboleth.sso/SAML2/POST-SimpleSign"/>
-            <AssertionConsumerService index="3"
-                Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Artifact"
-                Location="https://sp.testshib.org/Shibboleth.sso/SAML2/Artifact"/>
-            <AssertionConsumerService index="4"
-                Binding="urn:oasis:names:tc:SAML:1.0:profiles:browser-post"
-                Location="https://sp.testshib.org/Shibboleth.sso/SAML/POST"/>
-            <AssertionConsumerService index="5"
-                Binding="urn:oasis:names:tc:SAML:1.0:profiles:artifact-01"
-                Location="https://sp.testshib.org/Shibboleth.sso/SAML/Artifact"/>
-            <AssertionConsumerService index="6"
-                Binding="http://schemas.xmlsoap.org/ws/2003/07/secext"
-                Location="https://sp.testshib.org/Shibboleth.sso/ADFS"/>
-
-            <!-- A couple additional assertion consumers for the registration webapp. -->
-
-            <AssertionConsumerService index="7"
-                Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
-                Location="https://www.testshib.org/Shibboleth.sso/SAML2/POST"/>
-            <AssertionConsumerService index="8"
-                Binding="urn:oasis:names:tc:SAML:1.0:profiles:browser-post"
-                Location="https://www.testshib.org/Shibboleth.sso/SAML/POST"/>
-
-        </SPSSODescriptor>
-
-        <!-- This is just information about the entity in human terms. -->
-        <Organization>
-            <OrganizationName xml:lang="en">TestShib Two Service Provider</OrganizationName>
-            <OrganizationDisplayName xml:lang="en">TestShib Two</OrganizationDisplayName>
-            <OrganizationURL xml:lang="en">http://www.testshib.org/testshib-two/</OrganizationURL>
-        </Organization>
-        <ContactPerson contactType="technical">
-            <GivenName>Nate</GivenName>
-            <SurName>Klingenstein</SurName>
-            <EmailAddress>ndk@internet2.edu</EmailAddress>
-        </ContactPerson>
-
-    </EntityDescriptor>
-
+            </md:KeyDescriptor>
+            <md:SingleLogoutService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+                                    Location="https://wayfsp.wayf.dk/ss/module.php/saml/sp/saml2-logout.php/default-sp"/>
+            <md:NameIDFormat>
+               urn:oasis:names:tc:SAML:2.0:nameid-format:transient
+            </md:NameIDFormat>
+            <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+                                         index="0"
+                                         Location="https://wayfsp.wayf.dk/ss/module.php/saml/sp/saml2-acs.php/default-sp"/>
+            <md:AttributeConsumingService index="1"
+                                          isDefault="true">
+                <md:ServiceName xml:lang="da">
+                    WAYF Testtjeneste
+                </md:ServiceName>
+                <md:ServiceName xml:lang="en">
+                    WAYF Testing Service
+                </md:ServiceName>
+                <md:ServiceDescription xml:lang="da">
+                    Formålet er at give udviklere mulighed for at undersøge omfang og syntaktisk kvalitet af de oplysninger som en institution oversender hver gang en af dens brugere forsøger at logge ind på en webtjeneste via WAYF.
+                </md:ServiceDescription>
+                <md:ServiceDescription xml:lang="en">
+                    The purpose is to enable developers to inspect the extent and syntactical quality of the information sent from an institution every time one of its users attempts to log into a web service through WAYF.
+                </md:ServiceDescription>
+                <md:RequestedAttribute FriendlyName="cn"
+                                       Name="urn:oid:2.5.4.3"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+                                       isRequired="true"/>
+                <md:RequestedAttribute FriendlyName="eduPersonAssurance"
+                                       Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.11"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+                                       isRequired="true"/>
+                <md:RequestedAttribute FriendlyName="eduPersonEntitlement"
+                                       Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.7"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+                                       isRequired="true"/>
+                <md:RequestedAttribute FriendlyName="eduPersonPrimaryAffiliation"
+                                       Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.5"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+                                       isRequired="true"/>
+                <md:RequestedAttribute FriendlyName="eduPersonPrincipalName"
+                                       Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.6"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+                                       isRequired="true"/>
+                <md:RequestedAttribute FriendlyName="eduPersonScopedAffiliation"
+                                       Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.9"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+                                       isRequired="true"/>
+                <md:RequestedAttribute FriendlyName="eduPersonTargetedID"
+                                       Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.10"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+                                       isRequired="true"/>
+                <md:RequestedAttribute FriendlyName="gn"
+                                       Name="urn:oid:2.5.4.42"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+                                       isRequired="true"/>
+                <md:RequestedAttribute FriendlyName="mail"
+                                       Name="urn:oid:0.9.2342.19200300.100.1.3"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+                                       isRequired="true"/>
+                <md:RequestedAttribute FriendlyName="norEduPersonLIN"
+                                       Name="urn:oid:1.3.6.1.4.1.2428.90.1.4"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+                                       isRequired="true"/>
+                <md:RequestedAttribute FriendlyName="norEduPersonNIN"
+                                       Name="urn:oid:1.3.6.1.4.1.2428.90.1.5"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+                                       isRequired="true"/>
+                <md:RequestedAttribute FriendlyName="organizationName"
+                                       Name="urn:oid:2.5.4.10"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+                                       isRequired="true"/>
+                <md:RequestedAttribute FriendlyName="preferredLanguage"
+                                       Name="urn:oid:2.16.840.1.113730.3.1.39"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+                                       isRequired="true"/>
+                <md:RequestedAttribute FriendlyName="schacCountryOfCitizenship"
+                                       Name="urn:oid:1.3.6.1.4.1.25178.1.2.5"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+                                       isRequired="true"/>
+                <md:RequestedAttribute FriendlyName="schacDateOfBirth"
+                                       Name="urn:oid:1.3.6.1.4.1.25178.1.2.3"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+                                       isRequired="true"/>
+                <md:RequestedAttribute FriendlyName="schacHomeOrganization"
+                                       Name="urn:oid:1.3.6.1.4.1.25178.1.2.9"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+                                       isRequired="true"/>
+                <md:RequestedAttribute FriendlyName="schacPersonalUniqueID"
+                                       Name="urn:oid:1.3.6.1.4.1.25178.1.2.15"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+                                       isRequired="true"/>
+                <md:RequestedAttribute FriendlyName="schacYearOfBirth"
+                                       Name="urn:oid:1.3.6.1.4.1.25178.1.0.2.3"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+                                       isRequired="true"/>
+                <md:RequestedAttribute FriendlyName="sn"
+                                       Name="urn:oid:2.5.4.4"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+                                       isRequired="true"/>
+                <md:RequestedAttribute FriendlyName="schacHomeOrganizationType"
+                                       Name="urn:oid:1.3.6.1.4.1.25178.1.2.10"
+                                       NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+                                       isRequired="true"/>
+            </md:AttributeConsumingService>
+        </md:SPSSODescriptor>
+        <md:ContactPerson xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+                          contactType="technical">
+            <md:EmailAddress>
+               mailto:benji@wayf.dk
+            </md:EmailAddress>
+        </md:ContactPerson>
+    </md:EntityDescriptor>
 </md:EntitiesDescriptor>
