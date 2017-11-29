@@ -164,7 +164,7 @@ func ExampleAuthnRequest() {
 
 
 
-	request, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmd, idpmd)
+	request, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmd, idpmd, "")
 	fmt.Print(request.Doc.Dump(false))
 	// Output:
 	// <?xml version="1.0" encoding="UTF-8"?>
@@ -179,7 +179,7 @@ func ExampleResponse() {
 	spmd := spmetadata
 	sourceResponse := response
 
-	request, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmd, idpmd)
+	request, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmd, idpmd, "")
 	response := NewResponse(IdAndTiming{time.Time{}, 4 * time.Minute, 4 * time.Hour, "ID", "AssertionID"}, idpmd, spmd, request, sourceResponse)
 	fmt.Print(base64.StdEncoding.EncodeToString(goxml.Hash(crypto.SHA1, response.Doc.Dump(true))))
 	// Output:
@@ -205,7 +205,7 @@ func ExamplePublicKeyInfo() {
 }
 
 func ExampleSAMLRequest2Url() {
-	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmetadata, idpmetadata)
+	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmetadata, idpmetadata, "")
 	url, err := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	fmt.Println(url, err)
 	// Output:
@@ -213,7 +213,7 @@ func ExampleSAMLRequest2Url() {
 }
 
 func ExampleUrl2SAMLRequest() {
-	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmetadata, idpmetadata)
+	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmetadata, idpmetadata, "")
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	xp, relayState := Url2SAMLRequest(url, nil)
 	fmt.Printf("%t\n", newrequest.PP() == xp.PP())
@@ -224,7 +224,7 @@ func ExampleUrl2SAMLRequest() {
 }
 
 func ExampleDeflate() {
-	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmetadata, idpmetadata)
+	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmetadata, idpmetadata, "")
 	req := base64.StdEncoding.EncodeToString(Deflate(newrequest.Doc.Dump(false)))
 	fmt.Println(req)
 	// Output:
@@ -232,7 +232,7 @@ func ExampleDeflate() {
 }
 
 func ExampleInflate() {
-	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmetadata, idpmetadata)
+	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmetadata, idpmetadata, "")
 	req := Deflate(newrequest.Doc.Dump(false))
 	res := Inflate(req)
 	fmt.Println(string(res))
@@ -245,7 +245,7 @@ func ExampleInflate() {
 }
 
 func ExampleReceiveAuthnRequestPOST() {
-	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmetadata, idpmetadata)
+	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmetadata, idpmetadata, "")
 	destination := newrequest.Query1(nil, "@Destination")
 	newrequest.QueryDashP(nil, "./saml:Issuer", "abc", nil)
 	data := url.Values{}
@@ -262,7 +262,7 @@ func ExampleReceiveAuthnRequestPOST() {
 }
 
 func ExampleReceiveAuthnRequest() {
-	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmetadata, idpmetadata)
+	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmetadata, idpmetadata, "")
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
 	_ , _, _, relayState, err := ReceiveAuthnRequest(request, external, external)
@@ -291,7 +291,7 @@ func ExampleReceiveResponse() {
 
 /*
 func xxxExampleReceiveSAMLRequest() {
-	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, spmetadata, idpmetadata)
+	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, spmetadata, idpmetadata, "")
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request, err := http.NewRequest("GET", url.String(), nil)
 	xp, md, memd, relayState, err := ReceiveSAMLRequest(request, hub, internal)
@@ -310,7 +310,7 @@ func xxxExampleReceiveSAMLRequest() {
 
 func xxExampleReceiveSAMLResponse() {
 	//enocdeddata =
-	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, spmetadata, idpmetadata)
+	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, spmetadata, idpmetadata, "")
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	//r, _ := http.NewRequest("POST", urlStr, strings.NewReader(data.Encode())
 	request, err := http.NewRequest("GET", url.String(), nil)
@@ -333,10 +333,10 @@ func ExampleEncryptAndDecrypt() {
 	spmd := spmetadata
 
 	//sourceResponse := response
-	//request, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, spmd, idpmd)
+	//request, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, spmd, idpmd, "")
 
 	//sourceResponse := goxml.NewXp(response)
-	request, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmd, idpmd)
+	request, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmd, idpmd, "")
 	response := NewResponse(IdAndTiming{time.Time{}, 4 * time.Minute, 4 * time.Hour, "ID", "AssertionID"}, idpmd, spmd, request, response)
 	fmt.Println(response.PP())
 	// Output:
