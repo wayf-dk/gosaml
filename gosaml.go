@@ -637,7 +637,7 @@ func VerifyTiming(xp *goxml.Xp) (err error) {
     - The Issuer is the entityID ín the idpmetadata
     - The NameID defaults to transient
 */
-func NewAuthnRequest(params IdAndTiming, originalRequest, spmd, idpmd *goxml.Xp) (request *goxml.Xp, err error) {
+func NewAuthnRequest(params IdAndTiming, originalRequest, spmd, idpmd *goxml.Xp, providerID string) (request *goxml.Xp, err error) {
 	template := `<samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
                     xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
                     Version="2.0"
@@ -659,6 +659,9 @@ func NewAuthnRequest(params IdAndTiming, originalRequest, spmd, idpmd *goxml.Xp)
 	request.QueryDashP(nil, "./@Destination", idpmd.Query1(nil, `//md:SingleSignOnService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"]/@Location`), nil)
 	request.QueryDashP(nil, "./@AssertionConsumerServiceURL", spmd.Query1(nil, `//md:AssertionConsumerService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"]/@Location`), nil)
 	request.QueryDashP(nil, "./saml:Issuer", spmd.Query1(nil, `/md:EntityDescriptor/@entityID`), nil)
+	if providerID != "" {
+	    request.QueryDashP(nil, "./samlp:Scoping/samlp:IDPList/samlp:IDPEntry/@ProviderID", providerID, nil)
+	}
 	found := false
 	nameIDFormat := ""
 	nameIDFormats := Config.NameIDFormats
@@ -692,7 +695,7 @@ func NewAuthnRequest(params IdAndTiming, originalRequest, spmd, idpmd *goxml.Xp)
 	return
 }
 
-/*
+/**
   NewResponse - create a new response using the supplied metadata and resp. authnrequest and response for filling out the fields
   The response is primarily for the attributes, but other fields is eg. the AuthnContextClassRef is also drawn from it
 */
@@ -728,7 +731,6 @@ func NewResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *
 	</saml:Assertion>
 </samlp:Response>
 `
-
 	response = goxml.NewXp(template)
 
 	issueInstant := params.Now.Format(XsDateTime)
@@ -847,25 +849,6 @@ func NewErrorResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceRespo
 	response.QueryDashP(nil, "./saml:Issuer", idpEntityID, nil)
 	return
 }
-
-/*
-<samlp:LogoutRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
-                     xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
-                     ID="_67262af5ea165548e97d47f82c6a603253fd1b054c"
-                     Version="2.0"
-                     IssueInstant="2017-11-18T10:14:10Z"
-                     Destination="https://wayf.wayf.dk/saml2/idp/SingleLogoutService.php"
-                     >
-    <saml:Issuer>https://wayfsp.wayf.dk</saml:Issuer>
-    <saml:NameID Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient">
-            _da1e7d6a81f970ef3c1b9ee1dc1987fb690ef94a7d
-    </saml:NameID>
-</samlp:LogoutRequest>
-
-<samlp:Extensions>
-<aslo:Asynchronous />
-</samlp:Extensions>
-*/
 
 func NewLogoutRequest(params IdAndTiming, issuer, destination, sourceLogoutRequest *goxml.Xp, sloinfo *SLOInfo) (request *goxml.Xp) {
 	template := `<samlp:LogoutRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0"></samlp:LogoutRequest>`
