@@ -69,6 +69,11 @@ type (
 	SLOInfo struct {
 		EntityID, NameID, Format, SPNameQualifier, Issuer string
 	}
+
+	SLOInfoMap interface {
+		GetSLOInfo(http.ResponseWriter, *http.Request, string) *SLOInfo
+		PutSLOInfo(http.ResponseWriter, *http.Request, string, *SLOInfo)
+	}
 )
 
 var (
@@ -857,7 +862,7 @@ func NewErrorResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceRespo
 </samlp:Extensions>
 */
 
-func NewLogoutRequest(params IdAndTiming, issuer, destination, sourceLogoutRequest *goxml.Xp, sloinfo SLOInfo) (request *goxml.Xp) {
+func NewLogoutRequest(params IdAndTiming, issuer, destination, sourceLogoutRequest *goxml.Xp, sloinfo *SLOInfo) (request *goxml.Xp) {
 	template := `<samlp:LogoutRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0"></samlp:LogoutRequest>`
 	request = goxml.NewXp(template)
 	slo := destination.Query1(nil, `/md:EntityDescriptor/md:IDPSSODescriptor/md:SingleLogoutService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"]/@Location`)
@@ -881,20 +886,20 @@ func NewLogoutResponse(params IdAndTiming, source, destination, request, sourceR
 	return
 }
 
-func NewSLOInfo(response, destination *goxml.Xp) SLOInfo {
+func NewSLOInfo(response, destination *goxml.Xp) *SLOInfo {
 	entityID := response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Issuer")
 	nameID := response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID")
 	format := response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID/@Format")
 	spnamequalifier := response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID/@SPNameQualifier")
 	issuer := destination.Query1(nil, "@entityID")
-	return SLOInfo{NameID: nameID, EntityID: entityID, Format: format, SPNameQualifier: spnamequalifier, Issuer: issuer}
+	return &SLOInfo{NameID: nameID, EntityID: entityID, Format: format, SPNameQualifier: spnamequalifier, Issuer: issuer}
 }
 
-func NameIDHash(xp *goxml.Xp) string {
+func NameIDHash(xp *goxml.Xp, tag string) string {
 	nameID := xp.Query1(nil, "//saml:NameID")
 	format := xp.Query1(nil, "//saml:NameID/@Format")
 	spNameQualifier := xp.Query1(nil, "//saml:NameID/@SPNameQualifier")
-	return fmt.Sprintf("%x", goxml.Hash(crypto.SHA1, nameID+"#"+format+"#"+spNameQualifier))
+	return fmt.Sprintf("%x", goxml.Hash(crypto.SHA1, tag+"#"+nameID+"#"+format+"#"+spNameQualifier))
 }
 
 func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp) (err error) {
