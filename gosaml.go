@@ -622,7 +622,7 @@ func VerifyTiming(xp *goxml.Xp) (err error) {
 	for q, i := range checks {
 		samltime := xp.Query1(nil, q)
 		cmp := samltime < now
-		if samltime == "" || cmp != i {
+		if samltime != "" && cmp != i {
 			err = fmt.Errorf("timing problem: %s = '%s', now = %s", q, samltime, now)
 			return
 		}
