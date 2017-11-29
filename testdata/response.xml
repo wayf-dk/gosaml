@@ -1,69 +1,48 @@
-<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
-                ID="ID"
-                Version="2.0"
-                IssueInstant="0001-01-01T00:00:00Z"
-                InResponseTo="ID"
-                Destination="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
-    <saml:Issuer xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">
-     https://aai-logon.switch.ch/idp/shibboleth
-    </saml:Issuer>
-    <samlp:Status>
-        <samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
-    </samlp:Status>
-    <saml:Assertion xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                    xmlns:xs="http://www.w3.org/2001/XMLSchema"
-                    xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
-                    ID="AssertionID"
-                    Version="2.0"
-                    IssueInstant="0001-01-01T00:00:00Z">
-        <saml:Issuer>
-          https://aai-logon.switch.ch/idp/shibboleth
-        </saml:Issuer>
-        <saml:Subject>
-            <saml:NameID SPNameQualifier="https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth"
-                         Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient">
-               _6c41e4c164d64aee825cdecc23ca67187f4741f390
-            </saml:NameID>
-            <saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
-                <saml:SubjectConfirmationData NotOnOrAfter="0001-01-01T00:04:00Z"
-                                              Recipient="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST"
-                                              InResponseTo="ID"/>
-            </saml:SubjectConfirmation>
-        </saml:Subject>
-        <saml:Conditions NotBefore="0001-01-01T00:00:00Z"
-                         NotOnOrAfter="0001-01-01T00:04:00Z">
-            <saml:AudienceRestriction>
-                <saml:Audience>
-                    https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth
-                </saml:Audience>
-            </saml:AudienceRestriction>
-        </saml:Conditions>
-        <saml:AuthnStatement AuthnInstant="0001-01-01T00:00:00Z"
-                             SessionNotOnOrAfter="0001-01-01T04:00:00Z"
-                             SessionIndex="missing">
-            <saml:AuthnContext>
-                <saml:AuthnContextClassRef>
-                    urn:oasis:names:tc:SAML:2.0:ac:classes:Password
-                </saml:AuthnContextClassRef>
-            </saml:AuthnContext>
-        </saml:AuthnStatement>
-        <saml:AttributeStatement xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
-                                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                                 xmlns:xs="http://www.w3.org/2001/XMLSchema">
-            <saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
-                            Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.6"
-                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">
-                <saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
-                                     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                                     xsi:type="xs:string">
-                    gikcaswid@orphanage.wayf.dk
-                </saml:AttributeValue>
-                <saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
-                                     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                                     xsi:type="xs:string">
-                    only@thisone.example.com
-                </saml:AttributeValue>
-            </saml:Attribute>
-        </saml:AttributeStatement>
-    </saml:Assertion>
+<?xml version="1.0" encoding="UTF-8"?>
+<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" ID="_670b0c92c2acc9202b6ad5cc1370b579bf7d46b936" IssueInstant="2017-11-29T12:37:11Z" InResponseTo="_4099d6da09c9a1d9fad7fa9446568f4144596a5245" Destination="https://wayfsp.wayf.dk/ss/module.php/saml/sp/saml2-acs.php/default-sp">
+	<saml:Issuer>https://wayf.wayf.dk</saml:Issuer>
+	<samlp:Status>
+		<samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
+	</samlp:Status>
+	<saml:Assertion Version="2.0" ID="_578c0223765e3f269f35c3dc0e24d1238d8f3e9505" IssueInstant="2017-11-29T12:37:11Z">
+		<saml:Issuer>https://wayf.wayf.dk</saml:Issuer>
+		<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:SignedInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:CanonicalizationMethod xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/><ds:SignatureMethod xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"/><ds:Reference xmlns:ds="http://www.w3.org/2000/09/xmldsig#" URI="#_578c0223765e3f269f35c3dc0e24d1238d8f3e9505"><ds:Transforms xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:Transform xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/><ds:Transform xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/></ds:Transforms><ds:DigestMethod xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/><ds:DigestValue xmlns:ds="http://www.w3.org/2000/09/xmldsig#">FbWR8JxhU6BW+mz0ncNRqH73l1E=</ds:DigestValue></ds:Reference></ds:SignedInfo><ds:SignatureValue xmlns:ds="http://www.w3.org/2000/09/xmldsig#">Un6OMoYmBsj9TLuq0GQOQWrZs5LGPjZjEO5T6qOG4MZAqn31degRnaxAWky/TiZkY/HvWhmoqaiKY9m1F3N0R7oj0UOH5vUN3QqwpPQENsA1p9dUC6CpRXEGTNzLfsCpUQeFROtc6YQPBgitAuZ9en0hZJj/QfjIE5zchSmTP+QW+ezBtzssHJbwnM26Da4JwaLB1devxn6TDJ8/wosdpuS6fFYy4idYA5WXdrLSL6HVOyZQcuImRQlbMSkjHf1TuwdxyHnoACV1uv52xbuEDDmADF+ci+gD32mrWiHhn76DEjc4BNkx8TyCd7b9HzHYeP77Fidibt3YGVnWGQ+QSg==</ds:SignatureValue><ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:X509Data xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:X509Certificate xmlns:ds="http://www.w3.org/2000/09/xmldsig#">MIIDNjCCAh4CCQDsE0eLyC+FjDANBgkqhkiG9w0BAQUFADCBiDELMAkGA1UEBhMC
+REsxEDAOBgNVBAgTB0Rlbm1hcmsxEzARBgNVBAcUCkvDuGJlbmhhdm4xFzAVBgNV
+BAoTDnRlc3QgV0FZRiB0ZXN0MRswGQYDVQQDExJ0ZXN0IFdBWUYgdGVzdC5sYW4x
+HDAaBgkqhkiG9w0BCQEWDWZpbm5kQHdheWYuZGswHhcNMTUwNjEwMDc1NjEwWhcN
+MjAwNTE0MDc1NjEwWjAxMQswCQYDVQQGEwJESzENMAsGA1UEChMEV0FZRjETMBEG
+A1UEAxQKKi50ZXN0LmxhbjCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEB
+AJ9r4J63EYXKSQC1lPSVF+ykXq8iJG3ud3UySxR+WoqxFjTDHOqo2zy64/ygk3T0
+K5NRj7KyuJ8dZ57ktjsWkLOOMF591W2Udo8KjXWMu8w+VovVq811tzYMFxSOmpoS
+jdtjpIjXXZTuaIgVf8obw/7WkFGShEjlIa4hU04Ou2ffpUQ3OLMbEI/JSPXyVaSz
+Wt40WLj1YvIIUUlxGaCMGUXa3xd1SAmLYt78Qm4eJul7J1BHyXchZQh9mV9DLhAI
+Wm4dIRGHjYGPhECes/TvFrDNHbccenItD8sybdfvsdIkDGTMPLfCoMDdVeI4mt+2
+x8P5ljmSu6WhJxfYKT5yId0CAwEAATANBgkqhkiG9w0BAQUFAAOCAQEAeVWElKLi
+aIkX2SYpxoePn2Atxb/mKIV1ttm4hZLJWAhMwUk9xYRQCim9X1aO8OMpMI346omr
+ED/wTbPjAC4wG0M0K/n+7GVC+xFbyup+N8D5P1fIlbB+hs/hQih1W3N7WAtcRCHc
+kBhYOnUtNYZTgKbilXFLYIRRCmFNGN2vRU9KfYoQ19AYHuK5+vGVzeYqRFY6EJx0
+ttXZVVH8Yc7FYjue6rheNaE4ZGOMSjVMoeqps7q6jqrbw1eMdhdFZnD7HzrRndpq
+zjvT0OgSAWqrjznERRb5hu/2410d0N1nGqLOHfgSm5otnltg+/3WvuaqxTfMnkgL
+/qJPaVd8ZDeWBg==
+</ds:X509Certificate></ds:X509Data></ds:KeyInfo></ds:Signature><saml:Subject>
+			<saml:NameID SPNameQualifier="https://wayfsp.wayf.dk" Format="urn:oasis:names:tc:SAML:2.0:nameid-format:persistent">WAYF-DK-c5bc7e16bb6d28cb5a20b6aad84d1cba2df5c48f</saml:NameID>
+			<saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
+				<saml:SubjectConfirmationData NotOnOrAfter="2017-11-29T12:41:11Z" Recipient="https://wayfsp.wayf.dk/ss/module.php/saml/sp/saml2-acs.php/default-sp" InResponseTo="_4099d6da09c9a1d9fad7fa9446568f4144596a5245"/>
+			</saml:SubjectConfirmation>
+		</saml:Subject>
+		<saml:Conditions NotBefore="2017-11-29T12:37:11Z" NotOnOrAfter="2017-11-29T12:41:11Z">
+			<saml:AudienceRestriction>
+				<saml:Audience>https://wayfsp.wayf.dk</saml:Audience>
+			</saml:AudienceRestriction>
+		</saml:Conditions>
+		<saml:AuthnStatement AuthnInstant="2017-11-29T12:37:11Z" SessionNotOnOrAfter="2017-11-29T16:37:11Z">
+			<saml:AuthnContext>
+				<saml:AuthnContextClassRef>
+					urn:oasis:names:tc:SAML:2.0:ac:classes:Password
+				</saml:AuthnContextClassRef>
+			<saml:AuthenticatingAuthority>https://orphanage.wayf.dk</saml:AuthenticatingAuthority></saml:AuthnContext>
+		</saml:AuthnStatement>
+		<saml:AttributeStatement>
+		<saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="cn" FriendlyName="cn" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">Mads Freek Petersen</saml:AttributeValue></saml:Attribute><saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="eduPersonAssurance" FriendlyName="eduPersonAssurance" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">1</saml:AttributeValue></saml:Attribute><saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="eduPersonEntitlement" FriendlyName="eduPersonEntitlement" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">https://wayf.dk/feedback/view</saml:AttributeValue><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">https://wayf.dk/kanja/admin</saml:AttributeValue><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">https://wayf.dk/orphanage/admin</saml:AttributeValue><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">https://wayf.dk/vo/admin</saml:AttributeValue></saml:Attribute><saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="eduPersonPrimaryAffiliation" FriendlyName="eduPersonPrimaryAffiliation" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">member</saml:AttributeValue></saml:Attribute><saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="eduPersonPrincipalName" FriendlyName="eduPersonPrincipalName" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">gikcaswid@orphanage.wayf.dk</saml:AttributeValue></saml:Attribute><saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="eduPersonTargetedID" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic" FriendlyName="eduPersonTargetedID"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">WAYF-DK-c5bc7e16bb6d28cb5a20b6aad84d1cba2df5c48f</saml:AttributeValue></saml:Attribute><saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="gn" FriendlyName="gn" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">Mads Freek</saml:AttributeValue></saml:Attribute><saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="mail" FriendlyName="mail" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">freek@wayf.dk</saml:AttributeValue></saml:Attribute><saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="organizationName" FriendlyName="organizationName" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">WAYF Where Are You From</saml:AttributeValue></saml:Attribute><saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="preferredLanguage" FriendlyName="preferredLanguage" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">da</saml:AttributeValue></saml:Attribute><saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="schacHomeOrganization" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic" FriendlyName="schacHomeOrganization"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">orphanage.wayf.dk</saml:AttributeValue></saml:Attribute><saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="sn" FriendlyName="sn" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">Petersen</saml:AttributeValue></saml:Attribute><saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="schacHomeOrganizationType" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic" FriendlyName="schacHomeOrganizationType"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">urn:mace:terena.org:schac:homeOrganizationType:int:NRENAffiliate</saml:AttributeValue></saml:Attribute></saml:AttributeStatement>
+	</saml:Assertion>
 </samlp:Response>

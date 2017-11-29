@@ -125,7 +125,7 @@ func TestMain(m *testing.M) {
 //	spmetadata = xpFromFile("testdata/spmetadata.xml")   //goxml.NewXp(spmetadatxml)    // NewMD(mdq+"EDUGAIN", "https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth")
 //	idpmetadata = xpFromFile("testdata/idpmetadata.xml") //goxml.NewXp(idpmetadataxml) // NewMD(mdq+"EDUGAIN", "https://aai-logon.switch.ch/idp/shibboleth")
 //	hubmetadata = xpFromFile("testdata/wayfmd.xml")
-	response = xpFromFile("testdata/xpresponse.xml")
+	response = xpFromFile("testdata/response.xml")
 
 	pkey, _ := ioutil.ReadFile("testdata/private.key.pem")
 	privatekey = string(pkey)
@@ -277,12 +277,10 @@ func ExampleReceiveAuthnRequest() {
 
 func ExampleReceiveResponse() {
 	destination := response.Query1(nil, "@Destination")
-	//response.QueryDashP(nil, "./saml:Issuer", "abc", nil)
 	data := url.Values{}
     data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
     request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-
 	_ , _, _, _, err := ReceiveSAMLResponse(request, external, external)
 	fmt.Println("Err = ", err)
 	// Output:

@@ -370,7 +370,6 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 	}
 
 	certificates := md.Query(nil, `./`+Roles[(role+1)%2]+signingCertQuery) // the issuer's role
-	log.Println("certrs", certificates)
 
 	if len(certificates) == 0 {
 		err = errors.New("no certificates found in metadata")
