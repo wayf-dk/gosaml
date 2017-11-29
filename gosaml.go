@@ -502,6 +502,11 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 		return
 	}
 
+	err = VerifyTiming(xp)
+	if err != nil {
+		return
+	}
+
 	return
 }
 
