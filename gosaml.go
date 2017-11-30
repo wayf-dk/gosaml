@@ -77,6 +77,7 @@ type (
 )
 
 var (
+    TestTime time.Time
 	Roles    = []string{"md:IDPSSODescriptor", "md:SPSSODescriptor"}
 	Config   = Conf{}
 	ACSError = errors.New("invalid AsssertionConsumerService or AsssertionConsumerServiceIndex")
@@ -609,22 +610,68 @@ func VerifySign(xp *goxml.Xp, certificates, signatures types.NodeList) (err erro
 	return
 }
 
+/**
+  Verify the presence and value of timestamps
+*/
 func VerifyTiming(xp *goxml.Xp) (err error) {
-	// 3 minutes skew allowed
-	now := time.Now().Add(time.Duration(3) * time.Minute).UTC().Format(XsDateTime)
-	checks := map[string]bool{
-		// "/samlp:Response[1]/saml:Assertion[1]/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@NotBefore": true ,
-		"/samlp:Response[1]/saml:Assertion[1]/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@NotOnOrAfter": false,
-		"/samlp:Response[1]/saml:Assertion[1]/saml:Conditions/@NotBefore":                                                       true,
-		"/samlp:Response[1]/saml:Assertion[1]/saml:Conditions/@NotOnOrAfter":                                                    false,
-		"/samlp:Response[1]/saml:Assertion[1]/saml:AuthnStatement/@SessionNotOnOrAfter":                                         false,
+    const timeskew = 90
+
+	type timing struct {
+		reqired bool
+		notonorafter   bool
+		notbefore bool
 	}
-	for q, i := range checks {
-		samltime := xp.Query1(nil, q)
-		cmp := samltime < now
-		if samltime != "" && cmp != i {
-			err = fmt.Errorf("timing problem: %s = '%s', now = %s", q, samltime, now)
+
+    now := TestTime
+    if now.IsZero() {
+        now = time.Now()
+    }
+	intervalstart := now.Add(-time.Duration(timeskew) * time.Second).UTC()
+	intervalend   := now.Add(time.Duration(timeskew) * time.Second).UTC()
+
+	var checks map[string]timing
+
+	protocol := xp.QueryString(nil, "local-name(/*)")
+	switch protocol {
+	case "AuthnRequest", "LogoutRequest", "LogoutResponse":
+		checks = map[string]timing{
+			"./@IssueInstant": timing{true, true, true},
+		}
+	case "Response":
+		checks = map[string]timing{
+			"/samlp:Response[1]/@IssueInstant":                                                                                      timing{true, true, true},
+			"/samlp:Response[1]/saml:Assertion[1]/@IssueInstant":                                                                    timing{true, true, true},
+			"/samlp:Response[1]/saml:Assertion[1]/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@NotOnOrAfter": timing{false, true, false},
+			"/samlp:Response[1]/saml:Assertion[1]/saml:Conditions/@NotBefore":                                                       timing{false, false, true},
+			"/samlp:Response[1]/saml:Assertion[1]/saml:Conditions/@NotOnOrAfter":                                                    timing{false, true, false},
+			"/samlp:Response[1]/saml:Assertion[1]/saml:AuthnStatement/@AuthnInstant":                                                timing{true, true, true},
+			"/samlp:Response[1]/saml:Assertion[1]/saml:AuthnStatement/@SessionNotOnOrAfter":                                         timing{false, true, false},
+		}
+	}
+
+	for q, t := range checks {
+		xmltime := xp.Query1(nil, q)
+		if t.reqired && xmltime == "" {
+			err = fmt.Errorf("required timestamp: %s not present in: %s", q, protocol)
 			return
+		}
+
+        if xmltime != "" {
+            samltime, err := time.Parse(XsDateTime, xmltime)
+            if err != nil {
+                return err
+            }
+            ok := true
+            if t.notbefore {
+                ok = ok && samltime.Before(intervalend)
+            }
+            if t.notonorafter {
+                ok = ok && intervalstart.Before(samltime)
+            }
+            if !ok { // Only check if the time is actually there
+                err = fmt.Errorf("timing problem: %s  %s < %s <= %s", q, intervalstart, samltime, intervalend)
+                return err
+            }
 		}
 	}
 	return
@@ -660,7 +707,7 @@ func NewAuthnRequest(params IdAndTiming, originalRequest, spmd, idpmd *goxml.Xp,
 	request.QueryDashP(nil, "./@AssertionConsumerServiceURL", spmd.Query1(nil, `//md:AssertionConsumerService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"]/@Location`), nil)
 	request.QueryDashP(nil, "./saml:Issuer", spmd.Query1(nil, `/md:EntityDescriptor/@entityID`), nil)
 	if providerID != "" {
-	    request.QueryDashP(nil, "./samlp:Scoping/samlp:IDPList/samlp:IDPEntry/@ProviderID", providerID, nil)
+		request.QueryDashP(nil, "./samlp:Scoping/samlp:IDPList/samlp:IDPEntry/@ProviderID", providerID, nil)
 	}
 	found := false
 	nameIDFormat := ""
