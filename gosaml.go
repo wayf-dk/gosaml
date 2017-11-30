@@ -211,7 +211,7 @@ func AttributeCanonicalDump(w io.Writer, xp *goxml.Xp) {
 		sort.Strings(values)
 		for _, value := range values {
 			if value != "" {
-				fmt.Fprint(w, "    "+value)
+				fmt.Fprint(w, "    "+strings.TrimSpace(value))
 			}
 			fmt.Fprintln(w)
 		}
