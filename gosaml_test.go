@@ -53,7 +53,7 @@ var (
 
 	mdq                                                                                     = "https://phph.wayf.dk/MDQ/"
 	hub, external, internal                                                                 *simplemd // mddb
-	spmetadata, idpmetadata, hubmetadata, response, testidpmetadata, testidpviabirkmetadata *goxml.Xp
+	spmetadata, idpmetadata, hubmetadata, response, attributestat, testidpmetadata, testidpviabirkmetadata *goxml.Xp
 	privatekey                                                                              string
 )
 
@@ -127,6 +127,8 @@ func TestMain(m *testing.M) {
 //	hubmetadata = xpFromFile("testdata/wayfmd.xml")
 	response = xpFromFile("testdata/response.xml")
 
+	attributestat = xpFromFile("testdata/attrstatement.xml")
+
 	pkey, _ := ioutil.ReadFile("testdata/private.key.pem")
 	privatekey = string(pkey)
 
@@ -160,15 +162,12 @@ func ExampleMetadata() { //Previous Result // urn:oasis:names:tc:SAML:2.0:nameid
 func ExampleAuthnRequest() {
 	spmd := spmetadata
 	idpmd := idpmetadata
-	//log.Println("IDP ", idpmd, "\nSP =" , spmd)
-
-
 
 	request, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmd, idpmd, "")
 	fmt.Print(request.Doc.Dump(false))
 	// Output:
 	// <?xml version="1.0" encoding="UTF-8"?>
-	// <samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" ID="ID" IssueInstant="0001-01-01T00:00:00Z" Destination="https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO" AssertionConsumerServiceURL="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST" ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST">
+	// <samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" ID="ID" IssueInstant="0001-01-01T00:00:00Z" Destination="https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO" AssertionConsumerServiceURL="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
 	// <saml:Issuer>https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth</saml:Issuer>
 	// <samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" AllowCreate="true"/>
 	// </samlp:AuthnRequest>
@@ -183,25 +182,51 @@ func ExampleResponse() {
 	response := NewResponse(IdAndTiming{time.Time{}, 4 * time.Minute, 4 * time.Hour, "ID", "AssertionID"}, idpmd, spmd, request, sourceResponse)
 	fmt.Print(base64.StdEncoding.EncodeToString(goxml.Hash(crypto.SHA1, response.Doc.Dump(true))))
 	// Output:
-	// u8Lm3KAuBcX0q4VqX+qQYmF2OdY=
+	// 6W5MkmeAQZ7GKco2Ubvi7qFObwk=
 }
 
 func ExampleAttributeCanonicalDump() {
-
 	AttributeCanonicalDump(os.Stdout, response)
 	// Output:
-	// x urn:oid:1.3.6.1.4.1.5923.1.1.1.6 urn:oasis:names:tc:SAML:2.0:attrname-format:uri
+	// cn cn urn:oasis:names:tc:SAML:2.0:attrname-format:basic
+	//     Mads Freek Petersen
+	// eduPersonAssurance eduPersonAssurance urn:oasis:names:tc:SAML:2.0:attrname-format:basic
+	//     1
+	// eduPersonEntitlement eduPersonEntitlement urn:oasis:names:tc:SAML:2.0:attrname-format:basic
+	//     https://wayf.dk/feedback/view
+	//     https://wayf.dk/kanja/admin
+	//     https://wayf.dk/orphanage/admin
+	//     https://wayf.dk/vo/admin
+	// eduPersonPrimaryAffiliation eduPersonPrimaryAffiliation urn:oasis:names:tc:SAML:2.0:attrname-format:basic
+	//     member
+	// eduPersonPrincipalName eduPersonPrincipalName urn:oasis:names:tc:SAML:2.0:attrname-format:basic
 	//     gikcaswid@orphanage.wayf.dk
-	//     only@thisone.example.com
+	// eduPersonTargetedID eduPersonTargetedID urn:oasis:names:tc:SAML:2.0:attrname-format:basic
+	//     WAYF-DK-c5bc7e16bb6d28cb5a20b6aad84d1cba2df5c48f
+	// gn gn urn:oasis:names:tc:SAML:2.0:attrname-format:basic
+	//     Mads Freek
+	// mail mail urn:oasis:names:tc:SAML:2.0:attrname-format:basic
+	//     freek@wayf.dk
+	// organizationName organizationName urn:oasis:names:tc:SAML:2.0:attrname-format:basic
+	//     WAYF Where Are You From
+	// preferredLanguage preferredLanguage urn:oasis:names:tc:SAML:2.0:attrname-format:basic
+	//     da
+	// schacHomeOrganization schacHomeOrganization urn:oasis:names:tc:SAML:2.0:attrname-format:basic
+	//     orphanage.wayf.dk
+	// schacHomeOrganizationType schacHomeOrganizationType urn:oasis:names:tc:SAML:2.0:attrname-format:basic
+	//     urn:mace:terena.org:schac:homeOrganizationType:int:NRENAffiliate
+	// sn sn urn:oasis:names:tc:SAML:2.0:attrname-format:basic
+    //     Petersen
+
 }
 
 func ExamplePublicKeyInfo() {
-	cert := idpmetadata.Query1(nil, encryptionCertQuery) // actual signing key is always first
+	cert := spmetadata.Query1(nil, encryptionCertQuery) // actual signing key is always first
 	var keyname string
 	keyname, _, err := PublicKeyInfo(cert)
 	fmt.Println(err, keyname)
 	// Output:
-	// <nil> d0a82a5984107320a48d69b7dc80f085646593c0
+	// <nil> f8c19afa414fdc045779d20a63d2f46716fe71ff
 }
 
 func ExampleSAMLRequest2Url() {
@@ -209,7 +234,7 @@ func ExampleSAMLRequest2Url() {
 	url, err := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	fmt.Println(url, err)
 	// Output:
-	// https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO?RelayState=anton-banton&SAMLRequest=pJJBi9swEIXv%2ByuM7ra8ORURZ0k3LA1suyH29tCbYk%2FWA7KUzoyT9t9XUZJiKORSGDBY8%2BZ9vJn506%2FBZUcgxuAr9ViUKgPfhg79R6Xem5f8k3paPMzZDu5glqP0fgs%2FR2DJotCzSQ%2BVGsmbYBnZeDsAG2lNvfz6amZFaQ4UJLTBqYnkvsIyA0kkUtn3G9rsjLZeVWq9il%2FmEdaexXqpVFmWj3mqpixNqh8qW0VI9FaSuhc5sNHaWsxd%2BAi%2B4BNK2xdtr7E76Mi4Rwf6jDDTW%2BiQoBVd128qW95onoPncQCqgY7Ywvv2dTJYhHA3CuRHhBNQEZ2mHl6A9tABJaBcIpyue9ztggPpC%2BZw9d681Y3KNtfMPqO%2FrOJeXLtLE5svTbPJ04DrykwKihb%2FQ8l%2FKed6OvN2FN8iz3q1CQ7b39lLoMHKfdzzH%2BzyfWo1QtYzgpcYtHPh9ExgBSolNILS0UX%2Fe3uLhz8BAAD%2F%2Fw%3D%3D <nil>
+	// https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO?SAMLRequest=pJJBb9swDIXv%2BRWC7rbcnAYhTpE1KGagW4PY3WE3xWZqArLkkXTS%2FfshSjJkl1wK8CSR73sP5OLxY%2FDqAMQYQ6kf8kIrCG3sMLyX%2Bq15zr7ox%2BVswW7wo11N0oct%2FJ6ARX0MPrBNH6WeKNjoGNkGNwBbaW29%2Bv5i53lhR4oS2%2Bj1zcj9CccMJBiDVj%2Bv1uYna5uL1FcMZ4f3VHbnJrbfmmaTbV7rRqtqXepqrVXFPEEVWFyQUhdF8ZClaorCpvql1RpYMDhJ%2BF5kZGuMc5j5%2BB5DzkeUts%2Fb3mA3mpHiHj2YE31uttAhQSumrl%2B1Wl3jPMXA0wBUAx2whbfty42wCOFuEsgOCEeg3Dm8ZQQB2kMHlAxlAiym7nG3ix6kz5njhZ2CXlZmU05afgbC%2FyALc6t5PYofboBqvYke2z%2FqOdLg5P5eTi%2FYZfvUaoVcYIQgWq28j8cnAidQaqEJtFnOztD%2Fb285%2BxsAAP%2F%2F&RelayState=anton-banton <nil>
 }
 
 func ExampleUrl2SAMLRequest() {
@@ -228,7 +253,7 @@ func ExampleDeflate() {
 	req := base64.StdEncoding.EncodeToString(Deflate(newrequest.Doc.Dump(false)))
 	fmt.Println(req)
 	// Output:
-	// pJJBi9swEIXv+yuM7ra8ORURZ0k3LA1suyH29tCbYk/WA7KUzoyT9t9XUZJiKORSGDBY8+Z9vJn506/BZUcgxuAr9ViUKgPfhg79R6Xem5f8k3paPMzZDu5glqP0fgs/R2DJotCzSQ+VGsmbYBnZeDsAG2lNvfz6amZFaQ4UJLTBqYnkvsIyA0kkUtn3G9rsjLZeVWq9il/mEdaexXqpVFmWj3mqpixNqh8qW0VI9FaSuhc5sNHaWsxd+Ai+4BNK2xdtr7E76Mi4Rwf6jDDTW+iQoBVd128qW95onoPncQCqgY7Ywvv2dTJYhHA3CuRHhBNQEZ2mHl6A9tABJaBcIpyue9ztggPpC+Zw9d681Y3KNtfMPqO/rOJeXLtLE5svTbPJ04DrykwKihb/Q8l/Ked6OvN2FN8iz3q1CQ7b39lLoMHKfdzzH+zyfWo1QtYzgpcYtHPh9ExgBSolNILS0UX/e3uLhz8BAAD//w==
+	// pJJBb9swDIXv+RWC7rbcnAYhTpE1KGagW4PY3WE3xWZqArLkkXTS/fshSjJkl1wK8CSR73sP5OLxY/DqAMQYQ6kf8kIrCG3sMLyX+q15zr7ox+VswW7wo11N0oct/J6ARX0MPrBNH6WeKNjoGNkGNwBbaW29+v5i53lhR4oS2+j1zcj9CccMJBiDVj+v1uYna5uL1FcMZ4f3VHbnJrbfmmaTbV7rRqtqXepqrVXFPEEVWFyQUhdF8ZClaorCpvql1RpYMDhJ+F5kZGuMc5j5+B5DzkeUts/b3mA3mpHiHj2YE31uttAhQSumrl+1Wl3jPMXA0wBUAx2whbfty42wCOFuEsgOCEeg3Dm8ZQQB2kMHlAxlAiym7nG3ix6kz5njhZ2CXlZmU05afgbC/yALc6t5PYofboBqvYke2z/qOdLg5P5eTi/YZfvUaoVcYIQgWq28j8cnAidQaqEJtFnOztD/b285+xsAAP//
 }
 
 func ExampleInflate() {
@@ -238,7 +263,7 @@ func ExampleInflate() {
 	fmt.Println(string(res))
 	// Output:
 	// <?xml version="1.0" encoding="UTF-8"?>
-	// <samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" ID="ID" IssueInstant="0001-01-01T00:00:00Z" Destination="https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO" AssertionConsumerServiceURL="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST" ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST">
+	// <samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" ID="ID" IssueInstant="0001-01-01T00:00:00Z" Destination="https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO" AssertionConsumerServiceURL="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
 	// <saml:Issuer>https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth</saml:Issuer>
 	// <samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" AllowCreate="true"/>
 	// </samlp:AuthnRequest>
@@ -247,18 +272,31 @@ func ExampleInflate() {
 func ExampleReceiveAuthnRequestPOST() {
 	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmetadata, idpmetadata, "")
 	destination := newrequest.Query1(nil, "@Destination")
-	newrequest.QueryDashP(nil, "./saml:Issuer", "abc", nil)
+	//newrequest.QueryDashP(nil, "./saml:Issuer", "abc", nil)
 	data := url.Values{}
     data.Set("SAMLRequest", base64.StdEncoding.EncodeToString([]byte(newrequest.Doc.Dump(false))))
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
     request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-    log.Println("form", data.Encode(), request)
 
 	xp , _, _, _, err := ReceiveAuthnRequest(request, external, external)
-	fmt.Println("Err = ", err)
-	fmt.Println("XP = ", xp.PP())
+	fmt.Println(err)
+	fmt.Println(xp.PP())
 	// Output:
-	// https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO?RelayState=anton-banton&SAMLRequest=pJJBi9swEIXv%2ByuM7ra8ORURZ0k3LA1suyH29tCbYk%2FWA7KUzoyT9t9XUZJiKORSGDBY8%2BZ9vJn506%2FBZUcgxuAr9ViUKgPfhg79R6Xem5f8k3paPMzZDu5glqP0fgs%2FR2DJotCzSQ%2BVGsmbYBnZeDsAG2lNvfz6amZFaQ4UJLTBqYnkvsIyA0kkUtn3G9rsjLZeVWq9il%2FmEdaexXqpVFmWj3mqpixNqh8qW0VI9FaSuhc5sNHaWsxd%2BAi%2B4BNK2xdtr7E76Mi4Rwf6jDDTW%2BiQoBVd128qW95onoPncQCqgY7Ywvv2dTJYhHA3CuRHhBNQEZ2mHl6A9tABJaBcIpyue9ztggPpC%2BZw9d681Y3KNtfMPqO%2FrOJeXLtLE5svTbPJ04DrykwKihb%2FQ8l%2FKed6OvN2FN8iz3q1CQ7b39lLoMHKfdzzH%2BzyfWo1QtYzgpcYtHPh9ExgBSolNILS0UX%2Fe3uLhz8BAAD%2F%2Fw%3D%3D <nil>
+	// <nil>
+	// <samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
+	//                     xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
+	//                     Version="2.0"
+	//                     ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+	//                     ID="ID"
+	//                     IssueInstant="0001-01-01T00:00:00Z"
+	//                     Destination="https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO"
+	//                     AssertionConsumerServiceURL="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
+	//     <saml:Issuer>
+	//      https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth
+	//     </saml:Issuer>
+	//     <samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
+	//                         AllowCreate="true"/>
+	// </samlp:AuthnRequest>
 }
 
 func ExampleReceiveAuthnRequest() {
@@ -269,109 +307,93 @@ func ExampleReceiveAuthnRequest() {
 	//fmt.Println("XP = ", xp.PP())
 	//fmt.Println("MD = ", md)
 	//fmt.Println("MEMD = ", memd)
-	fmt.Println("Relaystates = ", relayState)
-	fmt.Println("Err = ", err)
+	fmt.Println(relayState)
+	fmt.Println(err)
 	// Output:
-	// https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO?RelayState=anton-banton&SAMLRequest=pJJBi9swEIXv%2ByuM7ra8ORURZ0k3LA1suyH29tCbYk%2FWA7KUzoyT9t9XUZJiKORSGDBY8%2BZ9vJn506%2FBZUcgxuAr9ViUKgPfhg79R6Xem5f8k3paPMzZDu5glqP0fgs%2FR2DJotCzSQ%2BVGsmbYBnZeDsAG2lNvfz6amZFaQ4UJLTBqYnkvsIyA0kkUtn3G9rsjLZeVWq9il%2FmEdaexXqpVFmWj3mqpixNqh8qW0VI9FaSuhc5sNHaWsxd%2BAi%2B4BNK2xdtr7E76Mi4Rwf6jDDTW%2BiQoBVd128qW95onoPncQCqgY7Ywvv2dTJYhHA3CuRHhBNQEZ2mHl6A9tABJaBcIpyue9ztggPpC%2BZw9d681Y3KNtfMPqO%2FrOJeXLtLE5svTbPJ04DrykwKihb%2FQ8l%2FKed6OvN2FN8iz3q1CQ7b39lLoMHKfdzzH%2BzyfWo1QtYzgpcYtHPh9ExgBSolNILS0UX%2Fe3uLhz8BAAD%2F%2Fw%3D%3D <nil>
+	// anton-banton
+	// <nil>
 }
 
-func ExampleReceiveResponse() {
+func ExampleReceiveUnSignedResponse() {
 	destination := response.Query1(nil, "@Destination")
 	data := url.Values{}
     data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
     request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	_ , _, _, _, err := ReceiveSAMLResponse(request, external, external)
-	fmt.Println("Err = ", err)
+	fmt.Println(err)
 	// Output:
-	// https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO?RelayState=anton-banton&SAMLRequest=pJJBi9swEIXv%2ByuM7ra8ORURZ0k3LA1suyH29tCbYk%2FWA7KUzoyT9t9XUZJiKORSGDBY8%2BZ9vJn506%2FBZUcgxuAr9ViUKgPfhg79R6Xem5f8k3paPMzZDu5glqP0fgs%2FR2DJotCzSQ%2BVGsmbYBnZeDsAG2lNvfz6amZFaQ4UJLTBqYnkvsIyA0kkUtn3G9rsjLZeVWq9il%2FmEdaexXqpVFmWj3mqpixNqh8qW0VI9FaSuhc5sNHaWsxd%2BAi%2B4BNK2xdtr7E76Mi4Rwf6jDDTW%2BiQoBVd128qW95onoPncQCqgY7Ywvv2dTJYhHA3CuRHhBNQEZ2mHl6A9tABJaBcIpyue9ztggPpC%2BZw9d681Y3KNtfMPqO%2FrOJeXLtLE5svTbPJ04DrykwKihb%2FQ8l%2FKed6OvN2FN8iz3q1CQ7b39lLoMHKfdzzH%2BzyfWo1QtYzgpcYtHPh9ExgBSolNILS0UX%2Fe3uLhz8BAAD%2F%2Fw%3D%3D <nil>
+	// timing problem: /samlp:Response[1]/saml:Assertion[1]/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@NotOnOrAfter = '2017-11-29T12:41:11Z', now = 2017-11-30T09:52:36Z
 }
 
-
-
-/*
-func xxxExampleReceiveSAMLRequest() {
-	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, spmetadata, idpmetadata, "")
-	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
-	request, err := http.NewRequest("GET", url.String(), nil)
-	xp, md, memd, relayState, err := ReceiveSAMLRequest(request, hub, internal)
-	fmt.Println("XP = ", xp)
-	fmt.Println("MD = ", md)
-	fmt.Println("MEMD = ", memd)
-	fmt.Println("Relaystates = ", relayState)
+func ExampleNoSAMLResponse() {
+	destination := response.Query1(nil, "@Destination")
+	data := url.Values{}
+    data.Set("SAMLResponse", "")
+	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
+    request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	_ , _, _, _, err := ReceiveSAMLResponse(request, external, external)
 	fmt.Println("Err = ", err)
 	// Output:
-	// <?xml version="1.0" encoding="UTF-8"?>
-	// <samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" ID="ID" IssueInstant="0001-01-01T00:00:00Z" Destination="https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO" AssertionConsumerServiceURL="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST" ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST">
-	// <saml:Issuer>https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth</saml:Issuer>
-	// <samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" AllowCreate="true"/>
-	// </samlp:AuthnRequest>
+	// Err =  no SAMLRequest/SAMLResponse found
 }
 
-func xxExampleReceiveSAMLResponse() {
-	//enocdeddata =
-	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, spmetadata, idpmetadata, "")
-	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
-	//r, _ := http.NewRequest("POST", urlStr, strings.NewReader(data.Encode())
-	request, err := http.NewRequest("GET", url.String(), nil)
-	xp, md, memd, relayState, err := ReceiveSAMLRequest(request, hub, internal)
-	fmt.Println("XP = ", xp)
-	fmt.Println("MD = ", md)
-	fmt.Println("MEMD = ", memd)
-	fmt.Println("Relaystates = ", relayState)
+func ExampleNoIssuer() {
+	destination := response.Query1(nil, "@Destination")
+	response.QueryDashP(nil, "./saml:Issuer", "abc", nil)
+	data := url.Values{}
+    data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
+	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
+    request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+
+	_ , _, _, _, err := ReceiveSAMLResponse(request, external, external)
 	fmt.Println("Err = ", err)
 	// Output:
-	// <?xml version="1.0" encoding="UTF-8"?>
-	// <samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" ID="ID" IssueInstant="0001-01-01T00:00:00Z" Destination="https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO" AssertionConsumerServiceURL="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST" ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST">
-	// <saml:Issuer>https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth</saml:Issuer>
-	// <samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" AllowCreate="true"/>
-	// </samlp:AuthnRequest>
-}*/
+	// Err =  ["err:Metadata not found","key:abc"]
+}
+
+func ExampleNoDestination() {
+	destination := response.Query1(nil, "@Destination")
+	response.QueryDashP(nil, "@Destination", "abc", nil)
+	data := url.Values{}
+    data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
+	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
+    request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+
+	_ , _, _, _, err := ReceiveSAMLResponse(request, external, external)
+	fmt.Println("Err = ", err)
+	// Output:
+	// Err =  ["err:Metadata not found","key:abc"]
+}
+
+func xxExampleInvalidSchema() {
+	destination := response.Query1(nil, "@Destination")
+	response.QueryDashP(nil, "./saml:Destination", "abc", nil)
+	data := url.Values{}
+    data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
+	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
+    request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+
+	_ , _, _, _, err := ReceiveSAMLResponse(request, external, external)
+	fmt.Println("Err = ", err)
+	// Output:
+	// Err =  ["cause:schema validation failed"]
+}
+
 
 func ExampleEncryptAndDecrypt() {
 	idpmd := idpmetadata
 	spmd := spmetadata
 
-	//sourceResponse := response
-	//request, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, spmd, idpmd, "")
-
-	//sourceResponse := goxml.NewXp(response)
 	request, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmd, idpmd, "")
+
 	response := NewResponse(IdAndTiming{time.Time{}, 4 * time.Minute, 4 * time.Hour, "ID", "AssertionID"}, idpmd, spmd, request, response)
-	fmt.Println(response.PP())
+	fmt.Print(base64.StdEncoding.EncodeToString(goxml.Hash(crypto.SHA1, response.Doc.Dump(true))))
 	// Output:
-	//<?xml version="1.0"?>
-	//<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="ID" Version="2.0" IssueInstant="0001-01-01T00:00:00Z" InResponseTo="ID" Destination="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
-	//     <saml:Issuer xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">https://aai-logon.switch.ch/idp/shibboleth</saml:Issuer>
-	//     <samlp:Status>
-	//         <samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
-	//     </samlp:Status>
-	//     <saml:Assertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="AssertionID" IssueInstant="0001-01-01T00:00:00Z" Version="2.0">
-	//         <saml:Issuer>https://aai-logon.switch.ch/idp/shibboleth</saml:Issuer>
-	//         <saml:Subject>
-	//             <saml:NameID Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" SPNameQualifier="https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth">_6c41e4c164d64aee825cdecc23ca67187f4741f390</saml:NameID>
-	//             <saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
-	//                 <saml:SubjectConfirmationData InResponseTo="ID" NotOnOrAfter="0001-01-01T00:04:00Z" Recipient="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST"/>
-	//             </saml:SubjectConfirmation>
-	//         </saml:Subject>
-	//         <saml:Conditions NotBefore="0001-01-01T00:00:00Z" NotOnOrAfter="0001-01-01T00:04:00Z">
-	//             <saml:AudienceRestriction>
-	//                 <saml:Audience>https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth</saml:Audience>
-	//             </saml:AudienceRestriction>
-	//         </saml:Conditions>
-	//         <saml:AuthnStatement AuthnInstant="0001-01-01T00:00:00Z" SessionIndex="missing" SessionNotOnOrAfter="0001-01-01T04:00:00Z">
-	//             <saml:AuthnContext>
-	//                 <saml:AuthnContextClassRef>urn:oasis:names:tc:SAML:2.0:ac:classes:Password</saml:AuthnContextClassRef>
-	//             </saml:AuthnContext>
-	//         </saml:AuthnStatement>
-	//         <saml:AttributeStatement>
-	//         <saml:Attribute Name="urn:oid:1.3.6.1.4.1.5923.1.1.1.6" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"><saml:AttributeValue xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">gikcaswid@orphanage.wayf.dk</saml:AttributeValue><saml:AttributeValue xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">only@thisone.example.com</saml:AttributeValue></saml:Attribute></saml:AttributeStatement>
-	//     </saml:Assertion>
-	//</samlp:Response>
+	// jNcoS8WEnKSUwodKf89IRAQcpmo=
 }
 
 // Repeated her to avoid import cycle - need metadata to be able to test
-
 // MDQclient - read some metadata from either a MDQ Server or a normal feed url.
 // Key is either en entityID or Location - allows lookup entity by endpoints,
 // this is currently only supported by the phph.wayf.dk/MDQ and is used by WAYF for mass virtual entity hosting
