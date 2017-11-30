@@ -270,7 +270,8 @@ func ExampleInflate() {
 }
 
 func ExampleReceiveAuthnRequestPOST() {
-	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmetadata, idpmetadata, "")
+	TestTime, _ = time.Parse("2006-Jan-02", "2013-Feb-03")
+	newrequest, _ := NewAuthnRequest(IdAndTiming{TestTime, 0, 0, "ID", ""}, nil, spmetadata, idpmetadata, "")
 	destination := newrequest.Query1(nil, "@Destination")
 	//newrequest.QueryDashP(nil, "./saml:Issuer", "abc", nil)
 	data := url.Values{}
@@ -300,7 +301,7 @@ func ExampleReceiveAuthnRequestPOST() {
 }
 
 func ExampleReceiveAuthnRequest() {
-	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmetadata, idpmetadata, "")
+	newrequest, _ := NewAuthnRequest(IdAndTiming{}.Refresh(), nil, spmetadata, idpmetadata, "")
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
 	_ , _, _, relayState, err := ReceiveAuthnRequest(request, external, external)
@@ -314,8 +315,45 @@ func ExampleReceiveAuthnRequest() {
 	// <nil>
 }
 
+func ExampleReceiveAuthnRequestNoSubject() {
+	TestTime = time.Time{}
+	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Now(), 0, 0, "ID", ""}, nil, spmetadata, idpmetadata, "")
+	//newrequest.QueryDashP(nil, "./samlp:@Subject", "subject", nil)
+	//request.QueryDashP(nil, "./samlp:Scoping/samlp:IDPList/samlp:IDPEntry/@ProviderID", providerID, nil)
+	nameidpolicy := newrequest.Query(nil, "./samlp:NameIDPolicy")[0]
+	subject := newrequest.QueryDashP(nil, "./saml:Subject/saml:NameID", "mehran", nameidpolicy)
+	newrequest.QueryDashP(subject, "@Format", "anton-banton", nil)
+	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
+	request := httptest.NewRequest("GET", url.String(), nil)
+	xp , _, _, relayState, err := ReceiveAuthnRequest(request, external, external)
+	fmt.Println("XP = ", xp.PP())
+	//fmt.Println("MD = ", md)
+	//fmt.Println("MEMD = ", memd)
+	fmt.Println(relayState)
+	fmt.Println(err)
+	// Output:
+	// anton-banton
+	// <nil>
+}
+
+func ExampleProtocolCheck() {
+	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmetadata, idpmetadata, "")
+	newrequest.Query(nil, "/samlp:AuthnRequest")[0].SetNodeName("PutRequest")
+	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
+	request := httptest.NewRequest("GET", url.String(), nil)
+	_ , _, _, relayState, err := ReceiveAuthnRequest(request, external, external)
+	fmt.Println(relayState)
+	fmt.Println(err)
+	// Output:
+	// anton-banton
+	// ["cause:schema validation failed"]
+}
+
 func ExampleReceiveUnSignedResponse() {
 	destination := response.Query1(nil, "@Destination")
+	TestTime, _ = time.Parse(XsDateTime, response.Query1(nil, "@IssueInstant"))
+	TestTime = time.Time{}
+	//TestTime = TestTime.Add(time.Duration(5) * time.Minute)
 	data := url.Values{}
     data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
@@ -323,7 +361,7 @@ func ExampleReceiveUnSignedResponse() {
 	_ , _, _, _, err := ReceiveSAMLResponse(request, external, external)
 	fmt.Println(err)
 	// Output:
-	// timing problem: /samlp:Response[1]/saml:Assertion[1]/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@NotOnOrAfter = '2017-11-29T12:41:11Z', now = 2017-11-30T09:52:36Z
+	// timing problem: /samlp:Response[1]/saml:Assertion[1]/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@NotOnOrAfter = '2017-11-29T12:41:11Z'
 }
 
 func ExampleNoSAMLResponse() {
@@ -333,9 +371,9 @@ func ExampleNoSAMLResponse() {
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
     request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	_ , _, _, _, err := ReceiveSAMLResponse(request, external, external)
-	fmt.Println("Err = ", err)
+	fmt.Println(err)
 	// Output:
-	// Err =  no SAMLRequest/SAMLResponse found
+	// no SAMLRequest/SAMLResponse found
 }
 
 func ExampleNoIssuer() {
@@ -347,9 +385,9 @@ func ExampleNoIssuer() {
     request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
 	_ , _, _, _, err := ReceiveSAMLResponse(request, external, external)
-	fmt.Println("Err = ", err)
+	fmt.Println(err)
 	// Output:
-	// Err =  ["err:Metadata not found","key:abc"]
+	// ["err:Metadata not found","key:abc"]
 }
 
 func ExampleNoDestination() {
@@ -361,23 +399,22 @@ func ExampleNoDestination() {
     request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
 	_ , _, _, _, err := ReceiveSAMLResponse(request, external, external)
-	fmt.Println("Err = ", err)
+	fmt.Println(err)
 	// Output:
-	// Err =  ["err:Metadata not found","key:abc"]
+	// ["err:Metadata not found","key:abc"]
 }
 
-func xxExampleInvalidSchema() {
-	destination := response.Query1(nil, "@Destination")
-	response.QueryDashP(nil, "./saml:Destination", "abc", nil)
-	data := url.Values{}
-    data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
-	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
-    request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-
-	_ , _, _, _, err := ReceiveSAMLResponse(request, external, external)
-	fmt.Println("Err = ", err)
+func ExampleInvalidSchema() {
+	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmetadata, idpmetadata, "")
+	newrequest.Query(nil, "/samlp:AuthnRequest")[0].SetNodeName("PutRequest")
+	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
+	request := httptest.NewRequest("GET", url.String(), nil)
+	_ , _, _, relayState, err := ReceiveAuthnRequest(request, external, external)
+	fmt.Println(relayState)
+	fmt.Println(err)
 	// Output:
-	// Err =  ["cause:schema validation failed"]
+	// anton-banton
+	// ["cause:schema validation failed"]
 }
 
 
