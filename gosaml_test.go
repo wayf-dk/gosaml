@@ -51,10 +51,10 @@ var (
 	_  = log.Printf // For debugging; delete when done.
 	wg sync.WaitGroup
 
-	mdq                                                                                     = "https://phph.wayf.dk/MDQ/"
-	hub, external, internal                                                                 *simplemd // mddb
+	mdq                                                                                                    = "https://phph.wayf.dk/MDQ/"
+	hub, external, internal                                                                                *simplemd // mddb
 	spmetadata, idpmetadata, hubmetadata, response, attributestat, testidpmetadata, testidpviabirkmetadata *goxml.Xp
-	privatekey                                                                              string
+	privatekey                                                                                             string
 )
 
 func xpFromFile(file string) (res *goxml.Xp) {
@@ -106,15 +106,14 @@ func formatXML(file string) {
 	ioutil.WriteFile(file, []byte(x.PP()), os.ModePerm)
 }
 
-
 func TestMain(m *testing.M) {
 
 	Config.NameIDFormats = []string{Transient, Persistent}
 	Config.SamlSchema = "../goxml/schemas/saml-schema-protocol-2.0.xsd"
 	Config.CertPath = ""
 
-//	hub = SimplePrepareMD("testdata/hub.xml")
-//	internal = SimplePrepareMD("testdata/internal.xml")
+	//	hub = SimplePrepareMD("testdata/hub.xml")
+	//	internal = SimplePrepareMD("testdata/internal.xml")
 	external = SimplePrepareMD("testdata/external.xml")
 
 	//_, err := external.MDQ("https://sp.testshib.org/shibboleth-sp")
@@ -122,9 +121,9 @@ func TestMain(m *testing.M) {
 	spmetadata, _ = external.MDQ("https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth")
 	idpmetadata, _ = external.MDQ("https://aai-logon.switch.ch/idp/shibboleth")
 
-//	spmetadata = xpFromFile("testdata/spmetadata.xml")   //goxml.NewXp(spmetadatxml)    // NewMD(mdq+"EDUGAIN", "https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth")
-//	idpmetadata = xpFromFile("testdata/idpmetadata.xml") //goxml.NewXp(idpmetadataxml) // NewMD(mdq+"EDUGAIN", "https://aai-logon.switch.ch/idp/shibboleth")
-//	hubmetadata = xpFromFile("testdata/wayfmd.xml")
+	//	spmetadata = xpFromFile("testdata/spmetadata.xml")   //goxml.NewXp(spmetadatxml)    // NewMD(mdq+"EDUGAIN", "https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth")
+	//	idpmetadata = xpFromFile("testdata/idpmetadata.xml") //goxml.NewXp(idpmetadataxml) // NewMD(mdq+"EDUGAIN", "https://aai-logon.switch.ch/idp/shibboleth")
+	//	hubmetadata = xpFromFile("testdata/wayfmd.xml")
 	response = xpFromFile("testdata/response.xml")
 
 	attributestat = xpFromFile("testdata/attrstatement.xml")
@@ -137,9 +136,9 @@ func TestMain(m *testing.M) {
 	external = md{entities: make(map[string]*goxml.Xp)}
 	prepareMetadata(config.Metadata.External, &external)*/
 
-/*	fmt.Println("hub = ", hub)
-	fmt.Println("internal = ", internal)
-	fmt.Println("external = ", external)*/
+	/*	fmt.Println("hub = ", hub)
+		fmt.Println("internal = ", internal)
+		fmt.Println("external = ", external)*/
 
 	//Config.NameIDFormats = []string{Transient, Persistent}
 	//spmetadata = goxml.NewXp(spmetadatxml)    // NewMD(mdq+"EDUGAIN", "https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth")
@@ -216,7 +215,7 @@ func ExampleAttributeCanonicalDump() {
 	// schacHomeOrganizationType schacHomeOrganizationType urn:oasis:names:tc:SAML:2.0:attrname-format:basic
 	//     urn:mace:terena.org:schac:homeOrganizationType:int:NRENAffiliate
 	// sn sn urn:oasis:names:tc:SAML:2.0:attrname-format:basic
-    //     Petersen
+	//     Petersen
 
 }
 
@@ -274,11 +273,11 @@ func ExampleReceiveAuthnRequestPOST() {
 	destination := newrequest.Query1(nil, "@Destination")
 	//newrequest.QueryDashP(nil, "./saml:Issuer", "abc", nil)
 	data := url.Values{}
-    data.Set("SAMLRequest", base64.StdEncoding.EncodeToString([]byte(newrequest.Doc.Dump(false))))
+	data.Set("SAMLRequest", base64.StdEncoding.EncodeToString([]byte(newrequest.Doc.Dump(false))))
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
-    request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
-	xp , _, _, _, err := ReceiveAuthnRequest(request, external, external)
+	xp, _, _, _, err := ReceiveAuthnRequest(request, external, external)
 	fmt.Println(err)
 	fmt.Println(xp.PP())
 	// Output:
@@ -303,7 +302,7 @@ func ExampleReceiveAuthnRequest() {
 	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmetadata, idpmetadata, "")
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
-	_ , _, _, relayState, err := ReceiveAuthnRequest(request, external, external)
+	_, _, _, relayState, err := ReceiveAuthnRequest(request, external, external)
 	//fmt.Println("XP = ", xp.PP())
 	//fmt.Println("MD = ", md)
 	//fmt.Println("MEMD = ", memd)
@@ -317,10 +316,10 @@ func ExampleReceiveAuthnRequest() {
 func ExampleReceiveUnSignedResponse() {
 	destination := response.Query1(nil, "@Destination")
 	data := url.Values{}
-    data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
+	data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
-    request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	_ , _, _, _, err := ReceiveSAMLResponse(request, external, external)
+	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	_, _, _, _, err := ReceiveSAMLResponse(request, external, external)
 	fmt.Println(err)
 	// Output:
 	// timing problem: /samlp:Response[1]/saml:Assertion[1]/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@NotOnOrAfter = '2017-11-29T12:41:11Z', now = 2017-11-30T09:52:36Z
@@ -329,10 +328,10 @@ func ExampleReceiveUnSignedResponse() {
 func ExampleNoSAMLResponse() {
 	destination := response.Query1(nil, "@Destination")
 	data := url.Values{}
-    data.Set("SAMLResponse", "")
+	data.Set("SAMLResponse", "")
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
-    request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	_ , _, _, _, err := ReceiveSAMLResponse(request, external, external)
+	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	_, _, _, _, err := ReceiveSAMLResponse(request, external, external)
 	fmt.Println("Err = ", err)
 	// Output:
 	// Err =  no SAMLRequest/SAMLResponse found
@@ -342,11 +341,11 @@ func ExampleNoIssuer() {
 	destination := response.Query1(nil, "@Destination")
 	response.QueryDashP(nil, "./saml:Issuer", "abc", nil)
 	data := url.Values{}
-    data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
+	data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
-    request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
-	_ , _, _, _, err := ReceiveSAMLResponse(request, external, external)
+	_, _, _, _, err := ReceiveSAMLResponse(request, external, external)
 	fmt.Println("Err = ", err)
 	// Output:
 	// Err =  ["err:Metadata not found","key:abc"]
@@ -356,11 +355,11 @@ func ExampleNoDestination() {
 	destination := response.Query1(nil, "@Destination")
 	response.QueryDashP(nil, "@Destination", "abc", nil)
 	data := url.Values{}
-    data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
+	data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
-    request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
-	_ , _, _, _, err := ReceiveSAMLResponse(request, external, external)
+	_, _, _, _, err := ReceiveSAMLResponse(request, external, external)
 	fmt.Println("Err = ", err)
 	// Output:
 	// Err =  ["err:Metadata not found","key:abc"]
@@ -370,16 +369,15 @@ func xxExampleInvalidSchema() {
 	destination := response.Query1(nil, "@Destination")
 	response.QueryDashP(nil, "./saml:Destination", "abc", nil)
 	data := url.Values{}
-    data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
+	data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
-    request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
-	_ , _, _, _, err := ReceiveSAMLResponse(request, external, external)
+	_, _, _, _, err := ReceiveSAMLResponse(request, external, external)
 	fmt.Println("Err = ", err)
 	// Output:
 	// Err =  ["cause:schema validation failed"]
 }
-
 
 func ExampleEncryptAndDecrypt() {
 	idpmd := idpmetadata
