@@ -288,7 +288,7 @@ func ExampleReceiveAuthnRequestPOST() {
 	//                     Version="2.0"
 	//                     ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
 	//                     ID="ID"
-	//                     IssueInstant="0001-01-01T00:00:00Z"
+	//                     IssueInstant="2013-02-03T00:00:00Z"
 	//                     Destination="https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO"
 	//                     AssertionConsumerServiceURL="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
 	//     <saml:Issuer>
@@ -300,6 +300,7 @@ func ExampleReceiveAuthnRequestPOST() {
 }
 
 func ExampleReceiveAuthnRequest() {
+	TestTime = time.Time{}
 	newrequest, _ := NewAuthnRequest(IdAndTiming{}.Refresh(), nil, spmetadata, idpmetadata, "")
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
@@ -314,6 +315,24 @@ func ExampleReceiveAuthnRequest() {
 	// <nil>
 }
 
+func ExampleNameIDPolicy() {
+	TestTime = time.Time{}
+	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Now(), 0, 0, "ID", ""}, nil, spmetadata, idpmetadata, "")
+
+	nameidpolicy := newrequest.Query(nil, "./samlp:NameIDPolicy")[0]
+	newrequest.QueryDashP(nameidpolicy, "@Format", "anton-banton", nil)
+
+	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
+	request := httptest.NewRequest("GET", url.String(), nil)
+
+	_, _, _, relayState, err := ReceiveAuthnRequest(request, external, external)
+	fmt.Println(relayState)
+	fmt.Println(err)
+	// Output:
+	// anton-banton
+	// nameidpolicy format: %!s(MISSING) is not supported
+}
+
 func ExampleReceiveAuthnRequestNoSubject() {
 	TestTime = time.Time{}
 	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Now(), 0, 0, "ID", ""}, nil, spmetadata, idpmetadata, "")
@@ -325,7 +344,7 @@ func ExampleReceiveAuthnRequestNoSubject() {
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
 
-	_ , _, _, relayState, err := ReceiveAuthnRequest(request, external, external)
+	_, _, _, relayState, err := ReceiveAuthnRequest(request, external, external)
 	fmt.Println(relayState)
 	fmt.Println(err)
 	// Output:
@@ -348,9 +367,29 @@ func ExampleProtocolCheck() {
 
 func ExampleReceiveUnSignedResponse() {
 	destination := response.Query1(nil, "@Destination")
+	//response.QueryDashP(nil, "./saml:Assertion[1]/saml:Issuer", "_4099d6da09c9a1d9fad7f", nil)
 	TestTime, _ = time.Parse(XsDateTime, response.Query1(nil, "@IssueInstant"))
-	TestTime = time.Time{}
-	//TestTime = TestTime.Add(time.Duration(5) * time.Minute)
+	data := url.Values{}
+	data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
+	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
+	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	xp, _, _, _, err := ReceiveSAMLResponse(request, external, external)
+
+	data1 := url.Values{} // Checking for unsigned Repsonse here //
+	data1.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(xp.Doc.Dump(false))))
+	request1 := httptest.NewRequest("POST", destination, strings.NewReader(data1.Encode()))
+	request1.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	_, _, _, _, err = ReceiveSAMLResponse(request1, external, external)
+	fmt.Println(err)
+	// Output:
+	// No signatures found
+}
+
+// When Content is Changed.
+func ExampleCheckDigest() {
+	destination := response.Query1(nil, "@Destination")
+	response.QueryDashP(nil, "./saml:Assertion[1]/saml:Issuer", "_4099d6da09c9a1d9fad7f", nil)
+	TestTime, _ = time.Parse(XsDateTime, response.Query1(nil, "@IssueInstant"))
 	data := url.Values{}
 	data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
@@ -358,7 +397,7 @@ func ExampleReceiveUnSignedResponse() {
 	_, _, _, _, err := ReceiveSAMLResponse(request, external, external)
 	fmt.Println(err)
 	// Output:
-	// timing problem: /samlp:Response[1]/saml:Assertion[1]/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@NotOnOrAfter = '2017-11-29T12:41:11Z'
+	// unable to validate signature: digest mismatch
 }
 
 func ExampleNoSAMLResponse() {

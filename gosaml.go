@@ -77,7 +77,7 @@ type (
 )
 
 var (
-    TestTime time.Time
+	TestTime time.Time
 	Roles    = []string{"md:IDPSSODescriptor", "md:SPSSODescriptor"}
 	Config   = Conf{}
 	ACSError = errors.New("invalid AsssertionConsumerService or AsssertionConsumerServiceIndex")
@@ -614,20 +614,20 @@ func VerifySign(xp *goxml.Xp, certificates, signatures types.NodeList) (err erro
   Verify the presence and value of timestamps
 */
 func VerifyTiming(xp *goxml.Xp) (err error) {
-    const timeskew = 90
+	const timeskew = 90
 
 	type timing struct {
-		reqired bool
-		notonorafter   bool
-		notbefore bool
+		reqired      bool
+		notonorafter bool
+		notbefore    bool
 	}
 
-    now := TestTime
-    if now.IsZero() {
-        now = time.Now()
-    }
+	now := TestTime
+	if now.IsZero() {
+		now = time.Now()
+	}
 	intervalstart := now.Add(-time.Duration(timeskew) * time.Second).UTC()
-	intervalend   := now.Add(time.Duration(timeskew) * time.Second).UTC()
+	intervalend := now.Add(time.Duration(timeskew) * time.Second).UTC()
 
 	var checks map[string]timing
 
@@ -656,22 +656,22 @@ func VerifyTiming(xp *goxml.Xp) (err error) {
 			return
 		}
 
-        if xmltime != "" {
-            samltime, err := time.Parse(XsDateTime, xmltime)
-            if err != nil {
-                return err
-            }
-            ok := true
-            if t.notbefore {
-                ok = ok && samltime.Before(intervalend)
-            }
-            if t.notonorafter {
-                ok = ok && intervalstart.Before(samltime)
-            }
-            if !ok { // Only check if the time is actually there
-                err = fmt.Errorf("timing problem: %s  %s < %s <= %s", q, intervalstart, samltime, intervalend)
-                return err
-            }
+		if xmltime != "" {
+			samltime, err := time.Parse(XsDateTime, xmltime)
+			if err != nil {
+				return err
+			}
+			ok := true
+			if t.notbefore {
+				ok = ok && samltime.Before(intervalend)
+			}
+			if t.notonorafter {
+				ok = ok && intervalstart.Before(samltime)
+			}
+			if !ok { // Only check if the time is actually there
+				err = fmt.Errorf("timing problem: %s  %s < %s <= %s", q, intervalstart, samltime, intervalend)
+				return err
+			}
 		}
 	}
 	return
