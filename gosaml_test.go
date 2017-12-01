@@ -317,22 +317,20 @@ func ExampleReceiveAuthnRequest() {
 func ExampleReceiveAuthnRequestNoSubject() {
 	TestTime = time.Time{}
 	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Now(), 0, 0, "ID", ""}, nil, spmetadata, idpmetadata, "")
-	//newrequest.QueryDashP(nil, "./samlp:@Subject", "subject", nil)
-	//request.QueryDashP(nil, "./samlp:Scoping/samlp:IDPList/samlp:IDPEntry/@ProviderID", providerID, nil)
+
 	nameidpolicy := newrequest.Query(nil, "./samlp:NameIDPolicy")[0]
 	subject := newrequest.QueryDashP(nil, "./saml:Subject/saml:NameID", "mehran", nameidpolicy)
+
 	newrequest.QueryDashP(subject, "@Format", "anton-banton", nil)
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
-	xp, _, _, relayState, err := ReceiveAuthnRequest(request, external, external)
-	fmt.Println("XP = ", xp.PP())
-	//fmt.Println("MD = ", md)
-	//fmt.Println("MEMD = ", memd)
+
+	_ , _, _, relayState, err := ReceiveAuthnRequest(request, external, external)
 	fmt.Println(relayState)
 	fmt.Println(err)
 	// Output:
 	// anton-banton
-	// <nil>
+	// subject not allowed in SAMLRequest
 }
 
 func ExampleProtocolCheck() {

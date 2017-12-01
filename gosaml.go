@@ -224,7 +224,7 @@ func ReceiveAuthnRequest(r *http.Request, issuerMdSet, destinationMdSet Md) (xp,
 	if err != nil {
 		return
 	}
-	subject := xp.Query1(nil, "@Subject")
+	subject := xp.Query1(nil, "./saml:Subject")
 	if subject != "" {
 		err = fmt.Errorf("subject not allowed in SAMLRequest")
 		return
