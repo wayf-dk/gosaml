@@ -239,7 +239,7 @@ func ExampleUrl2SAMLRequest() {
 
 func ExampleDeflate() {
 	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmetadata, idpmetadata, "")
-	req := base64.StdEncoding.EncodeToString(Deflate(newrequest.Doc.Dump(false)))
+	req := base64.StdEncoding.EncodeToString(Deflate([]byte(newrequest.Doc.Dump(false))))
 	fmt.Println(req)
 	// Output:
 	// pJJBb9swDIXv+RWC7rbcnAYhTpE1KGagW4PY3WE3xWZqArLkkXTS/fshSjJkl1wK8CSR73sP5OLxY/DqAMQYQ6kf8kIrCG3sMLyX+q15zr7ox+VswW7wo11N0oct/J6ARX0MPrBNH6WeKNjoGNkGNwBbaW29+v5i53lhR4oS2+j1zcj9CccMJBiDVj+v1uYna5uL1FcMZ4f3VHbnJrbfmmaTbV7rRqtqXepqrVXFPEEVWFyQUhdF8ZClaorCpvql1RpYMDhJ+F5kZGuMc5j5+B5DzkeUts/b3mA3mpHiHj2YE31uttAhQSumrl+1Wl3jPMXA0wBUAx2whbfty42wCOFuEsgOCEeg3Dm8ZQQB2kMHlAxlAiym7nG3ix6kz5njhZ2CXlZmU05afgbC/yALc6t5PYofboBqvYke2z/qOdLg5P5eTi/YZfvUaoVcYIQgWq28j8cnAidQaqEJtFnOztD/b285+xsAAP//
@@ -247,7 +247,7 @@ func ExampleDeflate() {
 
 func ExampleInflate() {
 	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmetadata, idpmetadata, "")
-	req := Deflate(newrequest.Doc.Dump(false))
+	req := Deflate([]byte(newrequest.Doc.Dump(false)))
 	res := Inflate(req)
 	fmt.Println(string(res))
 	// Output:

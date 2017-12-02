@@ -111,10 +111,10 @@ func Id() (id string) {
 }
 
 // Deflate utility that compresses a string using the flate algo
-func Deflate(inflated string) []byte {
+func Deflate(inflated []byte) []byte {
 	var b bytes.Buffer
 	w, _ := flate.NewWriter(&b, -1)
-	w.Write([]byte(inflated))
+	w.Write(inflated)
 	w.Close()
 	return b.Bytes()
 }
@@ -157,7 +157,7 @@ func SAMLRequest2Url(samlrequest *goxml.Xp, relayState, privatekey, pw, algo str
 		paramName = "SAMLRequest="
 	}
 
-	req := base64.StdEncoding.EncodeToString(Deflate(samlrequest.Doc.Dump(false)))
+	req := base64.StdEncoding.EncodeToString(Deflate([]byte(samlrequest.Doc.Dump(false))))
 
 	destination, _ = url.Parse(samlrequest.Query1(nil, "@Destination"))
 	q := paramName + url.QueryEscape(req)
@@ -172,9 +172,9 @@ func SAMLRequest2Url(samlrequest *goxml.Xp, relayState, privatekey, pw, algo str
 
 		var signaturevalue []byte
 		if strings.HasPrefix(privatekey, "hsm:") {
-			signaturevalue, err = goxml.SignGoEleven(digest, privatekey, algo)
+			signaturevalue, err = goxml.SignGoEleven(digest, []byte(privatekey), algo)
 		} else {
-			signaturevalue, err = goxml.SignGo(digest, privatekey, pw, algo)
+			signaturevalue, err = goxml.SignGo(digest, []byte(privatekey), []byte(pw), algo)
 		}
 		signatureval := base64.StdEncoding.EncodeToString(signaturevalue)
 		q += "&Signature=" + url.QueryEscape(signatureval)
@@ -451,7 +451,7 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 				return
 			}
 
-			block, _ := pem.Decode([]byte(privatekey))
+			block, _ := pem.Decode(privatekey)
 			/*
 			   if pw != "-" {
 			       privbytes, _ := x509.DecryptPEMBlock(block, []byte(pw))
@@ -957,6 +957,6 @@ func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp) (err er
 	}
 	// Put signature before 2nd child - ie. after Issuer
 	before := response.Query(element[0], "*[2]")[0]
-	err = response.Sign(element[0].(types.Element), before.(types.Element), string(privatekey), "-", cert, "sha1")
+	err = response.Sign(element[0].(types.Element), before.(types.Element), privatekey, []byte("-"), cert, "sha1")
 	return
 }
