@@ -57,24 +57,14 @@ var (
 	privatekey                                                                                             string
 )
 
-func xpFromFile(file string) (res *goxml.Xp) {
-	xml, err := ioutil.ReadFile(file)
-	if err != nil {
-		log.Panic(err)
-	}
-	res = goxml.NewXp(string(xml))
-	return
-}
-
 func SimplePrepareMD(file string) *simplemd {
 	indextargets := []string{
 		"./md:IDPSSODescriptor/md:SingleSignOnService[@Binding='urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect']/@Location",
 		"./md:SPSSODescriptor/md:AssertionConsumerService[@Binding='urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST']/@Location",
 	}
 
-	metadata, _ := ioutil.ReadFile(file)
 	index := simplemd{entities: make(map[string]*goxml.Xp)}
-	x := goxml.NewXp(string(metadata))
+	x := goxml.NewXpFromFile(file)
 	//ioutil.WriteFile(file, []byte(x.PP()), os.ModePerm)
 	entities := x.Query(nil, "md:EntityDescriptor")
 
@@ -102,7 +92,7 @@ func (m simplemd) MDQ(key string) (xp *goxml.Xp, err error) {
 
 func formatXML(file string) {
 	metadata, _ := ioutil.ReadFile(file)
-	x := goxml.NewXp(string(metadata))
+	x := goxml.NewXp(metadata)
 	ioutil.WriteFile(file, []byte(x.PP()), os.ModePerm)
 }
 
@@ -121,12 +111,12 @@ func TestMain(m *testing.M) {
 	spmetadata, _ = external.MDQ("https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth")
 	idpmetadata, _ = external.MDQ("https://aai-logon.switch.ch/idp/shibboleth")
 
-	//	spmetadata = xpFromFile("testdata/spmetadata.xml")   //goxml.NewXp(spmetadatxml)    // NewMD(mdq+"EDUGAIN", "https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth")
-	//	idpmetadata = xpFromFile("testdata/idpmetadata.xml") //goxml.NewXp(idpmetadataxml) // NewMD(mdq+"EDUGAIN", "https://aai-logon.switch.ch/idp/shibboleth")
-	//	hubmetadata = xpFromFile("testdata/wayfmd.xml")
-	response = xpFromFile("testdata/response.xml")
+	//	spmetadata = goxml.NewXpFromFile("testdata/spmetadata.xml")   //goxml.NewXp(spmetadatxml)    // NewMD(mdq+"EDUGAIN", "https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth")
+	//	idpmetadata = goxml.NewXpFromFile("testdata/idpmetadata.xml") //goxml.NewXp(idpmetadataxml) // NewMD(mdq+"EDUGAIN", "https://aai-logon.switch.ch/idp/shibboleth")
+	//	hubmetadata = goxml.xpFrNewXpFromFileomFile("testdata/wayfmd.xml")
+	response = goxml.NewXpFromFile("testdata/response.xml")
 
-	attributestat = xpFromFile("testdata/attrstatement.xml")
+	attributestat = goxml.NewXpFromFile("testdata/attrstatement.xml")
 
 	pkey, _ := ioutil.ReadFile("testdata/private.key.pem")
 	privatekey = string(pkey)
@@ -511,6 +501,6 @@ func NewMD(mdq, key string) (mdxp *goxml.Xp) {
 		log.Fatal(err)
 	}
 
-	mdxp = goxml.NewXp(string(md))
+	mdxp = goxml.NewXp(md)
 	return
 }

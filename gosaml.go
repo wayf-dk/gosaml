@@ -130,11 +130,11 @@ func Inflate(deflated []byte) []byte {
 
 // Html2SAMLResponse extracts the SAMLResponse from a html document
 func Html2SAMLResponse(html []byte) (samlresponse *goxml.Xp, relayState string) {
-	response := goxml.NewHtmlXp(string(html))
+	response := goxml.NewHtmlXp(html)
 	samlbase64 := response.Query1(nil, `//input[@name="SAMLResponse"]/@value`)
 	relayState = response.Query1(nil, `//input[@name="RelayState"]/@value`)
 	samlxml, _ := base64.StdEncoding.DecodeString(samlbase64)
-	samlresponse = goxml.NewXp(string(samlxml))
+	samlresponse = goxml.NewXp(samlxml)
 	return
 }
 
@@ -143,7 +143,7 @@ func Url2SAMLRequest(url *url.URL, err error) (samlrequest *goxml.Xp, relayState
 	query := url.Query()
 	req, _ := base64.StdEncoding.DecodeString(query.Get("SAMLRequest"))
 	relayState = query.Get("RelayState")
-	samlrequest = goxml.NewXp(string(Inflate(req)))
+	samlrequest = goxml.NewXp(Inflate(req))
 	return
 }
 
@@ -289,7 +289,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 		bmsg = Inflate(bmsg)
 	}
 
-	xp = goxml.NewXp(string(bmsg))
+	xp = goxml.NewXp(bmsg)
 	_, err = xp.SchemaValidate(Config.SamlSchema)
 	if err != nil {
 		err = goxml.Wrap(err)
@@ -471,7 +471,7 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 			parent, _ := encryptedAssertion.ParentNode()
 			parent.RemoveChild(encryptedAssertion)
 
-			xp = goxml.NewXp(xp.Doc.Dump(false))
+			xp = goxml.NewXpFromString(xp.Doc.Dump(false))
 			// repeat schemacheck
 			_, err = xp.SchemaValidate(Config.SamlSchema)
 			if err != nil {
@@ -700,7 +700,7 @@ func NewAuthnRequest(params IdAndTiming, originalRequest, spmd, idpmd *goxml.Xp,
 		msgid = Id()
 	}
 
-	request = goxml.NewXp(template)
+	request = goxml.NewXpFromString(template)
 	request.QueryDashP(nil, "./@ID", msgid, nil)
 	request.QueryDashP(nil, "./@IssueInstant", issueInstant, nil)
 	request.QueryDashP(nil, "./@Destination", idpmd.Query1(nil, `//md:SingleSignOnService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"]/@Location`), nil)
@@ -778,7 +778,7 @@ func NewResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *
 	</saml:Assertion>
 </samlp:Response>
 `
-	response = goxml.NewXp(template)
+	response = goxml.NewXpFromString(template)
 
 	issueInstant := params.Now.Format(XsDateTime)
 	assertionIssueInstant := params.Now.Format(XsDateTime)
@@ -831,7 +831,7 @@ func NewResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *
 	response.QueryDashP(authstatement, "saml:AuthnContext/saml:AuthenticatingAuthority", sourceResponse.Query1(nil, "./saml:Issuer"), nil)
 	response.QueryDashP(authstatement, "saml:AuthnContext/saml:AuthnContextClassRef", sourceResponse.Query1(nil, "//saml:AuthnContextClassRef"), nil)
 
-	sourceResponse = goxml.NewXp(sourceResponse.Doc.Dump(true))
+	sourceResponse = goxml.NewXpFromString(sourceResponse.Doc.Dump(true))
 	sourceAttributes := sourceResponse.Query(nil, `//saml:AttributeStatement/saml:Attribute`)
 	destinationAttributes := response.Query(nil, `//saml:AttributeStatement`)[0]
 
@@ -899,7 +899,7 @@ func NewErrorResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceRespo
 
 func NewLogoutRequest(params IdAndTiming, issuer, destination, sourceLogoutRequest *goxml.Xp, sloinfo *SLOInfo) (request *goxml.Xp) {
 	template := `<samlp:LogoutRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0"></samlp:LogoutRequest>`
-	request = goxml.NewXp(template)
+	request = goxml.NewXpFromString(template)
 	slo := destination.Query1(nil, `/md:EntityDescriptor/md:IDPSSODescriptor/md:SingleLogoutService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"]/@Location`)
 	request.QueryDashP(nil, "./@IssueInstant", params.Now.Format(XsDateTime), nil)
 	request.QueryDashP(nil, "./@ID", sourceLogoutRequest.Query1(nil, "@ID"), nil)
