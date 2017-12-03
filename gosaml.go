@@ -171,10 +171,9 @@ func SAMLRequest2Url(samlrequest *goxml.Xp, relayState, privatekey, pw, algo str
 		digest := goxml.Hash(goxml.Algos[algo].Algo, q)
 
 		var signaturevalue []byte
-		if strings.HasPrefix(privatekey, "hsm:") {
-			signaturevalue, err = goxml.SignGoEleven(digest, []byte(privatekey), algo)
-		} else {
-			signaturevalue, err = goxml.SignGo(digest, []byte(privatekey), []byte(pw), algo)
+		signaturevalue, err = goxml.Sign(digest, []byte(privatekey), []byte(pw), algo)
+		if err != nil {
+			return
 		}
 		signatureval := base64.StdEncoding.EncodeToString(signaturevalue)
 		q += "&Signature=" + url.QueryEscape(signatureval)
