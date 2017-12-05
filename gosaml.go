@@ -774,8 +774,6 @@ func NewResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *
 				</saml:AuthnContextClassRef>
 			</saml:AuthnContext>
 		</saml:AuthnStatement>
-		<saml:AttributeStatement>
-		</saml:AttributeStatement>
 	</saml:Assertion>
 </samlp:Response>
 `
@@ -834,7 +832,6 @@ func NewResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *
 
 	sourceResponse = goxml.NewXpFromString(sourceResponse.Doc.Dump(true))
 	sourceAttributes := sourceResponse.Query(nil, `//saml:AttributeStatement/saml:Attribute`)
-	destinationAttributes := response.Query(nil, `//saml:AttributeStatement`)[0]
 
 	attrcache := map[string]types.Element{}
 	for _, attr := range sourceAttributes {
@@ -850,6 +847,8 @@ func NewResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *
 	requestedAttributes := spmd.Query(nil, `./md:SPSSODescriptor/md:AttributeConsumingService[1]/md:RequestedAttribute`)
 
 	for _, requestedAttribute := range requestedAttributes {
+       	destinationAttributes := response.QueryDashP(nil, `/saml:Assertion/saml:AttributeStatement`, "", nil) // only if there are actually some requested attributes
+
 		// for _, requestedAttribute := range sourceResponse.Query(nil, `//saml:Attribute`) {
 		name, _ := requestedAttribute.(types.Element).GetAttribute("Name")
 		friendlyname, _ := requestedAttribute.(types.Element).GetAttribute("FriendlyName")
