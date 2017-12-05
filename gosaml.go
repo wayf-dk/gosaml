@@ -345,6 +345,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 }
 
 func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err error) {
+
 	providedSignatures := 0
 
 	// Look for Bindings for the destination in metadata
@@ -363,13 +364,24 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 		service = "md:SingleSignOnService"
 	}
 
+    bindings := map[string]string{
+   	    "GET":  "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect",
+        "POST": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST",
+    }
+    usedBinding := bindings[r.Method]
+
 	checkSignatures := minSignatures > 0
 	mdRole := Roles[role]
 	destination := xp.Query1(nil, "./@Destination")
-	bindings := memd.QueryMulti(nil, `./`+mdRole+`/`+service+`[@Location=`+strconv.Quote(destination)+`]/@Binding`)
-	usedBindings := make(map[string]bool)
-	for _, v := range bindings {
-		usedBindings[v] = true
+
+    validBinding := false
+	for _, v := range memd.QueryMulti(nil, `./`+mdRole+`/`+service+`[@Location=`+strconv.Quote(destination)+`]/@Binding`) {
+		validBinding = validBinding || v == usedBinding
+	}
+
+	if !validBinding || usedBinding == "" {
+		err = errors.New("invalid binding used "+usedBinding)
+		return
 	}
 
 	certificates := md.Query(nil, `./`+Roles[(role+1)%2]+signingCertQuery) // the issuer's role
@@ -379,7 +391,7 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 		return
 	}
 
-	if checkSignatures && usedBindings["urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"] {
+	if checkSignatures && usedBinding == "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" {
 		sigAlg := ""
 		rawValues := parseQueryRaw(r.URL.RawQuery)
 		q := ""
@@ -429,7 +441,7 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 		}
 	}
 
-	if usedBindings["urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"] {
+	if usedBinding == "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" {
 		if checkSignatures {
 			signatures := xp.Query(nil, "/samlp:Response[1]/ds:Signature[1]/..")
 			if len(signatures) == 1 {
@@ -618,7 +630,7 @@ func VerifyTiming(xp *goxml.Xp) (err error) {
 	const timeskew = 90
 
 	type timing struct {
-		reqired      bool
+		required      bool
 		notonorafter bool
 		notbefore    bool
 	}
@@ -652,7 +664,7 @@ func VerifyTiming(xp *goxml.Xp) (err error) {
 
 	for q, t := range checks {
 		xmltime := xp.Query1(nil, q)
-		if t.reqired && xmltime == "" {
+		if t.required && xmltime == "" {
 			err = fmt.Errorf("required timestamp: %s not present in: %s", q, protocol)
 			return
 		}
