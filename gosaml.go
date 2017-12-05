@@ -192,14 +192,15 @@ func AttributeCanonicalDump(w io.Writer, xp *goxml.Xp) {
 		for _, value := range xp.Query(attr, "saml:AttributeValue") {
 			values = append(values, value.NodeValue())
 		}
-		nameattr, _ := attr.(types.Element).GetAttribute("Name")
+		//nameattr, _ := attr.(types.Element).GetAttribute("Name")
 		nameformatattr, _ := attr.(types.Element).GetAttribute("NameFormat")
 		friendlynameattr, err := attr.(types.Element).GetAttribute("FriendlyName")
 		fn := ""
 		if err == nil {
 			fn = friendlynameattr.Value()
 		}
-		key := strings.TrimSpace(fn + " " + nameattr.Value() + " " + nameformatattr.Value())
+		//		key := strings.TrimSpace(fn + " " + nameattr.Value() + " " + nameformatattr.Value())
+		key := strings.TrimSpace(fn + " " + nameformatattr.Value())
 		keys = append(keys, key)
 		attrsmap[key] = values
 	}
@@ -289,9 +290,11 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 	}
 
 	xp = goxml.NewXp(bmsg)
-	_, err = xp.SchemaValidate(Config.SamlSchema)
+	//log.Println("DecodeSAMLMsg", xp.PP())
+	errs, err := xp.SchemaValidate(Config.SamlSchema)
 	if err != nil {
 		err = goxml.Wrap(err)
+		log.Println("schemaerrors", errs)
 		return
 	}
 
@@ -337,6 +340,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 	}
 
 	err = CheckSAMLMessage(r, xp, issuerMd, destinationMd, role)
+
 	return
 }
 
@@ -361,7 +365,6 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 
 	checkSignatures := minSignatures > 0
 	mdRole := Roles[role]
-
 	destination := xp.Query1(nil, "./@Destination")
 	bindings := memd.QueryMulti(nil, `./`+mdRole+`/`+service+`[@Location=`+strconv.Quote(destination)+`]/@Binding`)
 	usedBindings := make(map[string]bool)
@@ -470,7 +473,6 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 			parent, _ := encryptedAssertion.ParentNode()
 			parent.RemoveChild(encryptedAssertion)
 
-			xp = goxml.NewXpFromString(xp.Doc.Dump(false))
 			// repeat schemacheck
 			_, err = xp.SchemaValidate(Config.SamlSchema)
 			if err != nil {
@@ -747,12 +749,12 @@ func NewAuthnRequest(params IdAndTiming, originalRequest, spmd, idpmd *goxml.Xp,
 */
 
 func NewResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *goxml.Xp) (response *goxml.Xp) {
-	template := `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0">
+	template := `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" xmlns:xs="http://www.w3.org/2001/XMLSchema">
 	<saml:Issuer></saml:Issuer>
 	<samlp:Status>
 		<samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success" />
 	</samlp:Status>
-	<saml:Assertion Version="2.0">
+	<saml:Assertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"  Version="2.0">
 		<saml:Issuer></saml:Issuer>
 		<saml:Subject>
 			<saml:NameID></saml:NameID>
