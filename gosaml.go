@@ -192,15 +192,13 @@ func AttributeCanonicalDump(w io.Writer, xp *goxml.Xp) {
 		for _, value := range xp.Query(attr, "saml:AttributeValue") {
 			values = append(values, value.NodeValue())
 		}
-		//nameattr, _ := attr.(types.Element).GetAttribute("Name")
-		nameformatattr, _ := attr.(types.Element).GetAttribute("NameFormat")
-		friendlynameattr, err := attr.(types.Element).GetAttribute("FriendlyName")
-		fn := ""
-		if err == nil {
-			fn = friendlynameattr.Value()
+		name := xp.Query1(attr, "@Name") + " "
+		friendlyName := xp.Query1(attr, "@FriendlyName") + " "
+		nameFormat := xp.Query1(attr, "@NameFormat")
+		if name == friendlyName {
+		    friendlyName = ""
 		}
-		//		key := strings.TrimSpace(fn + " " + nameattr.Value() + " " + nameformatattr.Value())
-		key := strings.TrimSpace(fn + " " + nameformatattr.Value())
+		key := strings.TrimSpace(friendlyName + name + nameFormat)
 		keys = append(keys, key)
 		attrsmap[key] = values
 	}
@@ -290,11 +288,12 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 	}
 
 	xp = goxml.NewXp(bmsg)
+	//log.Println("stack", goxml.New().Stack(1))
 	//log.Println("DecodeSAMLMsg", xp.PP())
-	errs, err := xp.SchemaValidate(Config.SamlSchema)
+	_, err = xp.SchemaValidate(Config.SamlSchema)
 	if err != nil {
 		err = goxml.Wrap(err)
-		log.Println("schemaerrors", errs)
+		//log.Println("schemaerrors", errs)
 		return
 	}
 
