@@ -668,7 +668,6 @@ func VerifyTiming(xp *goxml.Xp) (err error) {
 			err = fmt.Errorf("required timestamp: %s not present in: %s", q, protocol)
 			return
 		}
-
 		if xmltime != "" {
 			samltime, err := time.Parse(XsDateTime, xmltime)
 			if err != nil {

@@ -443,6 +443,58 @@ func ExampleInvalidSchema() {
 	// ["cause:schema validation failed"]
 }
 
+func ExampleInvalidTime() {
+	TestTime = time.Time{}
+	//TestTime, _ = time.Parse("2006-Jan-02", "2013-Feb-03")
+	newrequest, _ := NewAuthnRequest(IdAndTiming{}.Refresh(), nil, spmetadata, idpmetadata, "")
+	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
+	request := httptest.NewRequest("GET", url.String(), nil)
+	xp, _, _, relayState, _ := ReceiveAuthnRequest(request, external, external)
+	xp.QueryDashP(nil, "@IssueInstant", "abc", nil)
+	err := VerifyTiming(xp)
+	fmt.Println(relayState)
+	fmt.Println(err)
+	// Output:
+	// anton-banton
+	// parsing time "abc" as "2006-01-02T15:04:05Z": cannot parse "abc" as "2006"
+}
+
+func ExampleOutOfRangeTime() {
+	TestTime = time.Time{}
+	newrequest, _ := NewAuthnRequest(IdAndTiming{}.Refresh(), nil, spmetadata, idpmetadata, "")
+	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
+	request := httptest.NewRequest("GET", url.String(), nil)
+
+	xp, _, _, relayState, _ := ReceiveAuthnRequest(request, external, external)
+	xp.QueryDashP(nil, "@IssueInstant", "2014-13-22", nil)
+	err := VerifyTiming(xp)
+	fmt.Println(relayState)
+	fmt.Println(err)
+	// Output:
+	// anton-banton
+	// parsing time "2014-13-22": month out of range
+}
+
+func ExampleNoTime() {
+	TestTime = time.Time{}
+	//TestTime, _ = time.Parse("2006-Jan-02", "2013-Feb-03")
+	newrequest, _ := NewAuthnRequest(IdAndTiming{}.Refresh(), nil, spmetadata, idpmetadata, "")
+	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
+	request := httptest.NewRequest("GET", url.String(), nil)
+
+	xp, _, _, relayState, _ := ReceiveAuthnRequest(request, external, external)
+	newrequest.Query(nil, "/samlp:AuthnRequest")[0].SetNodeName("PutRequest")
+	//xp.QueryDashP(nil, "@IssueInstant", "2014-13-22", nil)
+	fmt.Println("XP = ", xp.PP())
+	err := VerifyTiming(xp)
+	fmt.Println(relayState)
+	fmt.Println(err)
+	// Output:
+	// anton-banton
+	// parsing time "2014-13-22": month out of range
+}
+
+
 func ExampleEncryptAndDecrypt() {
 	idpmd := idpmetadata
 	spmd := spmetadata
