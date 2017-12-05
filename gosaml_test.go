@@ -163,50 +163,45 @@ func ExampleAuthnRequest() {
 }
 
 func ExampleResponse() {
-	idpmd := idpmetadata
-	spmd := spmetadata
-	sourceResponse := response
-
-	request, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmd, idpmd, "")
-	response := NewResponse(IdAndTiming{time.Time{}, 4 * time.Minute, 4 * time.Hour, "ID", "AssertionID"}, idpmd, spmd, request, sourceResponse)
-	fmt.Print(base64.StdEncoding.EncodeToString(goxml.Hash(crypto.SHA1, response.Doc.Dump(true))))
+	request, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, idpmetadata, spmetadata, "")
+	newResponse := NewResponse(IdAndTiming{time.Time{}, 4 * time.Minute, 4 * time.Hour, "ID", "AssertionID"}, idpmetadata, spmetadata, request, response)
+	fmt.Printf("%x\n", goxml.Hash(crypto.SHA1, newResponse.PP()))
 	// Output:
-	// 6W5MkmeAQZ7GKco2Ubvi7qFObwk=
+	// 0eaee2dd634cf11b8177fc3b75a3ef9d5365a46e
 }
 
 func ExampleAttributeCanonicalDump() {
 	AttributeCanonicalDump(os.Stdout, response)
 	// Output:
-	// cn cn urn:oasis:names:tc:SAML:2.0:attrname-format:basic
+	// cn urn:oasis:names:tc:SAML:2.0:attrname-format:basic
 	//     Mads Freek Petersen
-	// eduPersonAssurance eduPersonAssurance urn:oasis:names:tc:SAML:2.0:attrname-format:basic
+	// eduPersonAssurance urn:oasis:names:tc:SAML:2.0:attrname-format:basic
 	//     1
-	// eduPersonEntitlement eduPersonEntitlement urn:oasis:names:tc:SAML:2.0:attrname-format:basic
+	// eduPersonEntitlement urn:oasis:names:tc:SAML:2.0:attrname-format:basic
 	//     https://wayf.dk/feedback/view
 	//     https://wayf.dk/kanja/admin
 	//     https://wayf.dk/orphanage/admin
 	//     https://wayf.dk/vo/admin
-	// eduPersonPrimaryAffiliation eduPersonPrimaryAffiliation urn:oasis:names:tc:SAML:2.0:attrname-format:basic
+	// eduPersonPrimaryAffiliation urn:oasis:names:tc:SAML:2.0:attrname-format:basic
 	//     member
-	// eduPersonPrincipalName eduPersonPrincipalName urn:oasis:names:tc:SAML:2.0:attrname-format:basic
+	// eduPersonPrincipalName urn:oasis:names:tc:SAML:2.0:attrname-format:basic
 	//     gikcaswid@orphanage.wayf.dk
-	// eduPersonTargetedID eduPersonTargetedID urn:oasis:names:tc:SAML:2.0:attrname-format:basic
+	// eduPersonTargetedID urn:oasis:names:tc:SAML:2.0:attrname-format:basic
 	//     WAYF-DK-c5bc7e16bb6d28cb5a20b6aad84d1cba2df5c48f
-	// gn gn urn:oasis:names:tc:SAML:2.0:attrname-format:basic
+	// gn urn:oasis:names:tc:SAML:2.0:attrname-format:basic
 	//     Mads Freek
-	// mail mail urn:oasis:names:tc:SAML:2.0:attrname-format:basic
+	// mail urn:oasis:names:tc:SAML:2.0:attrname-format:basic
 	//     freek@wayf.dk
-	// organizationName organizationName urn:oasis:names:tc:SAML:2.0:attrname-format:basic
+	// organizationName urn:oasis:names:tc:SAML:2.0:attrname-format:basic
 	//     WAYF Where Are You From
-	// preferredLanguage preferredLanguage urn:oasis:names:tc:SAML:2.0:attrname-format:basic
+	// preferredLanguage urn:oasis:names:tc:SAML:2.0:attrname-format:basic
 	//     da
-	// schacHomeOrganization schacHomeOrganization urn:oasis:names:tc:SAML:2.0:attrname-format:basic
+	// schacHomeOrganization urn:oasis:names:tc:SAML:2.0:attrname-format:basic
 	//     orphanage.wayf.dk
-	// schacHomeOrganizationType schacHomeOrganizationType urn:oasis:names:tc:SAML:2.0:attrname-format:basic
+	// schacHomeOrganizationType urn:oasis:names:tc:SAML:2.0:attrname-format:basic
 	//     urn:mace:terena.org:schac:homeOrganizationType:int:NRENAffiliate
-	// sn sn urn:oasis:names:tc:SAML:2.0:attrname-format:basic
+	// sn urn:oasis:names:tc:SAML:2.0:attrname-format:basic
 	//     Petersen
-
 }
 
 func ExamplePublicKeyInfo() {
@@ -272,7 +267,7 @@ func ExampleReceiveAuthnRequestPOST() {
 	fmt.Println(err)
 	fmt.Println(xp.PP())
 	// Output:
-	// <nil>
+	// invalid binding used urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST
 	// <samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
 	//                     xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
 	//                     Version="2.0"
@@ -476,35 +471,26 @@ func ExampleOutOfRangeTime() {
 }
 
 func ExampleNoTime() {
-	TestTime = time.Time{}
-	//TestTime, _ = time.Parse("2006-Jan-02", "2013-Feb-03")
 	newrequest, _ := NewAuthnRequest(IdAndTiming{}.Refresh(), nil, spmetadata, idpmetadata, "")
+    newrequest.QueryDashP(nil, "@IssueInstant", "2014-13-22", nil)
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
-
-	xp, _, _, relayState, _ := ReceiveAuthnRequest(request, external, external)
-	newrequest.Query(nil, "/samlp:AuthnRequest")[0].SetNodeName("PutRequest")
-	//xp.QueryDashP(nil, "@IssueInstant", "2014-13-22", nil)
-	fmt.Println("XP = ", xp.PP())
-	err := VerifyTiming(xp)
+	_, _, _, relayState, err := ReceiveAuthnRequest(request, external, external)
 	fmt.Println(relayState)
 	fmt.Println(err)
 	// Output:
 	// anton-banton
-	// parsing time "2014-13-22": month out of range
+	// ["cause:schema validation failed"]
 }
 
 
 func ExampleEncryptAndDecrypt() {
-	idpmd := idpmetadata
-	spmd := spmetadata
-
-	request, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmd, idpmd, "")
-
-	response := NewResponse(IdAndTiming{time.Time{}, 4 * time.Minute, 4 * time.Hour, "ID", "AssertionID"}, idpmd, spmd, request, response)
-	fmt.Print(base64.StdEncoding.EncodeToString(goxml.Hash(crypto.SHA1, response.Doc.Dump(true))))
+	request, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmetadata, idpmetadata, "")
+	response := NewResponse(IdAndTiming{time.Time{}, 4 * time.Minute, 4 * time.Hour, "ID", "AssertionID"}, idpmetadata, spmetadata, request, response)
+	//log.Println(response.PP())
+	fmt.Printf("%x\n", goxml.Hash(crypto.SHA1, response.PP()))
 	// Output:
-	// jNcoS8WEnKSUwodKf89IRAQcpmo=
+	// 840326236b75462273d32c2ff70d1a9cc63ddadd
 }
 
 // Repeated her to avoid import cycle - need metadata to be able to test
