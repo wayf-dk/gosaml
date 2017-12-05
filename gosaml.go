@@ -618,7 +618,7 @@ func VerifyTiming(xp *goxml.Xp) (err error) {
 	const timeskew = 90
 
 	type timing struct {
-		reqired      bool
+		required      bool
 		notonorafter bool
 		notbefore    bool
 	}
@@ -652,11 +652,11 @@ func VerifyTiming(xp *goxml.Xp) (err error) {
 
 	for q, t := range checks {
 		xmltime := xp.Query1(nil, q)
-		if t.reqired && xmltime == "" {
+		if t.required && xmltime == "" {
 			err = fmt.Errorf("required timestamp: %s not present in: %s", q, protocol)
 			return
 		}
-
+		fmt.Println("XmlTime = ", xmltime)
 		if xmltime != "" {
 			samltime, err := time.Parse(XsDateTime, xmltime)
 			if err != nil {
