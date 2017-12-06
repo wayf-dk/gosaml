@@ -483,6 +483,18 @@ func ExampleNoTime() {
 	// ["cause:schema validation failed"]
 }
 
+func ExampleNoTime2() {
+	newrequest, _ := NewAuthnRequest(IdAndTiming{}.Refresh(), nil, spmetadata, idpmetadata, "")
+    newrequest.QueryDashP(nil, "@IssueInstant", "2002-10-10T12:00:00-05:00", nil)
+	url, _ := SAMLRequest2Url(newrequest, "", "", "", "")
+	request := httptest.NewRequest("GET", url.String(), nil)
+	_, _, _, relayState, err := ReceiveAuthnRequest(request, external, external)
+	fmt.Println(relayState)
+	fmt.Println(err)
+	// Output:
+	// parsing time "2002-10-10T12:00:00-05:00" as "2006-01-02T15:04:05Z": cannot parse "-05:00" as "Z"
+}
+
 
 func ExampleEncryptAndDecrypt() {
 	request, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmetadata, idpmetadata, "")
