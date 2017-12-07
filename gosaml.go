@@ -196,7 +196,7 @@ func AttributeCanonicalDump(w io.Writer, xp *goxml.Xp) {
 		friendlyName := xp.Query1(attr, "@FriendlyName") + " "
 		nameFormat := xp.Query1(attr, "@NameFormat")
 		if name == friendlyName {
-		    friendlyName = ""
+			friendlyName = ""
 		}
 		key := strings.TrimSpace(friendlyName + name + nameFormat)
 		keys = append(keys, key)
@@ -363,23 +363,23 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 		service = "md:SingleSignOnService"
 	}
 
-    bindings := map[string]string{
-   	    "GET":  "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect",
-        "POST": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST",
-    }
-    usedBinding := bindings[r.Method]
+	bindings := map[string]string{
+		"GET":  "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect",
+		"POST": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST",
+	}
+	usedBinding := bindings[r.Method]
 
 	checkSignatures := minSignatures > 0
 	mdRole := Roles[role]
 	destination := xp.Query1(nil, "./@Destination")
 
-    validBinding := false
+	validBinding := false
 	for _, v := range memd.QueryMulti(nil, `./`+mdRole+`/`+service+`[@Location=`+strconv.Quote(destination)+`]/@Binding`) {
 		validBinding = validBinding || v == usedBinding
 	}
 
 	if !validBinding || usedBinding == "" {
-		err = errors.New("invalid binding used "+usedBinding)
+		err = errors.New("invalid binding used " + usedBinding)
 		return
 	}
 
@@ -450,7 +450,8 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 				}
 			}
 		}
-		encryptedAssertions := xp.Query(nil, "/samlp:Response/saml:EncryptedAssertion")
+		//encryptedAssertions := xp.Query(nil, "/samlp:Response/saml:EncryptedAssertion")
+		encryptedAssertions := xp.Query(nil, "/samlp:Response/saml:Assertion")
 		if len(encryptedAssertions) == 1 {
 			cert := memd.Query1(nil, encryptionCertQuery) // actual encryption key is always first
 			var keyname string
@@ -489,8 +490,9 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 			if err != nil {
 				return
 			}
-		} else if len(encryptedAssertions) != 0 {
+		} else if len(encryptedAssertions) == 0 {
 			err = fmt.Errorf("only 1 EncryptedAssertion allowed, %d found", len(encryptedAssertions))
+			return
 		}
 
 		//no ds:Object in signatures
@@ -629,7 +631,7 @@ func VerifyTiming(xp *goxml.Xp) (err error) {
 	const timeskew = 90
 
 	type timing struct {
-		required      bool
+		required     bool
 		notonorafter bool
 		notbefore    bool
 	}
@@ -857,7 +859,7 @@ func NewResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *
 	requestedAttributes := spmd.Query(nil, `./md:SPSSODescriptor/md:AttributeConsumingService[1]/md:RequestedAttribute`)
 
 	for _, requestedAttribute := range requestedAttributes {
-       	destinationAttributes := response.QueryDashP(nil, `/saml:Assertion/saml:AttributeStatement`, "", nil) // only if there are actually some requested attributes
+		destinationAttributes := response.QueryDashP(nil, `/saml:Assertion/saml:AttributeStatement`, "", nil) // only if there are actually some requested attributes
 
 		// for _, requestedAttribute := range sourceResponse.Query(nil, `//saml:Attribute`) {
 		name, _ := requestedAttribute.(types.Element).GetAttribute("Name")
