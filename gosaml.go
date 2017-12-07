@@ -52,14 +52,6 @@ type (
 		MDQ(key string) (xp *goxml.Xp, err error)
 	}
 
-	// IdAndTiming is a type that allows to client to pass the ids and timing used when making
-	// new requests and responses - also used for fixed ids and timings when testing
-	IdAndTiming struct {
-		Now                    time.Time
-		Slack, Sessionduration time.Duration
-		Id, Assertionid        string
-	}
-
 	Conf struct {
 		SamlSchema    string
 		CertPath      string
@@ -77,10 +69,11 @@ type (
 )
 
 var (
-	TestTime time.Time
-	Roles    = []string{"md:IDPSSODescriptor", "md:SPSSODescriptor"}
-	Config   = Conf{}
-	ACSError = errors.New("invalid AsssertionConsumerService or AsssertionConsumerServiceIndex")
+	TestTime                time.Time
+	TestId, TestAssertionId string
+	Roles                   = []string{"md:IDPSSODescriptor", "md:SPSSODescriptor"}
+	Config                  = Conf{}
+	ACSError                = errors.New("invalid AsssertionConsumerService or AsssertionConsumerServiceIndex")
 )
 
 // PublicKeyInfo extracts the keyname, publickey and cert (base64 DER - no PEM) from the given certificate.
@@ -95,12 +88,6 @@ func PublicKeyInfo(cert string) (keyname string, publickey *rsa.PublicKey, err e
 	publickey = pk.PublicKey.(*rsa.PublicKey)
 	keyname = fmt.Sprintf("%x", sha1.Sum([]byte(fmt.Sprintf("Modulus=%X\n", publickey.N))))
 	return
-}
-
-// Utility functions
-func (t IdAndTiming) Refresh() IdAndTiming {
-	t.Now = time.Now()
-	return t
 }
 
 // Make a random id
@@ -196,7 +183,7 @@ func AttributeCanonicalDump(w io.Writer, xp *goxml.Xp) {
 		friendlyName := xp.Query1(attr, "@FriendlyName") + " "
 		nameFormat := xp.Query1(attr, "@NameFormat")
 		if name == friendlyName {
-		    friendlyName = ""
+			friendlyName = ""
 		}
 		key := strings.TrimSpace(friendlyName + name + nameFormat)
 		keys = append(keys, key)
@@ -363,23 +350,23 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 		service = "md:SingleSignOnService"
 	}
 
-    bindings := map[string]string{
-   	    "GET":  "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect",
-        "POST": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST",
-    }
-    usedBinding := bindings[r.Method]
+	bindings := map[string]string{
+		"GET":  "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect",
+		"POST": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST",
+	}
+	usedBinding := bindings[r.Method]
 
 	checkSignatures := minSignatures > 0
 	mdRole := Roles[role]
 	destination := xp.Query1(nil, "./@Destination")
 
-    validBinding := false
+	validBinding := false
 	for _, v := range memd.QueryMulti(nil, `./`+mdRole+`/`+service+`[@Location=`+strconv.Quote(destination)+`]/@Binding`) {
 		validBinding = validBinding || v == usedBinding
 	}
 
 	if !validBinding || usedBinding == "" {
-		err = errors.New("invalid binding used "+usedBinding)
+		err = errors.New("invalid binding used " + usedBinding)
 		return
 	}
 
@@ -452,6 +439,7 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 		}
 		encryptedAssertions := xp.Query(nil, "/samlp:Response/saml:EncryptedAssertion")
 		if len(encryptedAssertions) == 1 {
+
 			cert := memd.Query1(nil, encryptionCertQuery) // actual encryption key is always first
 			var keyname string
 			keyname, _, err = PublicKeyInfo(cert)
@@ -510,7 +498,7 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 		return
 	}
 
-	err = checkACS(xp, md, memd, role)
+	err = checkDestinationAndACS(xp, md, memd, role)
 	if err != nil {
 		return
 	}
@@ -527,7 +515,7 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 // Supports POST and Redirect bindings
 // Receives the metadatasets for resp. the sender and the receiver
 // Returns metadata for the sender and the receiver
-func checkACS(message, issuer, destination *goxml.Xp, role int) (err error) {
+func checkDestinationAndACS(message, issuer, destination *goxml.Xp, role int) (err error) {
 	var checkedDest string
 	var acsIndex string
 	dest := message.Query1(nil, "./@Destination")
@@ -629,7 +617,7 @@ func VerifyTiming(xp *goxml.Xp) (err error) {
 	const timeskew = 90
 
 	type timing struct {
-		required      bool
+		required     bool
 		notonorafter bool
 		notbefore    bool
 	}
@@ -688,6 +676,25 @@ func VerifyTiming(xp *goxml.Xp) (err error) {
 	return
 }
 
+func IdAndTiming() (issueInstant, id, assertionId, assertionNotOnOrAfter, sessionNotOnOrAfter string) {
+	now := TestTime
+	if now.IsZero() {
+		now = time.Now()
+	}
+	issueInstant = now.Format(XsDateTime)
+	assertionNotOnOrAfter = now.Add(4 * time.Minute).Format(XsDateTime)
+	sessionNotOnOrAfter = now.Add(4 * time.Hour).Format(XsDateTime)
+	id = TestId
+	if id == "" {
+		id = Id()
+	}
+	assertionId = TestAssertionId
+	if assertionId == "" {
+		assertionId = Id()
+	}
+	return
+}
+
 /*  NewAuthnRequest - create an AuthnRequest using the supplied metadata for setting the fields according to the following rules:
     - The Destination is the 1st SingleSignOnService with a redirect binding in the idpmetadata
     - The AssertionConsumerServiceURL is the Location of the 1st ACS with a post binding in the spmetadata
@@ -695,7 +702,7 @@ func VerifyTiming(xp *goxml.Xp) (err error) {
     - The Issuer is the entityID ín the idpmetadata
     - The NameID defaults to transient
 */
-func NewAuthnRequest(params IdAndTiming, originalRequest, spmd, idpmd *goxml.Xp, providerID string) (request *goxml.Xp, err error) {
+func NewAuthnRequest(originalRequest, spmd, idpmd *goxml.Xp, providerID string) (request *goxml.Xp, err error) {
 	template := `<samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
                     xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
                     Version="2.0"
@@ -704,15 +711,10 @@ func NewAuthnRequest(params IdAndTiming, originalRequest, spmd, idpmd *goxml.Xp,
 <saml:Issuer>Issuer</saml:Issuer>
 <samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" AllowCreate="true" />
 </samlp:AuthnRequest>`
-
-	issueInstant := params.Now.Format(XsDateTime)
-	msgid := params.Id
-	if msgid == "" {
-		msgid = Id()
-	}
+	issueInstant, msgId, _, _, _ := IdAndTiming()
 
 	request = goxml.NewXpFromString(template)
-	request.QueryDashP(nil, "./@ID", msgid, nil)
+	request.QueryDashP(nil, "./@ID", msgId, nil)
 	request.QueryDashP(nil, "./@IssueInstant", issueInstant, nil)
 	request.QueryDashP(nil, "./@Destination", idpmd.Query1(nil, `//md:SingleSignOnService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"]/@Location`), nil)
 	request.QueryDashP(nil, "./@AssertionConsumerServiceURL", spmd.Query1(nil, `//md:AssertionConsumerService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"]/@Location`), nil)
@@ -758,7 +760,7 @@ func NewAuthnRequest(params IdAndTiming, originalRequest, spmd, idpmd *goxml.Xp,
   The response is primarily for the attributes, but other fields is eg. the AuthnContextClassRef is also drawn from it
 */
 
-func NewResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *goxml.Xp) (response *goxml.Xp) {
+func NewResponse(idpmd, spmd, authnrequest, sourceResponse *goxml.Xp) (response *goxml.Xp) {
 	template := `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" xmlns:xs="http://www.w3.org/2001/XMLSchema">
 	<saml:Issuer></saml:Issuer>
 	<samlp:Status>
@@ -789,31 +791,21 @@ func NewResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *
 `
 	response = goxml.NewXpFromString(template)
 
-	issueInstant := params.Now.Format(XsDateTime)
-	assertionIssueInstant := params.Now.Format(XsDateTime)
-	assertionNotOnOrAfter := params.Now.Add(params.Slack).Format(XsDateTime)
-	sessionNotOnOrAfter := params.Now.Add(params.Sessionduration).Format(XsDateTime)
-	msgid := params.Id
-	if msgid == "" {
-		msgid = Id()
-	}
-	assertionID := params.Assertionid
-	if assertionID == "" {
-		assertionID = Id()
-	}
+	issueInstant, msgId, assertionId, assertionNotOnOrAfter, sessionNotOnOrAfter := IdAndTiming()
+	assertionIssueInstant := issueInstant
 
 	spEntityID := spmd.Query1(nil, `/md:EntityDescriptor/@entityID`)
 	idpEntityID := idpmd.Query1(nil, `/md:EntityDescriptor/@entityID`)
 
 	acs := authnrequest.Query1(nil, "@AssertionConsumerServiceURL")
-	response.QueryDashP(nil, "./@ID", msgid, nil)
+	response.QueryDashP(nil, "./@ID", msgId, nil)
 	response.QueryDashP(nil, "./@IssueInstant", issueInstant, nil)
 	response.QueryDashP(nil, "./@InResponseTo", authnrequest.Query1(nil, "@ID"), nil)
 	response.QueryDashP(nil, "./@Destination", acs, nil)
 	response.QueryDashP(nil, "./saml:Issuer", idpEntityID, nil)
 
 	assertion := response.Query(nil, "saml:Assertion")[0]
-	response.QueryDashP(assertion, "@ID", assertionID, nil)
+	response.QueryDashP(assertion, "@ID", assertionId, nil)
 	response.QueryDashP(assertion, "@IssueInstant", assertionIssueInstant, nil)
 	response.QueryDashP(assertion, "saml:Issuer", idpEntityID, nil)
 
@@ -857,7 +849,7 @@ func NewResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *
 	requestedAttributes := spmd.Query(nil, `./md:SPSSODescriptor/md:AttributeConsumingService[1]/md:RequestedAttribute`)
 
 	for _, requestedAttribute := range requestedAttributes {
-       	destinationAttributes := response.QueryDashP(nil, `/saml:Assertion/saml:AttributeStatement`, "", nil) // only if there are actually some requested attributes
+		destinationAttributes := response.QueryDashP(nil, `/saml:Assertion/saml:AttributeStatement`, "", nil) // only if there are actually some requested attributes
 
 		// for _, requestedAttribute := range sourceResponse.Query(nil, `//saml:Attribute`) {
 		name, _ := requestedAttribute.(types.Element).GetAttribute("Name")
@@ -897,7 +889,7 @@ func NewResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *
 	return
 }
 
-func NewErrorResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceResponse *goxml.Xp) (response *goxml.Xp) {
+func NewErrorResponse(idpmd, spmd, authnrequest, sourceResponse *goxml.Xp) (response *goxml.Xp) {
 	idpEntityID := idpmd.Query1(nil, `/md:EntityDescriptor/@entityID`)
 	response = goxml.NewXpFromNode(*sourceResponse.DocGetRootElement())
 	acs := authnrequest.Query1(nil, "@AssertionConsumerServiceURL")
@@ -907,11 +899,13 @@ func NewErrorResponse(params IdAndTiming, idpmd, spmd, authnrequest, sourceRespo
 	return
 }
 
-func NewLogoutRequest(params IdAndTiming, issuer, destination, sourceLogoutRequest *goxml.Xp, sloinfo *SLOInfo) (request *goxml.Xp) {
+func NewLogoutRequest(issuer, destination, sourceLogoutRequest *goxml.Xp, sloinfo *SLOInfo) (request *goxml.Xp) {
 	template := `<samlp:LogoutRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0"></samlp:LogoutRequest>`
 	request = goxml.NewXpFromString(template)
+	issueInstant, _, _, _, _ := IdAndTiming()
+
 	slo := destination.Query1(nil, `/md:EntityDescriptor/md:IDPSSODescriptor/md:SingleLogoutService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"]/@Location`)
-	request.QueryDashP(nil, "./@IssueInstant", params.Now.Format(XsDateTime), nil)
+	request.QueryDashP(nil, "./@IssueInstant", issueInstant, nil)
 	request.QueryDashP(nil, "./@ID", sourceLogoutRequest.Query1(nil, "@ID"), nil)
 	request.QueryDashP(nil, "./@Destination", slo, nil)
 	request.QueryDashP(nil, "./saml:Issuer", sloinfo.Issuer, nil)
@@ -921,7 +915,7 @@ func NewLogoutRequest(params IdAndTiming, issuer, destination, sourceLogoutReque
 	return
 }
 
-func NewLogoutResponse(params IdAndTiming, source, destination, request, sourceResponse *goxml.Xp) (response *goxml.Xp) {
+func NewLogoutResponse(source, destination, request, sourceResponse *goxml.Xp) (response *goxml.Xp) {
 	response = goxml.NewXpFromNode(*sourceResponse.DocGetRootElement())
 	response.QueryDashP(nil, "./@InResponseTo", request.Query1(nil, "@ID"), nil)
 	slo := destination.Query1(nil, `.//md:SingleLogoutService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"]/@Location`)

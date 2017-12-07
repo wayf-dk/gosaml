@@ -2,16 +2,12 @@ package gosaml
 
 import (
 	"crypto"
-	"crypto/tls"
 	"encoding/base64"
-	"encoding/hex"
-	"errors"
 	"fmt"
 	"github.com/wayf-dk/go-libxml2/types"
 	"github.com/wayf-dk/goxml"
 	"io/ioutil"
 	"log"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -102,6 +98,9 @@ func TestMain(m *testing.M) {
 	Config.SamlSchema = "../goxml/schemas/saml-schema-protocol-2.0.xsd"
 	Config.CertPath = ""
 
+	TestTime = time.Unix(1136239445, 0) // Mon Jan 2 15:04:05 MST 2006 // 01/02 03:04:05PM '06 -0700
+	TestId = "ID"
+	TestAssertionId = "AssertionID"
 	//	hub = SimplePrepareMD("testdata/hub.xml")
 	//	internal = SimplePrepareMD("testdata/internal.xml")
 	external = SimplePrepareMD("testdata/external.xml")
@@ -149,25 +148,22 @@ func ExampleMetadata() { //Previous Result // urn:oasis:names:tc:SAML:2.0:nameid
 }
 
 func ExampleAuthnRequest() {
-	spmd := spmetadata
-	idpmd := idpmetadata
-
-	request, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmd, idpmd, "")
+	request, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
 	fmt.Print(request.Doc.Dump(false))
 	// Output:
 	// <?xml version="1.0" encoding="UTF-8"?>
-	// <samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" ID="ID" IssueInstant="0001-01-01T00:00:00Z" Destination="https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO" AssertionConsumerServiceURL="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
+	// <samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" ID="ID" IssueInstant="2006-01-02T22:04:05Z" Destination="https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO" AssertionConsumerServiceURL="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
 	// <saml:Issuer>https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth</saml:Issuer>
 	// <samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" AllowCreate="true"/>
 	// </samlp:AuthnRequest>
 }
 
 func ExampleResponse() {
-	request, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, idpmetadata, spmetadata, "")
-	newResponse := NewResponse(IdAndTiming{time.Time{}, 4 * time.Minute, 4 * time.Hour, "ID", "AssertionID"}, idpmetadata, spmetadata, request, response)
+	request, _ := NewAuthnRequest(nil, idpmetadata, spmetadata, "")
+	newResponse := NewResponse(idpmetadata, spmetadata, request, response)
 	fmt.Printf("%x\n", goxml.Hash(crypto.SHA1, newResponse.PP()))
 	// Output:
-	// 0eaee2dd634cf11b8177fc3b75a3ef9d5365a46e
+	// 65d83c77d547af528814631a63ed6804abd0bee8
 }
 
 func ExampleAttributeCanonicalDump() {
@@ -214,15 +210,15 @@ func ExamplePublicKeyInfo() {
 }
 
 func ExampleSAMLRequest2Url() {
-	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmetadata, idpmetadata, "")
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
 	url, err := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	fmt.Println(url, err)
 	// Output:
-	// https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO?SAMLRequest=pJJBb9swDIXv%2BRWC7rbcnAYhTpE1KGagW4PY3WE3xWZqArLkkXTS%2FfshSjJkl1wK8CSR73sP5OLxY%2FDqAMQYQ6kf8kIrCG3sMLyX%2Bq15zr7ox%2BVswW7wo11N0oct%2FJ6ARX0MPrBNH6WeKNjoGNkGNwBbaW29%2Bv5i53lhR4oS2%2Bj1zcj9CccMJBiDVj%2Bv1uYna5uL1FcMZ4f3VHbnJrbfmmaTbV7rRqtqXepqrVXFPEEVWFyQUhdF8ZClaorCpvql1RpYMDhJ%2BF5kZGuMc5j5%2BB5DzkeUts%2Fb3mA3mpHiHj2YE31uttAhQSumrl%2B1Wl3jPMXA0wBUAx2whbfty42wCOFuEsgOCEeg3Dm8ZQQB2kMHlAxlAiym7nG3ix6kz5njhZ2CXlZmU05afgbC%2FyALc6t5PYofboBqvYke2z%2FqOdLg5P5eTi%2FYZfvUaoVcYIQgWq28j8cnAidQaqEJtFnOztD%2Fb285%2BxsAAP%2F%2F&RelayState=anton-banton <nil>
+	// https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO?SAMLRequest=pJJBj9owEIXv%2FArL98TZqK0qi7Cii1aNtO0iku2hN5MMm5EcO52ZAP33FQEqeuHSqz3zvvc0b%2F547L3aAzHGUOiHNNMKQhNbDO%2BFfqufk8%2F6cTGbs%2Bv9YJejdGEDv0ZgUcfeB7bTR6FHCjY6RrbB9cBWGlstv73YPM3sQFFiE72%2BWbm%2F4ZiBBGPQ6sfVWn6ytr5IfcFwdnhPZXseYvu1rtfJ%2BrWqtSpXhS5XWpXMI5SBxQUpdJ5ln5LsIcnyOs9t9sFmH39qtQIWDE4mfCcysDXGOUx8fI8h5QNK06VNZ7AdzEBxhx7MiZ6bDbRI0Iipqletltc4TzHw2ANVQHts4G3zciMsQrgdBZI9wgEodQ5vGUGAdtACTYYSARZTdbjdRg%2FSpczxwp6CXk5mp5y0%2BB8I%2F4XMza3mtRTfXQ%2Flah09Nr%2FVc6Teyf27nF6wTXbTqBVygRGCaLX0Ph6eCJxAoYVG0GYxO0P%2F7d5i9icAAP%2F%2F&RelayState=anton-banton <nil>
 }
 
 func ExampleUrl2SAMLRequest() {
-	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmetadata, idpmetadata, "")
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	xp, relayState := Url2SAMLRequest(url, nil)
 	fmt.Printf("%t\n", newrequest.PP() == xp.PP())
@@ -233,29 +229,28 @@ func ExampleUrl2SAMLRequest() {
 }
 
 func ExampleDeflate() {
-	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmetadata, idpmetadata, "")
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
 	req := base64.StdEncoding.EncodeToString(Deflate([]byte(newrequest.Doc.Dump(false))))
 	fmt.Println(req)
 	// Output:
-	// pJJBb9swDIXv+RWC7rbcnAYhTpE1KGagW4PY3WE3xWZqArLkkXTS/fshSjJkl1wK8CSR73sP5OLxY/DqAMQYQ6kf8kIrCG3sMLyX+q15zr7ox+VswW7wo11N0oct/J6ARX0MPrBNH6WeKNjoGNkGNwBbaW29+v5i53lhR4oS2+j1zcj9CccMJBiDVj+v1uYna5uL1FcMZ4f3VHbnJrbfmmaTbV7rRqtqXepqrVXFPEEVWFyQUhdF8ZClaorCpvql1RpYMDhJ+F5kZGuMc5j5+B5DzkeUts/b3mA3mpHiHj2YE31uttAhQSumrl+1Wl3jPMXA0wBUAx2whbfty42wCOFuEsgOCEeg3Dm8ZQQB2kMHlAxlAiym7nG3ix6kz5njhZ2CXlZmU05afgbC/yALc6t5PYofboBqvYke2z/qOdLg5P5eTi/YZfvUaoVcYIQgWq28j8cnAidQaqEJtFnOztD/b285+xsAAP//
+	// pJJBj9owEIXv/ArL98TZqK0qi7Cii1aNtO0iku2hN5MMm5EcO52ZAP33FQEqeuHSqz3zvvc0b/547L3aAzHGUOiHNNMKQhNbDO+Ffqufk8/6cTGbs+v9YJejdGEDv0ZgUcfeB7bTR6FHCjY6RrbB9cBWGlstv73YPM3sQFFiE72+Wbm/4ZiBBGPQ6sfVWn6ytr5IfcFwdnhPZXseYvu1rtfJ+rWqtSpXhS5XWpXMI5SBxQUpdJ5ln5LsIcnyOs9t9sFmH39qtQIWDE4mfCcysDXGOUx8fI8h5QNK06VNZ7AdzEBxhx7MiZ6bDbRI0Iipqletltc4TzHw2ANVQHts4G3zciMsQrgdBZI9wgEodQ5vGUGAdtACTYYSARZTdbjdRg/Spczxwp6CXk5mp5y0+B8I/4XMza3mtRTfXQ/lah09Nr/Vc6Teyf27nF6wTXbTqBVygRGCaLX0Ph6eCJxAoYVG0GYxO0P/7d5i9icAAP//
 }
 
 func ExampleInflate() {
-	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmetadata, idpmetadata, "")
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
 	req := Deflate([]byte(newrequest.Doc.Dump(false)))
 	res := Inflate(req)
 	fmt.Println(string(res))
 	// Output:
 	// <?xml version="1.0" encoding="UTF-8"?>
-	// <samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" ID="ID" IssueInstant="0001-01-01T00:00:00Z" Destination="https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO" AssertionConsumerServiceURL="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
+	// <samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" ID="ID" IssueInstant="2006-01-02T22:04:05Z" Destination="https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO" AssertionConsumerServiceURL="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
 	// <saml:Issuer>https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth</saml:Issuer>
 	// <samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" AllowCreate="true"/>
 	// </samlp:AuthnRequest>
 }
 
 func ExampleReceiveAuthnRequestPOST() {
-	TestTime, _ = time.Parse("2006-Jan-02", "2013-Feb-03")
-	newrequest, _ := NewAuthnRequest(IdAndTiming{TestTime, 0, 0, "ID", ""}, nil, spmetadata, idpmetadata, "")
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
 	destination := newrequest.Query1(nil, "@Destination")
 	//newrequest.QueryDashP(nil, "./saml:Issuer", "abc", nil)
 	data := url.Values{}
@@ -273,7 +268,7 @@ func ExampleReceiveAuthnRequestPOST() {
 	//                     Version="2.0"
 	//                     ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
 	//                     ID="ID"
-	//                     IssueInstant="2013-02-03T00:00:00Z"
+	//                     IssueInstant="2006-01-02T22:04:05Z"
 	//                     Destination="https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO"
 	//                     AssertionConsumerServiceURL="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
 	//     <saml:Issuer>
@@ -285,8 +280,7 @@ func ExampleReceiveAuthnRequestPOST() {
 }
 
 func ExampleReceiveAuthnRequest() {
-	TestTime = time.Time{}
-	newrequest, _ := NewAuthnRequest(IdAndTiming{}.Refresh(), nil, spmetadata, idpmetadata, "")
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
 	_, _, _, relayState, err := ReceiveAuthnRequest(request, external, external)
@@ -301,8 +295,7 @@ func ExampleReceiveAuthnRequest() {
 }
 
 func ExampleNameIDPolicy() {
-	TestTime = time.Time{}
-	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Now(), 0, 0, "ID", ""}, nil, spmetadata, idpmetadata, "")
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
 
 	nameidpolicy := newrequest.Query(nil, "./samlp:NameIDPolicy")[0]
 	newrequest.QueryDashP(nameidpolicy, "@Format", "anton-banton", nil)
@@ -319,8 +312,7 @@ func ExampleNameIDPolicy() {
 }
 
 func ExampleReceiveAuthnRequestNoSubject() {
-	TestTime = time.Time{}
-	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Now(), 0, 0, "ID", ""}, nil, spmetadata, idpmetadata, "")
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
 
 	nameidpolicy := newrequest.Query(nil, "./samlp:NameIDPolicy")[0]
 	subject := newrequest.QueryDashP(nil, "./saml:Subject/saml:NameID", "mehran", nameidpolicy)
@@ -338,7 +330,7 @@ func ExampleReceiveAuthnRequestNoSubject() {
 }
 
 func ExampleProtocolCheck() {
-	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmetadata, idpmetadata, "")
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
 	newrequest.Query(nil, "/samlp:AuthnRequest")[0].SetNodeName("PutRequest")
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
@@ -426,7 +418,7 @@ func ExampleNoDestination() {
 }
 
 func ExampleInvalidSchema() {
-	newrequest, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmetadata, idpmetadata, "")
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
 	newrequest.Query(nil, "/samlp:AuthnRequest")[0].SetNodeName("PutRequest")
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
@@ -439,9 +431,8 @@ func ExampleInvalidSchema() {
 }
 
 func ExampleInvalidTime() {
-	TestTime = time.Time{}
 	//TestTime, _ = time.Parse("2006-Jan-02", "2013-Feb-03")
-	newrequest, _ := NewAuthnRequest(IdAndTiming{}.Refresh(), nil, spmetadata, idpmetadata, "")
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
 	xp, _, _, relayState, _ := ReceiveAuthnRequest(request, external, external)
@@ -455,8 +446,7 @@ func ExampleInvalidTime() {
 }
 
 func ExampleOutOfRangeTime() {
-	TestTime = time.Time{}
-	newrequest, _ := NewAuthnRequest(IdAndTiming{}.Refresh(), nil, spmetadata, idpmetadata, "")
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
 
@@ -471,86 +461,31 @@ func ExampleOutOfRangeTime() {
 }
 
 func ExampleNoTime() {
-	newrequest, _ := NewAuthnRequest(IdAndTiming{}.Refresh(), nil, spmetadata, idpmetadata, "")
-    newrequest.QueryDashP(nil, "@IssueInstant", "2014-13-22", nil)
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+	newrequest.QueryDashP(nil, "@IssueInstant", "2014-12-22", nil)
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
-	_, _, _, relayState, err := ReceiveAuthnRequest(request, external, external)
-	fmt.Println(relayState)
+	_, _, _, _, err := ReceiveAuthnRequest(request, external, external)
 	fmt.Println(err)
 	// Output:
-	// anton-banton
 	// ["cause:schema validation failed"]
 }
 
 func ExampleNoTime2() {
-	newrequest, _ := NewAuthnRequest(IdAndTiming{}.Refresh(), nil, spmetadata, idpmetadata, "")
-    newrequest.QueryDashP(nil, "@IssueInstant", "2002-10-10T12:00:00-05:00", nil)
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+	newrequest.QueryDashP(nil, "@IssueInstant", "2002-10-10T12:00:00-05:00", nil)
 	url, _ := SAMLRequest2Url(newrequest, "", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
-	_, _, _, relayState, err := ReceiveAuthnRequest(request, external, external)
-	fmt.Println(relayState)
+	_, _, _, _, err := ReceiveAuthnRequest(request, external, external)
 	fmt.Println(err)
 	// Output:
 	// parsing time "2002-10-10T12:00:00-05:00" as "2006-01-02T15:04:05Z": cannot parse "-05:00" as "Z"
 }
 
-
 func ExampleEncryptAndDecrypt() {
-	request, _ := NewAuthnRequest(IdAndTiming{time.Time{}, 0, 0, "ID", ""}, nil, spmetadata, idpmetadata, "")
-	response := NewResponse(IdAndTiming{time.Time{}, 4 * time.Minute, 4 * time.Hour, "ID", "AssertionID"}, idpmetadata, spmetadata, request, response)
-	//log.Println(response.PP())
+	request, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+	response := NewResponse(idpmetadata, spmetadata, request, response)
 	fmt.Printf("%x\n", goxml.Hash(crypto.SHA1, response.PP()))
 	// Output:
-	// 840326236b75462273d32c2ff70d1a9cc63ddadd
-}
-
-// Repeated her to avoid import cycle - need metadata to be able to test
-// MDQclient - read some metadata from either a MDQ Server or a normal feed url.
-// Key is either en entityID or Location - allows lookup entity by endpoints,
-// this is currently only supported by the phph.wayf.dk/MDQ and is used by WAYF for mass virtual entity hosting
-// in BIRK and KRIB. THE PHPh MDQ server only understands the sha1 encoded parameter and currently only
-// understands request for 1 entity at a time.
-// If key is "" the mdq string is used as a normal feed url.
-func NewMD(mdq, key string) (mdxp *goxml.Xp) {
-	var err error
-	if key != "" {
-		mdq = mdq + "/entities/{sha1}" + hex.EncodeToString(goxml.Hash(crypto.SHA1, key))
-	}
-	url, _ := url.Parse(mdq)
-	log.Println("mdq", mdq)
-
-	tr := &http.Transport{
-		TLSClientConfig:    &tls.Config{InsecureSkipVerify: true},
-		Dial:               func(network, addr string) (net.Conn, error) { return net.Dial("tcp", addr) },
-		DisableCompression: true,
-	}
-	client := &http.Client{
-		Transport:     tr,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error { return errors.New("redirect not supported") },
-	}
-
-	var req *http.Request
-	if req, err = http.NewRequest("GET", url.String(), nil); err != nil {
-		log.Fatal(err)
-	}
-	var resp *http.Response
-	if resp, err = client.Do(req); err != nil {
-		log.Fatal(err)
-	}
-	if resp.StatusCode != 200 {
-		if key == "" {
-			key = mdq
-		}
-		err = fmt.Errorf("Metadata not found for entity: %s", key)
-		//	    err = fmt.Errorf("looking for: '%s' using: '%s' MDQ said: %s\n", key, url.String(), resp.Status)
-		log.Fatal(err)
-	}
-	var md []byte
-	if md, err = ioutil.ReadAll(resp.Body); err != nil {
-		log.Fatal(err)
-	}
-
-	mdxp = goxml.NewXp(md)
-	return
+	// 5d91753d5d23c4bac4f90a582477f598a132c880
 }
