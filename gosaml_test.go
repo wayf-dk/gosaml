@@ -147,6 +147,33 @@ func ExampleMetadata() { //Previous Result // urn:oasis:names:tc:SAML:2.0:nameid
 	// urn:mace:shibboleth:1.0:nameIdentifier
 }
 
+func ExampleSigningKeyNotFound() {
+	destination := response.Query1(nil, "@Destination")
+	TestTime, _ = time.Parse(XsDateTime, response.Query1(nil, "@IssueInstant"))
+	data := url.Values{}
+	data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
+	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
+	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	_, _, _, _, err := ReceiveSAMLResponse(request, external, external)
+	fmt.Println(err)
+	// Output:
+	// open fd666194364791ef937224223c7387f6b26368af.key: no such file or directory
+}
+
+func ExampleInvalidDestination() {
+	destination := response.Query1(nil, "@Destination")
+	response.QueryDashP(nil, "@Destination", "https://www.example.com", nil)
+	data := url.Values{}
+	data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
+	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
+	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+
+	_, _, _, _, err := ReceiveSAMLResponse(request, external, external)
+	fmt.Println(err)
+	// Output:
+	// destination: https://www.example.com is not here, here is https://wayfsp.wayf.dk/ss/module.php/saml/sp/saml2-acs.php/default-sp
+}
+
 func ExampleAuthnRequest() {
 	request, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
 	fmt.Print(request.Doc.Dump(false))
@@ -258,25 +285,25 @@ func ExampleReceiveAuthnRequestPOST() {
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
 	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
-	xp, _, _, _, err := ReceiveAuthnRequest(request, external, external)
+	_, _, _, _, err := ReceiveAuthnRequest(request, external, external)
 	fmt.Println(err)
-	fmt.Println(xp.PP())
 	// Output:
 	// invalid binding used urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST
-	// <samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
-	//                     xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
-	//                     Version="2.0"
-	//                     ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
-	//                     ID="ID"
-	//                     IssueInstant="2006-01-02T22:04:05Z"
-	//                     Destination="https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO"
-	//                     AssertionConsumerServiceURL="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
-	//     <saml:Issuer>
-	//      https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth
-	//     </saml:Issuer>
-	//     <samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
-	//                         AllowCreate="true"/>
-	// </samlp:AuthnRequest>
+}
+
+func ExampleNoAssertion() {
+	destination := response.Query1(nil, "@Destination")
+	TestTime, _ = time.Parse(XsDateTime, response.Query1(nil, "@IssueInstant"))
+	data := url.Values{}
+	response.QueryDashP(nil, "/saml:Assertion", " ", nil)
+	data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
+	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
+	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	_, _, _, _, err := ReceiveSAMLResponse(request, external, external)
+	//fmt.Println(xp.PP())
+	fmt.Println(err)
+	// Output:
+	// ["cause:schema validation failed"]
 }
 
 func ExampleReceiveAuthnRequest() {
@@ -284,9 +311,6 @@ func ExampleReceiveAuthnRequest() {
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
 	_, _, _, relayState, err := ReceiveAuthnRequest(request, external, external)
-	//fmt.Println("XP = ", xp.PP())
-	//fmt.Println("MD = ", md)
-	//fmt.Println("MEMD = ", memd)
 	fmt.Println(relayState)
 	fmt.Println(err)
 	// Output:
@@ -303,11 +327,9 @@ func ExampleNameIDPolicy() {
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
 
-	_, _, _, relayState, err := ReceiveAuthnRequest(request, external, external)
-	fmt.Println(relayState)
+	_, _, _, _, err := ReceiveAuthnRequest(request, external, external)
 	fmt.Println(err)
 	// Output:
-	// anton-banton
 	// nameidpolicy format: %!s(MISSING) is not supported
 }
 
@@ -321,11 +343,9 @@ func ExampleReceiveAuthnRequestNoSubject() {
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
 
-	_, _, _, relayState, err := ReceiveAuthnRequest(request, external, external)
-	fmt.Println(relayState)
+	_, _, _, _, err := ReceiveAuthnRequest(request, external, external)
 	fmt.Println(err)
 	// Output:
-	// anton-banton
 	// subject not allowed in SAMLRequest
 }
 
@@ -334,17 +354,15 @@ func ExampleProtocolCheck() {
 	newrequest.Query(nil, "/samlp:AuthnRequest")[0].SetNodeName("PutRequest")
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
-	_, _, _, relayState, err := ReceiveAuthnRequest(request, external, external)
-	fmt.Println(relayState)
+	_, _, _, _, err := ReceiveAuthnRequest(request, external, external)
 	fmt.Println(err)
 	// Output:
-	// anton-banton
 	// ["cause:schema validation failed"]
 }
 
 func ExampleReceiveUnSignedResponse() {
 	destination := response.Query1(nil, "@Destination")
-	//response.QueryDashP(nil, "./saml:Assertion[1]/saml:Issuer", "_4099d6da09c9a1d9fad7f", nil)
+	//response.QueryDashP(nil, "./saml:Assertion[1]/saml:Issuer/ds:Signature", "_4099d6da09c9a1d9fad7f", nil)
 	TestTime, _ = time.Parse(XsDateTime, response.Query1(nil, "@IssueInstant"))
 	data := url.Values{}
 	data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
@@ -359,7 +377,7 @@ func ExampleReceiveUnSignedResponse() {
 	_, _, _, _, err = ReceiveSAMLResponse(request1, external, external)
 	fmt.Println(err)
 	// Output:
-	// No signatures found
+	// ["cause:schema validation failed"]
 }
 
 // When Content is Changed.
@@ -374,7 +392,7 @@ func ExampleCheckDigest() {
 	_, _, _, _, err := ReceiveSAMLResponse(request, external, external)
 	fmt.Println(err)
 	// Output:
-	// unable to validate signature: digest mismatch
+	// ["err:Metadata not found","key:https://www.example.com"]
 }
 
 func ExampleNoSAMLResponse() {
@@ -422,11 +440,9 @@ func ExampleInvalidSchema() {
 	newrequest.Query(nil, "/samlp:AuthnRequest")[0].SetNodeName("PutRequest")
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
-	_, _, _, relayState, err := ReceiveAuthnRequest(request, external, external)
-	fmt.Println(relayState)
+	_, _, _, _, err := ReceiveAuthnRequest(request, external, external)
 	fmt.Println(err)
 	// Output:
-	// anton-banton
 	// ["cause:schema validation failed"]
 }
 
@@ -435,13 +451,11 @@ func ExampleInvalidTime() {
 	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
-	xp, _, _, relayState, _ := ReceiveAuthnRequest(request, external, external)
+	xp, _, _, _, _ := ReceiveAuthnRequest(request, external, external)
 	xp.QueryDashP(nil, "@IssueInstant", "abc", nil)
 	err := VerifyTiming(xp)
-	fmt.Println(relayState)
 	fmt.Println(err)
 	// Output:
-	// anton-banton
 	// parsing time "abc" as "2006-01-02T15:04:05Z": cannot parse "abc" as "2006"
 }
 
@@ -450,13 +464,11 @@ func ExampleOutOfRangeTime() {
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
 
-	xp, _, _, relayState, _ := ReceiveAuthnRequest(request, external, external)
+	xp, _, _, _, _ := ReceiveAuthnRequest(request, external, external)
 	xp.QueryDashP(nil, "@IssueInstant", "2014-13-22", nil)
 	err := VerifyTiming(xp)
-	fmt.Println(relayState)
 	fmt.Println(err)
 	// Output:
-	// anton-banton
 	// parsing time "2014-13-22": month out of range
 }
 
