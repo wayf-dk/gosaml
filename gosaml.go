@@ -216,7 +216,7 @@ func ReceiveAuthnRequest(r *http.Request, issuerMdSet, destinationMdSet Md) (xp,
 	}
 	nameidpolicy := xp.Query1(nil, "./samlp:NameIDPolicy/@Format")
 	if nameidpolicy != "" && nameidpolicy != Transient && nameidpolicy != Persistent {
-		err = fmt.Errorf("nameidpolicy format: %s is not supported")
+		err = fmt.Errorf("nameidpolicy format: %s is not supported", nameidpolicy)
 		return
 	}
 	/*
@@ -695,6 +695,82 @@ func IdAndTiming() (issueInstant, id, assertionId, assertionNotOnOrAfter, sessio
 	return
 }
 
+func NewErrorResponse(idpmd, spmd, authnrequest, sourceResponse *goxml.Xp) (response *goxml.Xp) {
+	idpEntityID := idpmd.Query1(nil, `/md:EntityDescriptor/@entityID`)
+	response = goxml.NewXpFromNode(*sourceResponse.DocGetRootElement())
+	acs := authnrequest.Query1(nil, "@AssertionConsumerServiceURL")
+	response.QueryDashP(nil, "./@InResponseTo", authnrequest.Query1(nil, "@ID"), nil)
+	response.QueryDashP(nil, "./@Destination", acs, nil)
+	response.QueryDashP(nil, "./saml:Issuer", idpEntityID, nil)
+	return
+}
+
+func NewLogoutRequest(issuer, destination, sourceLogoutRequest *goxml.Xp, sloinfo *SLOInfo) (request *goxml.Xp) {
+	template := `<samlp:LogoutRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0"></samlp:LogoutRequest>`
+	request = goxml.NewXpFromString(template)
+	issueInstant, _, _, _, _ := IdAndTiming()
+
+	slo := destination.Query1(nil, `/md:EntityDescriptor/md:IDPSSODescriptor/md:SingleLogoutService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"]/@Location`)
+	request.QueryDashP(nil, "./@IssueInstant", issueInstant, nil)
+	request.QueryDashP(nil, "./@ID", sourceLogoutRequest.Query1(nil, "@ID"), nil)
+	request.QueryDashP(nil, "./@Destination", slo, nil)
+	request.QueryDashP(nil, "./saml:Issuer", sloinfo.Issuer, nil)
+	request.QueryDashP(nil, "./saml:NameID/@Format", sloinfo.Format, nil)
+	request.QueryDashP(nil, "./saml:NameID/@SPNameQualifier", sloinfo.SPNameQualifier, nil)
+	request.QueryDashP(nil, "./saml:NameID", sloinfo.NameID, nil)
+	return
+}
+
+func NewLogoutResponse(source, destination, request, sourceResponse *goxml.Xp) (response *goxml.Xp) {
+	response = goxml.NewXpFromNode(*sourceResponse.DocGetRootElement())
+	response.QueryDashP(nil, "./@InResponseTo", request.Query1(nil, "@ID"), nil)
+	slo := destination.Query1(nil, `.//md:SingleLogoutService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"]/@Location`)
+	response.QueryDashP(nil, "./@Destination", slo, nil)
+	idpEntityID := source.Query1(nil, `/md:EntityDescriptor/@entityID`)
+	response.QueryDashP(nil, "./saml:Issuer", idpEntityID, nil)
+	return
+}
+
+func NewSLOInfo(response, destination *goxml.Xp) *SLOInfo {
+	entityID := response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Issuer")
+	nameID := response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID")
+	format := response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID/@Format")
+	spnamequalifier := response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID/@SPNameQualifier")
+	issuer := destination.Query1(nil, "@entityID")
+	return &SLOInfo{NameID: nameID, EntityID: entityID, Format: format, SPNameQualifier: spnamequalifier, Issuer: issuer}
+}
+
+func NameIDHash(xp *goxml.Xp, tag string) string {
+	nameID := xp.Query1(nil, "//saml:NameID")
+	format := xp.Query1(nil, "//saml:NameID/@Format")
+	spNameQualifier := xp.Query1(nil, "//saml:NameID/@SPNameQualifier")
+	return fmt.Sprintf("%x", goxml.Hash(crypto.SHA1, tag+"#"+nameID+"#"+format+"#"+spNameQualifier))
+}
+
+func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp) (err error) {
+	cert := md.Query1(nil, "md:IDPSSODescriptor"+signingCertQuery) // actual signing key is always first
+	var keyname string
+	keyname, _, err = PublicKeyInfo(cert)
+	if err != nil {
+		return
+	}
+	var privatekey []byte
+	privatekey, err = ioutil.ReadFile(Config.CertPath + keyname + ".key")
+	if err != nil {
+		return
+	}
+
+	element := response.Query(nil, elementQuery)
+	if len(element) != 1 {
+		err = errors.New("did not find exactly one element to sign")
+		return
+	}
+	// Put signature before 2nd child - ie. after Issuer
+	before := response.Query(element[0], "*[2]")[0]
+	err = response.Sign(element[0].(types.Element), before.(types.Element), privatekey, []byte("-"), cert, "sha1")
+	return
+}
+
 /*  NewAuthnRequest - create an AuthnRequest using the supplied metadata for setting the fields according to the following rules:
     - The Destination is the 1st SingleSignOnService with a redirect binding in the idpmetadata
     - The AssertionConsumerServiceURL is the Location of the 1st ACS with a post binding in the spmetadata
@@ -759,7 +835,6 @@ func NewAuthnRequest(originalRequest, spmd, idpmd *goxml.Xp, providerID string) 
   NewResponse - create a new response using the supplied metadata and resp. authnrequest and response for filling out the fields
   The response is primarily for the attributes, but other fields is eg. the AuthnContextClassRef is also drawn from it
 */
-
 func NewResponse(idpmd, spmd, authnrequest, sourceResponse *goxml.Xp) (response *goxml.Xp) {
 	template := `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" xmlns:xs="http://www.w3.org/2001/XMLSchema">
 	<saml:Issuer></saml:Issuer>
@@ -845,24 +920,13 @@ func NewResponse(idpmd, spmd, authnrequest, sourceResponse *goxml.Xp) (response 
 		}
 	}
 
-	//requestedAttributes := spmd.Query(nil, `./md:SPSSODescriptor/md:AttributeConsumingService[1]/md:RequestedAttribute[@isRequired=true()]`)
 	requestedAttributes := spmd.Query(nil, `./md:SPSSODescriptor/md:AttributeConsumingService[1]/md:RequestedAttribute`)
 
 	for _, requestedAttribute := range requestedAttributes {
 		destinationAttributes := response.QueryDashP(nil, `/saml:Assertion/saml:AttributeStatement`, "", nil) // only if there are actually some requested attributes
 
-		// for _, requestedAttribute := range sourceResponse.Query(nil, `//saml:Attribute`) {
 		name, _ := requestedAttribute.(types.Element).GetAttribute("Name")
 		friendlyname, _ := requestedAttribute.(types.Element).GetAttribute("FriendlyName")
-		//nameFormat := requestedAttribute.GetAttr("NameFormat")
-		//log.Println("requestedattribute:", name, nameFormat)
-		// look for a requested attribute with the requested nameformat
-		// TO-DO - xpath escape name and nameFormat
-		// TO-Do - value filtering
-		//attributes := sourceResponse.Query(sourceAttributes[0], `saml:Attribute[@Name="`+name+`" or @Name="`+friendlyname+`" or @FriendlyName="`+friendlyname+`"]`)
-		//log.Println("src attrs", len(attributes), `saml:Attribute[@Name="`+name+`" or @Name="`+friendlyname+`" or @FriendlyName="`+friendlyname+`"]`)
-
-		//attributes := sourceResponse.Query(sourceAttributes, `saml:Attribute[@Name="`+name+`"]`)
 		attribute := attrcache[name.Value()]
 		if attribute == nil {
 			attribute = attrcache[friendlyname.Value()]
@@ -870,7 +934,6 @@ func NewResponse(idpmd, spmd, authnrequest, sourceResponse *goxml.Xp) (response 
 				continue
 			}
 		}
-		//		for _, attribute := range sourceAttributes {
 		newAttribute := response.CopyNode(attribute, 2)
 		destinationAttributes.AddChild(newAttribute)
 		allowedValues := spmd.Query(requestedAttribute, `saml:AttributeValue`)
@@ -884,83 +947,6 @@ func NewResponse(idpmd, spmd, authnrequest, sourceResponse *goxml.Xp) (response 
 				newAttribute.AddChild(response.CopyNode(valueNode, 1))
 			}
 		}
-		//		}
 	}
-	return
-}
-
-func NewErrorResponse(idpmd, spmd, authnrequest, sourceResponse *goxml.Xp) (response *goxml.Xp) {
-	idpEntityID := idpmd.Query1(nil, `/md:EntityDescriptor/@entityID`)
-	response = goxml.NewXpFromNode(*sourceResponse.DocGetRootElement())
-	acs := authnrequest.Query1(nil, "@AssertionConsumerServiceURL")
-	response.QueryDashP(nil, "./@InResponseTo", authnrequest.Query1(nil, "@ID"), nil)
-	response.QueryDashP(nil, "./@Destination", acs, nil)
-	response.QueryDashP(nil, "./saml:Issuer", idpEntityID, nil)
-	return
-}
-
-func NewLogoutRequest(issuer, destination, sourceLogoutRequest *goxml.Xp, sloinfo *SLOInfo) (request *goxml.Xp) {
-	template := `<samlp:LogoutRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0"></samlp:LogoutRequest>`
-	request = goxml.NewXpFromString(template)
-	issueInstant, _, _, _, _ := IdAndTiming()
-
-	slo := destination.Query1(nil, `/md:EntityDescriptor/md:IDPSSODescriptor/md:SingleLogoutService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"]/@Location`)
-	request.QueryDashP(nil, "./@IssueInstant", issueInstant, nil)
-	request.QueryDashP(nil, "./@ID", sourceLogoutRequest.Query1(nil, "@ID"), nil)
-	request.QueryDashP(nil, "./@Destination", slo, nil)
-	request.QueryDashP(nil, "./saml:Issuer", sloinfo.Issuer, nil)
-	request.QueryDashP(nil, "./saml:NameID/@Format", sloinfo.Format, nil)
-	request.QueryDashP(nil, "./saml:NameID/@SPNameQualifier", sloinfo.SPNameQualifier, nil)
-	request.QueryDashP(nil, "./saml:NameID", sloinfo.NameID, nil)
-	return
-}
-
-func NewLogoutResponse(source, destination, request, sourceResponse *goxml.Xp) (response *goxml.Xp) {
-	response = goxml.NewXpFromNode(*sourceResponse.DocGetRootElement())
-	response.QueryDashP(nil, "./@InResponseTo", request.Query1(nil, "@ID"), nil)
-	slo := destination.Query1(nil, `.//md:SingleLogoutService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"]/@Location`)
-	response.QueryDashP(nil, "./@Destination", slo, nil)
-	idpEntityID := source.Query1(nil, `/md:EntityDescriptor/@entityID`)
-	response.QueryDashP(nil, "./saml:Issuer", idpEntityID, nil)
-	return
-}
-
-func NewSLOInfo(response, destination *goxml.Xp) *SLOInfo {
-	entityID := response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Issuer")
-	nameID := response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID")
-	format := response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID/@Format")
-	spnamequalifier := response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID/@SPNameQualifier")
-	issuer := destination.Query1(nil, "@entityID")
-	return &SLOInfo{NameID: nameID, EntityID: entityID, Format: format, SPNameQualifier: spnamequalifier, Issuer: issuer}
-}
-
-func NameIDHash(xp *goxml.Xp, tag string) string {
-	nameID := xp.Query1(nil, "//saml:NameID")
-	format := xp.Query1(nil, "//saml:NameID/@Format")
-	spNameQualifier := xp.Query1(nil, "//saml:NameID/@SPNameQualifier")
-	return fmt.Sprintf("%x", goxml.Hash(crypto.SHA1, tag+"#"+nameID+"#"+format+"#"+spNameQualifier))
-}
-
-func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp) (err error) {
-	cert := md.Query1(nil, "md:IDPSSODescriptor"+signingCertQuery) // actual signing key is always first
-	var keyname string
-	keyname, _, err = PublicKeyInfo(cert)
-	if err != nil {
-		return
-	}
-	var privatekey []byte
-	privatekey, err = ioutil.ReadFile(Config.CertPath + keyname + ".key")
-	if err != nil {
-		return
-	}
-
-	element := response.Query(nil, elementQuery)
-	if len(element) != 1 {
-		err = errors.New("did not find exactly one element to sign")
-		return
-	}
-	// Put signature before 2nd child - ie. after Issuer
-	before := response.Query(element[0], "*[2]")[0]
-	err = response.Sign(element[0].(types.Element), before.(types.Element), privatekey, []byte("-"), cert, "sha1")
 	return
 }
