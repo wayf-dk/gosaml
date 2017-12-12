@@ -27,10 +27,14 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	// . "github.com/y0ssar1an/q"
+	"github.com/y0ssar1an/q"
 )
 
-var _ = log.Printf // For debugging; delete when done.
+var (
+    _ = log.Printf // For debugging; delete when done.
+   	_ = q.Q
+)
+
 
 const (
 	IdPRole = iota
@@ -447,9 +451,11 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 				return
 			}
 			var privatekey []byte
+			//keyname = "2481cb9e1194df81050c7d22b823540b9442112c"
+
 			privatekey, err = ioutil.ReadFile(Config.CertPath + keyname + ".key")
 			if err != nil {
-				return
+				return goxml.Wrap(err)
 			}
 
 			block, _ := pem.Decode(privatekey)
@@ -465,7 +471,10 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 
 			encryptedAssertion := encryptedAssertions[0]
 			encryptedData := xp.Query(encryptedAssertion, "xenc:EncryptedData")[0]
-			decryptedAssertion, _ := xp.Decrypt(encryptedData.(types.Element), priv)
+			decryptedAssertion, err := xp.Decrypt(encryptedData.(types.Element), priv)
+			if err != nil {
+				return err
+			}
 
 			decryptedAssertionElement, _ := decryptedAssertion.Doc.DocumentElement()
 			_ = encryptedAssertion.AddPrevSibling(decryptedAssertionElement)
@@ -475,7 +484,7 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 			// repeat schemacheck
 			_, err = xp.SchemaValidate(Config.SamlSchema)
 			if err != nil {
-				return
+				return err
 			}
 		} else if len(encryptedAssertions) != 0 {
 			err = fmt.Errorf("only 1 EncryptedAssertion allowed, %d found", len(encryptedAssertions))
@@ -486,6 +495,9 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 			signatures := xp.Query(nil, "/samlp:Response[1]/saml:Assertion[1]/ds:Signature[1]/..")
 			if len(signatures) == 1 {
 				providedSignatures++
+				//q.Q(xp.PP())
+				//certificates =xp.Query(nil, ".//ds:X509Certificate")
+                //q.Q(certificates[0].NodeValue())
 				if err = VerifySign(xp, certificates, signatures); err != nil {
 					return
 				}
@@ -581,6 +593,7 @@ func VerifySign(xp *goxml.Xp, certificates, signatures types.NodeList) (err erro
 	verified := 0
 	signerrors := []error{}
 	for _, certificate := range certificates {
+
 		var key *rsa.PublicKey
 		_, key, err = PublicKeyInfo(certificate.NodeValue())
 
