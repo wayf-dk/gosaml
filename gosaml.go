@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"github.com/wayf-dk/go-libxml2/types"
 	"github.com/wayf-dk/goxml"
+	"github.com/y0ssar1an/q"
 	"io"
 	"io/ioutil"
 	"log"
@@ -27,14 +28,12 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"github.com/y0ssar1an/q"
 )
 
 var (
-    _ = log.Printf // For debugging; delete when done.
-   	_ = q.Q
+	_ = log.Printf // For debugging; delete when done.
+	_ = q.Q
 )
-
 
 const (
 	IdPRole = iota
@@ -451,7 +450,6 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 				return
 			}
 			var privatekey []byte
-			//keyname = "2481cb9e1194df81050c7d22b823540b9442112c"
 
 			privatekey, err = ioutil.ReadFile(Config.CertPath + keyname + ".key")
 			if err != nil {
@@ -495,9 +493,6 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 			signatures := xp.Query(nil, "/samlp:Response[1]/saml:Assertion[1]/ds:Signature[1]/..")
 			if len(signatures) == 1 {
 				providedSignatures++
-				//q.Q(xp.PP())
-				//certificates =xp.Query(nil, ".//ds:X509Certificate")
-                //q.Q(certificates[0].NodeValue())
 				if err = VerifySign(xp, certificates, signatures); err != nil {
 					return
 				}
