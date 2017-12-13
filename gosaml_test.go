@@ -159,7 +159,6 @@ func ExampleSigningKeyNotFound() {
 	fmt.Println(err)
 	// Output:
 	// ["cause:open fd666194364791ef937224223c7387f6b26368af.key: no such file or directory"]
-<<<<<<< HEAD
 }
 
 func ExampleUnsupportedEncryptionMethod() {
@@ -174,8 +173,6 @@ func ExampleUnsupportedEncryptionMethod() {
 	fmt.Println(err)
 	// Output:
 	// ["unsupported keyEncryptionMethod","keyEncryptionMethod: http://www.w3.org/2001/04/xmlenc#rsa-1_5"]
-=======
->>>>>>> 93ec43145cab45dd0adda34096b5eae6755ac033
 }
 
 func ExampleInvalidDestination() {
