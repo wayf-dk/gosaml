@@ -47,10 +47,10 @@ var (
 	_  = log.Printf // For debugging; delete when done.
 	wg sync.WaitGroup
 
-	mdq                                                                                                    = "https://phph.wayf.dk/MDQ/"
-	hub, external, internal                                                                                *simplemd // mddb
+	mdq                                                                                                                        = "https://phph.wayf.dk/MDQ/"
+	hub, external, internal                                                                                                    *simplemd // mddb
 	spmetadata, idpmetadata, hubmetadata, encryptedAssertion, response, attributestat, testidpmetadata, testidpviabirkmetadata *goxml.Xp
-	privatekey                                                                                             string
+	privatekey                                                                                                                 string
 )
 
 func SimplePrepareMD(file string) *simplemd {
@@ -81,7 +81,7 @@ func SimplePrepareMD(file string) *simplemd {
 func (m simplemd) MDQ(key string) (xp *goxml.Xp, err error) {
 	xp = m.entities[key]
 	if xp == nil {
-		err = goxml.New("err:Metadata not found", "key:"+key)
+		err = goxml.NewWerror("err:Metadata not found", "key:"+key)
 	}
 	return
 }
@@ -158,7 +158,7 @@ func ExampleSigningKeyNotFound() {
 	_, _, _, _, err := ReceiveSAMLResponse(request, external, external)
 	fmt.Println(err)
 	// Output:
-	// open fd666194364791ef937224223c7387f6b26368af.key: no such file or directory
+	// ["cause:open fd666194364791ef937224223c7387f6b26368af.key: no such file or directory"]
 }
 
 func ExampleInvalidDestination() {
@@ -179,11 +179,11 @@ func ExampleAuthnRequest() {
 	request, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
 	fmt.Print(request.Doc.Dump(false))
 	// Output:
-    // <?xml version="1.0" encoding="UTF-8"?>
-    // <samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" ID="ID" IssueInstant="2014-07-17T01:01:48Z" Destination="https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO" AssertionConsumerServiceURL="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
-    // <saml:Issuer>https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth</saml:Issuer>
-    // <samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" AllowCreate="true"/>
-    // </samlp:AuthnRequest>
+	// <?xml version="1.0" encoding="UTF-8"?>
+	// <samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" ID="ID" IssueInstant="2014-07-17T01:01:48Z" Destination="https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO" AssertionConsumerServiceURL="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
+	// <saml:Issuer>https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth</saml:Issuer>
+	// <samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" AllowCreate="true"/>
+	// </samlp:AuthnRequest>
 }
 
 func ExampleResponse() {
@@ -242,7 +242,7 @@ func ExampleSAMLRequest2Url() {
 	url, err := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	fmt.Println(url, err)
 	// Output:
-    // https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO?SAMLRequest=pJJBb9swDIXv%2FRWC7rbsoEALIU6RNShmoFuD2N1hN8VmagKy5JF00v37IU4yZJdcdpXI970HvvnTZ%2B%2FVHogxhkLnaaYVhCa2GD4K%2FV6%2FJI%2F6aXE3Z9f7wS5H6cIGfo3Aoj57H9hOH4UeKdjoGNkG1wNbaWy1%2FPZqZ2lmB4oSm%2Bj11crtDccMJBiDVj8u1mZHa%2Buz1BcMJ4e3VLanIbZf63qdrN%2BqWqtyVehypVXJPEIZWFyQQs%2By%2FD7JHpL8oc5ym%2BX2%2FvGnVitgweBkwnciA1tjnMPEx48YUj6gNF3adAbbwQwUd%2BjBHOkzs4EWCRoxVfWm1fIS5zkGHnugCmiPDbxvXq%2BERQi3o0CyRzgApc7hNSMI0A5aoMlQIsBiqg632%2BhBupQ5ntlT0PPJ7JSTFv8D4b%2BQubnWvJTiu%2BuhXK2jx%2Ba3eonUO7l9l%2BMLtsluGrVCLjBCEK2W3sfDM4ETKLTQCNos7k7Qf7u3uPsTAAD%2F%2Fw%3D%3D&RelayState=anton-banton <nil>
+	// https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO?SAMLRequest=pJJBb9swDIXv%2FRWC7rbsoEALIU6RNShmoFuD2N1hN8VmagKy5JF00v37IU4yZJdcdpXI970HvvnTZ%2B%2FVHogxhkLnaaYVhCa2GD4K%2FV6%2FJI%2F6aXE3Z9f7wS5H6cIGfo3Aoj57H9hOH4UeKdjoGNkG1wNbaWy1%2FPZqZ2lmB4oSm%2Bj11crtDccMJBiDVj8u1mZHa%2Buz1BcMJ4e3VLanIbZf63qdrN%2BqWqtyVehypVXJPEIZWFyQQs%2By%2FD7JHpL8oc5ym%2BX2%2FvGnVitgweBkwnciA1tjnMPEx48YUj6gNF3adAbbwQwUd%2BjBHOkzs4EWCRoxVfWm1fIS5zkGHnugCmiPDbxvXq%2BERQi3o0CyRzgApc7hNSMI0A5aoMlQIsBiqg632%2BhBupQ5ntlT0PPJ7JSTFv8D4b%2BQubnWvJTiu%2BuhXK2jx%2Ba3eonUO7l9l%2BMLtsluGrVCLjBCEK2W3sfDM4ETKLTQCNos7k7Qf7u3uPsTAAD%2F%2Fw%3D%3D&RelayState=anton-banton <nil>
 }
 
 func ExampleUrl2SAMLRequest() {
@@ -261,7 +261,7 @@ func ExampleDeflate() {
 	req := base64.StdEncoding.EncodeToString(Deflate([]byte(newrequest.Doc.Dump(false))))
 	fmt.Println(req)
 	// Output:
-    // pJJBb9swDIXv/RWC7rbsoEALIU6RNShmoFuD2N1hN8VmagKy5JF00v37IU4yZJdcdpXI970HvvnTZ+/VHogxhkLnaaYVhCa2GD4K/V6/JI/6aXE3Z9f7wS5H6cIGfo3Aoj57H9hOH4UeKdjoGNkG1wNbaWy1/PZqZ2lmB4oSm+j11crtDccMJBiDVj8u1mZHa+uz1BcMJ4e3VLanIbZf63qdrN+qWqtyVehypVXJPEIZWFyQQs+y/D7JHpL8oc5ym+X2/vGnVitgweBkwnciA1tjnMPEx48YUj6gNF3adAbbwQwUd+jBHOkzs4EWCRoxVfWm1fIS5zkGHnugCmiPDbxvXq+ERQi3o0CyRzgApc7hNSMI0A5aoMlQIsBiqg632+hBupQ5ntlT0PPJ7JSTFv8D4b+QubnWvJTiu+uhXK2jx+a3eonUO7l9l+MLtsluGrVCLjBCEK2W3sfDM4ETKLTQCNos7k7Qf7u3uPsTAAD//w==
+	// pJJBb9swDIXv/RWC7rbsoEALIU6RNShmoFuD2N1hN8VmagKy5JF00v37IU4yZJdcdpXI970HvvnTZ+/VHogxhkLnaaYVhCa2GD4K/V6/JI/6aXE3Z9f7wS5H6cIGfo3Aoj57H9hOH4UeKdjoGNkG1wNbaWy1/PZqZ2lmB4oSm+j11crtDccMJBiDVj8u1mZHa+uz1BcMJ4e3VLanIbZf63qdrN+qWqtyVehypVXJPEIZWFyQQs+y/D7JHpL8oc5ym+X2/vGnVitgweBkwnciA1tjnMPEx48YUj6gNF3adAbbwQwUd+jBHOkzs4EWCRoxVfWm1fIS5zkGHnugCmiPDbxvXq+ERQi3o0CyRzgApc7hNSMI0A5aoMlQIsBiqg632+hBupQ5ntlT0PPJ7JSTFv8D4b+QubnWvJTiu+uhXK2jx+a3eonUO7l9l+MLtsluGrVCLjBCEK2W3sfDM4ETKLTQCNos7k7Qf7u3uPsTAAD//w==
 }
 
 func ExampleInflate() {
@@ -270,11 +270,11 @@ func ExampleInflate() {
 	res := Inflate(req)
 	fmt.Println(string(res))
 	// Output:
-    // <?xml version="1.0" encoding="UTF-8"?>
-    // <samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" ID="ID" IssueInstant="2014-07-17T01:01:48Z" Destination="https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO" AssertionConsumerServiceURL="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
-    // <saml:Issuer>https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth</saml:Issuer>
-    // <samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" AllowCreate="true"/>
-    // </samlp:AuthnRequest>
+	// <?xml version="1.0" encoding="UTF-8"?>
+	// <samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" ID="ID" IssueInstant="2014-07-17T01:01:48Z" Destination="https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO" AssertionConsumerServiceURL="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
+	// <saml:Issuer>https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth</saml:Issuer>
+	// <samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" AllowCreate="true"/>
+	// </samlp:AuthnRequest>
 }
 
 func ExampleReceiveAuthnRequestPOST() {
