@@ -8,11 +8,9 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/sha1"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"github.com/wayf-dk/go-libxml2/types"
@@ -89,7 +87,7 @@ func PublicKeyInfo(cert string) (keyname string, publickey *rsa.PublicKey, err e
 		return
 	}
 	publickey = pk.PublicKey.(*rsa.PublicKey)
-	keyname = fmt.Sprintf("%x", sha1.Sum([]byte(fmt.Sprintf("Modulus=%X\n", publickey.N))))
+	keyname = fmt.Sprintf("%x", goxml.Hash(crypto.SHA1, fmt.Sprintf("Modulus=%X\n", publickey.N)))
 	return
 }
 
@@ -255,6 +253,7 @@ func ReceiveLogoutMessage(r *http.Request, issuerMdSet, destinationMdSet Md, rol
 
 func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, protocols []string, checkDestination bool) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, err error) {
 
+	defer r.Body.Close()
 	r.ParseForm()
 	method := r.Method
 
@@ -284,6 +283,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 	if err != nil {
 		err = goxml.Wrap(err)
 		//log.Println("schemaerrors", errs)
+		//q.Q(xp.PP())
 		return
 	}
 
@@ -456,25 +456,15 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 				return goxml.Wrap(err)
 			}
 
-			block, _ := pem.Decode(privatekey)
-			/*
-			   if pw != "-" {
-			       privbytes, _ := x509.DecryptPEMBlock(block, []byte(pw))
-			       priv, _ = x509.ParsePKCS1PrivateKey(privbytes)
-			   } else {
-			       priv, _ = x509.ParsePKCS1PrivateKey(block.Bytes)
-			   }
-			*/
-			priv, _ := x509.ParsePKCS1PrivateKey(block.Bytes)
-
 			encryptedAssertion := encryptedAssertions[0]
 			encryptedData := xp.Query(encryptedAssertion, "xenc:EncryptedData")[0]
-			decryptedAssertion, err := xp.Decrypt(encryptedData.(types.Element), priv)
+			decryptedAssertion, err := xp.Decrypt(encryptedData.(types.Element), privatekey)
 			if err != nil {
 				return err
 			}
 
 			decryptedAssertionElement, _ := decryptedAssertion.Doc.DocumentElement()
+			decryptedAssertionElement = xp.CopyNode(decryptedAssertionElement, 1)
 			_ = encryptedAssertion.AddPrevSibling(decryptedAssertionElement)
 			parent, _ := encryptedAssertion.ParentNode()
 			parent.RemoveChild(encryptedAssertion)
@@ -648,12 +638,12 @@ func VerifyTiming(xp *goxml.Xp) (err error) {
 	case "Response":
 		checks = map[string]timing{
 			"/samlp:Response[1]/@IssueInstant":                                                                                      timing{true, true, true},
-			"/samlp:Response[1]/saml:Assertion[1]/@IssueInstant":                                                                    timing{true, true, true},
+//			"/samlp:Response[1]/saml:Assertion[1]/@IssueInstant":                                                                    timing{true, true, true},
 			"/samlp:Response[1]/saml:Assertion[1]/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@NotOnOrAfter": timing{false, true, false},
 			"/samlp:Response[1]/saml:Assertion[1]/saml:Conditions/@NotBefore":                                                       timing{false, false, true},
 			"/samlp:Response[1]/saml:Assertion[1]/saml:Conditions/@NotOnOrAfter":                                                    timing{false, true, false},
-			"/samlp:Response[1]/saml:Assertion[1]/saml:AuthnStatement/@AuthnInstant":                                                timing{true, true, true},
-			"/samlp:Response[1]/saml:Assertion[1]/saml:AuthnStatement/@SessionNotOnOrAfter":                                         timing{false, true, false},
+//			"/samlp:Response[1]/saml:Assertion[1]/saml:AuthnStatement/@AuthnInstant":                                                timing{true, true, true},
+//			"/samlp:Response[1]/saml:Assertion[1]/saml:AuthnStatement/@SessionNotOnOrAfter":                                         timing{false, true, false},
 		}
 	}
 
@@ -819,8 +809,8 @@ func NewAuthnRequest(originalRequest, spmd, idpmd *goxml.Xp, providerID string) 
 		case "1", "true":
 			request.QueryDashP(nil, "./@IsPassive", "true", nil)
 		}
-		requesterID := originalRequest.Query1(nil, "./saml:Issuer")
-		request.QueryDashP(nil, "./samlp:Scoping/samlp:RequesterID", requesterID, nil)
+		//requesterID := originalRequest.Query1(nil, "./saml:Issuer")
+		//request.QueryDashP(nil, "./samlp:Scoping/samlp:RequesterID", requesterID, nil)
 		if nameIDPolicy := originalRequest.Query1(nil, "./samlp:NameIDPolicy/@Format"); nameIDPolicy != "" {
 			nameIDFormats = append([]string{nameIDPolicy}, nameIDFormats...)
 		}
@@ -835,6 +825,8 @@ func NewAuthnRequest(originalRequest, spmd, idpmd *goxml.Xp, providerID string) 
 		err = errors.New("no supported NameID format")
 		return
 	}
+
+    nameIDFormat = "urn:oasis:names:tc:SAML:1.1:nameid-format:X509SubjectName"
 	request.QueryDashP(nil, "./samlp:NameIDPolicy/@Format", nameIDFormat, nil)
 	return
 }
@@ -849,7 +841,7 @@ func NewResponse(idpmd, spmd, authnrequest, sourceResponse *goxml.Xp) (response 
 	<samlp:Status>
 		<samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success" />
 	</samlp:Status>
-	<saml:Assertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"  Version="2.0">
+	<saml:Assertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0">
 		<saml:Issuer></saml:Issuer>
 		<saml:Subject>
 			<saml:NameID></saml:NameID>
@@ -915,7 +907,7 @@ func NewResponse(idpmd, spmd, authnrequest, sourceResponse *goxml.Xp) (response 
 	response.QueryDashP(authstatement, "saml:AuthnContext/saml:AuthenticatingAuthority", sourceResponse.Query1(nil, "./saml:Issuer"), nil)
 	response.QueryDashP(authstatement, "saml:AuthnContext/saml:AuthnContextClassRef", sourceResponse.Query1(nil, "//saml:AuthnContextClassRef"), nil)
 
-	sourceResponse = goxml.NewXpFromString(sourceResponse.Doc.Dump(true))
+	//sourceResponse = goxml.NewXpFromString(sourceResponse.Doc.Dump(true))
 	sourceAttributes := sourceResponse.Query(nil, `//saml:AttributeStatement/saml:Attribute`)
 
 	attrcache := map[string]types.Element{}
@@ -930,13 +922,13 @@ func NewResponse(idpmd, spmd, authnrequest, sourceResponse *goxml.Xp) (response 
 
 	requestedAttributes := spmd.Query(nil, `./md:SPSSODescriptor/md:AttributeConsumingService[1]/md:RequestedAttribute`)
 
+	destinationAttributes := response.QueryDashP(nil, `/saml:Assertion/saml:AttributeStatement`, "", nil) // only if there are actually some requested attributes
 	for _, requestedAttribute := range requestedAttributes {
-		destinationAttributes := response.QueryDashP(nil, `/saml:Assertion/saml:AttributeStatement`, "", nil) // only if there are actually some requested attributes
 
 		name, _ := requestedAttribute.(types.Element).GetAttribute("Name")
-		friendlyname, _ := requestedAttribute.(types.Element).GetAttribute("FriendlyName")
 		attribute := attrcache[name.Value()]
 		if attribute == nil {
+			friendlyname, _ := requestedAttribute.(types.Element).GetAttribute("FriendlyName")
 			attribute = attrcache[friendlyname.Value()]
 			if attribute == nil {
 				continue
@@ -952,7 +944,8 @@ func NewResponse(idpmd, spmd, authnrequest, sourceResponse *goxml.Xp) (response 
 		for _, valueNode := range sourceResponse.Query(attribute, `saml:AttributeValue`) {
 			value := valueNode.NodeValue()
 			if len(allowedValues) == 0 || allowedValuesMap[value] {
-				newAttribute.AddChild(response.CopyNode(valueNode, 1))
+				valueNode := response.CopyNode(valueNode, 1)
+				newAttribute.AddChild(valueNode)
 			}
 		}
 	}
