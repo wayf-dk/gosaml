@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"github.com/wayf-dk/go-libxml2/types"
 	"github.com/wayf-dk/goxml"
+	"github.com/y0ssar1an/q"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -44,7 +46,9 @@ type (
 )
 
 var (
-	_  = log.Printf // For debugging; delete when done.
+	_ = log.Printf // For debugging; delete when done.
+	_ = q.Q
+
 	wg sync.WaitGroup
 
 	mdq                                                                                                                        = "https://phph.wayf.dk/MDQ/"
@@ -186,10 +190,30 @@ func ExampleAuthnRequest() {
 	// </samlp:AuthnRequest>
 }
 
-func ExampleResponse() {
+func ExampleResponse1() {
 	request, _ := NewAuthnRequest(nil, idpmetadata, spmetadata, "")
-	newResponse := NewResponse(idpmetadata, spmetadata, request, response)
-	fmt.Printf("%x\n", goxml.Hash(crypto.SHA1, newResponse.PP()))
+	for _ = range [1]int{} {
+		for _ = range [1]int{} {
+			_ = NewResponse(idpmetadata, spmetadata, request, response)
+			//_ = goxml.NewXpFromString(template)
+			//time.Sleep(1 * time.Millisecond)
+		}
+		runtime.GC()
+	}
+	//time.Sleep(20 * time.Second)
+	// Output:
+	// abc
+}
+
+func ExampleResponse() {
+	for _ = range [1]int{} {
+		request, _ := NewAuthnRequest(nil, idpmetadata, spmetadata, "")
+		newResponse := NewResponse(idpmetadata, spmetadata, request, response)
+		//response.Xpath.Free()
+		//response.Doc.Free()
+		//	    q.Q(response)
+		fmt.Printf("%x\n", goxml.Hash(crypto.SHA1, newResponse.PP()))
+	}
 	// Output:
 	// 363b0708171e85031beab0fb22923b1f9dded823
 }
@@ -311,12 +335,35 @@ func ExampleReceiveAuthnRequest() {
 	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
+	//fmt.Println(request)
 	_, _, _, relayState, err := ReceiveAuthnRequest(request, external, external)
 	fmt.Println(relayState)
 	fmt.Println(err)
 	// Output:
 	// anton-banton
 	// <nil>
+}
+
+func xTestPP(*testing.T) {
+	for i := range [10]int{} {
+		fmt.Println(i, spmetadata.Doc.Dump(true))
+	}
+}
+
+func TestReceiveAuthnRequest(*testing.T) {
+	i := 0
+	for _ = range [1]int{} {
+		for _ = range [1]int{} {
+			//spmetadata, _ = external.MDQ("https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth")
+			newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+			url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
+			request := httptest.NewRequest("GET", url.String(), nil)
+			_, _, _, _, _ = ReceiveAuthnRequest(request, external, external)
+			i++
+		}
+		log.Println(i)
+		runtime.GC()
+	}
 }
 
 func ExampleNameIDPolicy() {
@@ -359,6 +406,25 @@ func ExampleProtocolCheck() {
 	fmt.Println(err)
 	// Output:
 	// ["cause:schema validation failed"]
+}
+
+func xTestReceiveResponse(*testing.T) {
+	i := 0
+	for _ = range [1]int{} {
+		for _ = range [1]int{} {
+			destination := response.Query1(nil, "@Destination")
+			//response.QueryDashP(nil, "./saml:Assertion[1]/saml:Issuer/ds:Signature", "_4099d6da09c9a1d9fad7f", nil)
+			TestTime, _ = time.Parse(XsDateTime, response.Query1(nil, "@IssueInstant"))
+			data := url.Values{}
+			data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
+			request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
+			request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+			_, _, _, _, _ = ReceiveSAMLResponse(request, external, external)
+			i++
+		}
+		log.Println(i)
+		runtime.GC()
+	}
 }
 
 func ExampleReceiveUnSignedResponse() {
