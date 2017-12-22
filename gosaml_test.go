@@ -165,6 +165,20 @@ func ExampleSigningKeyNotFound() {
 	// ["cause:open fd666194364791ef937224223c7387f6b26368af.key: no such file or directory"]
 }
 
+func ExampleUnsupportedEncryptionMethod() {
+	Config.CertPath = "testdata/"
+	destination := encryptedAssertion.Query1(nil, "@Destination")
+	TestTime, _ = time.Parse(XsDateTime, encryptedAssertion.Query1(nil, "@IssueInstant"))
+	data := url.Values{}
+	data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(encryptedAssertion.Doc.Dump(false))))
+	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
+	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	_, _, _, _, err := ReceiveSAMLResponse(request, external, external)
+	fmt.Println(err)
+	// Output:
+	// ["unsupported keyEncryptionMethod","keyEncryptionMethod: http://www.w3.org/2001/04/xmlenc#rsa-1_5"]
+}
+
 func ExampleInvalidDestination() {
 	destination := response.Query1(nil, "@Destination")
 	response.QueryDashP(nil, "@Destination", "https://www.example.com", nil)
@@ -364,6 +378,15 @@ func TestReceiveAuthnRequest(*testing.T) {
 		log.Println(i)
 		runtime.GC()
 	}
+
+func ExampleLogoutMsgProtocolCheck(){
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
+	request := httptest.NewRequest("GET", url.String(), nil)
+	_, _, _, _, err := ReceiveLogoutMessage(request, external, external, 1)
+	fmt.Println(err)
+	// Output:
+	// expected protocol(s) [LogoutRequest LogoutResponse] not found, got AuthnRequest
 }
 
 func ExampleNameIDPolicy() {
