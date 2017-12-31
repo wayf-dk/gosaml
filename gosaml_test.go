@@ -181,20 +181,32 @@ func ExampleUnsupportedEncryptionMethod() {
 
 func ExampleInvalidDestination() {
 	destination := response.Query1(nil, "@Destination")
-	response.QueryDashP(nil, "@Destination", "https://www.example.com", nil)
+	TestTime, _ = time.Parse(XsDateTime, response.Query1(nil, "@IssueInstant"))
+
+	//response.QueryDashP(nil, "@Destination", "https://www.example.com", nil)
 	data := url.Values{}
 	data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
-	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
-	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-
-	_, _, _, _, err := ReceiveSAMLResponse(request, external, external)
-	fmt.Println(err)
+	for i := range [100]int{} {
+		for _ = range [1000]int{} {
+			request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
+			request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+			_, _, _, _, _ = ReceiveSAMLResponse(request, external, external)
+		}
+		log.Println(i)
+	}
+	time.Sleep(1 * time.Minute)
 	// Output:
 	// destination: https://www.example.com is not here, here is https://wayfsp.wayf.dk/ss/module.php/saml/sp/saml2-acs.php/default-sp
 }
 
 func ExampleAuthnRequest() {
 	request, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+	for i := range [1000]int{} {
+		for _ = range [1000]int{} {
+			request, _ = NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+		}
+		log.Println(i)
+	}
 	fmt.Print(request.Doc.Dump(false))
 	// Output:
 	// <?xml version="1.0" encoding="UTF-8"?>
@@ -206,15 +218,15 @@ func ExampleAuthnRequest() {
 
 func ExampleResponse1() {
 	request, _ := NewAuthnRequest(nil, idpmetadata, spmetadata, "")
-	for _ = range [1]int{} {
-		for _ = range [1]int{} {
+	for i := range [1000]int{} {
+		for _ = range [1000]int{} {
 			_ = NewResponse(idpmetadata, spmetadata, request, response)
 			//_ = goxml.NewXpFromString(template)
 			//time.Sleep(1 * time.Millisecond)
 		}
-		runtime.GC()
+		log.Println(i)
 	}
-	//time.Sleep(20 * time.Second)
+	time.Sleep(20 * time.Second)
 	// Output:
 	// abc
 }
@@ -378,8 +390,9 @@ func TestReceiveAuthnRequest(*testing.T) {
 		log.Println(i)
 		runtime.GC()
 	}
+}
 
-func ExampleLogoutMsgProtocolCheck(){
+func ExampleLogoutMsgProtocolCheck() {
 	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
