@@ -91,6 +91,20 @@ func PublicKeyInfo(cert string) (keyname string, publickey *rsa.PublicKey, err e
 	return
 }
 
+func GetPrivateKey(md *goxml.Xp) (privatekey []byte, err error) {
+    cert := md.Query1(nil, "./md:SPSSODescriptor"+signingCertQuery) // actual signing key is always first
+    keyname, _, err := PublicKeyInfo(cert)
+    if err != nil {
+        return
+    }
+
+    privatekey, err = ioutil.ReadFile(Config.CertPath + keyname + ".key")
+    if err != nil {
+        return
+    }
+    return
+}
+
 // Make a random id
 func Id() (id string) {
 	b := make([]byte, 21) // 168 bits - just over the 160 bit recomendation without base64 padding
