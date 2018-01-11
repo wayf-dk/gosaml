@@ -5,9 +5,10 @@ package gosaml
 import (
 	"bytes"
 	"compress/flate"
-	"crypto"
+	//"crypto"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha1"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
@@ -87,7 +88,7 @@ func PublicKeyInfo(cert string) (keyname string, publickey *rsa.PublicKey, err e
 		return
 	}
 	publickey = pk.PublicKey.(*rsa.PublicKey)
-	keyname = fmt.Sprintf("%x", goxml.Hash(crypto.SHA1, fmt.Sprintf("Modulus=%X\n", publickey.N)))
+	keyname = fmt.Sprintf("%x", sha1.Sum([]byte(fmt.Sprintf("Modulus=%X\n", publickey.N))))
 	return
 }
 
@@ -759,7 +760,7 @@ func NameIDHash(xp *goxml.Xp, tag string) string {
 	nameID := xp.Query1(nil, "//saml:NameID")
 	format := xp.Query1(nil, "//saml:NameID/@Format")
 	spNameQualifier := xp.Query1(nil, "//saml:NameID/@SPNameQualifier")
-	return fmt.Sprintf("%x", goxml.Hash(crypto.SHA1, tag+"#"+nameID+"#"+format+"#"+spNameQualifier))
+	return fmt.Sprintf("%x", sha1.Sum([]byte(tag+"#"+nameID+"#"+format+"#"+spNameQualifier)))
 }
 
 func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp) (err error) {

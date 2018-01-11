@@ -1,7 +1,7 @@
 package gosaml
 
 import (
-	"crypto"
+	"crypto/sha1"
 	"encoding/base64"
 	"fmt"
 	"github.com/wayf-dk/go-libxml2/types"
@@ -183,34 +183,29 @@ func ExampleInvalidDestination() {
 	destination := response.Query1(nil, "@Destination")
 	TestTime, _ = time.Parse(XsDateTime, response.Query1(nil, "@IssueInstant"))
 
-	//response.QueryDashP(nil, "@Destination", "https://www.example.com", nil)
+	response.QueryDashP(nil, "@Destination", "https://www.example.com", nil)
 	data := url.Values{}
 	data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
-	for i := range [100]int{} {
-		for _ = range [1000]int{} {
+	//for i := range [100]int{} {
+	//	for _ = range [1000]int{} {
 			request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
 			request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-			_, _, _, _, _ = ReceiveSAMLResponse(request, external, external)
-		}
-		log.Println(i)
-	}
-	time.Sleep(1 * time.Minute)
+			_, _, _, _, err := ReceiveSAMLResponse(request, external, external)
+	//	}
+	//	log.Println(i)
+	//}
+	//time.Sleep(1 * time.Minute)
+	fmt.Println(err)
 	// Output:
 	// destination: https://www.example.com is not here, here is https://wayfsp.wayf.dk/ss/module.php/saml/sp/saml2-acs.php/default-sp
 }
 
 func ExampleAuthnRequest() {
 	request, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
-	for i := range [1000]int{} {
-		for _ = range [1000]int{} {
-			request, _ = NewAuthnRequest(nil, spmetadata, idpmetadata, "")
-		}
-		log.Println(i)
-	}
 	fmt.Print(request.Doc.Dump(false))
 	// Output:
 	// <?xml version="1.0" encoding="UTF-8"?>
-	// <samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" ID="ID" IssueInstant="2014-07-17T01:01:48Z" Destination="https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO" AssertionConsumerServiceURL="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
+	// <samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" ID="ID" IssueInstant="2017-11-29T12:37:11Z" Destination="https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO" AssertionConsumerServiceURL="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
 	// <saml:Issuer>https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth</saml:Issuer>
 	// <samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" AllowCreate="true"/>
 	// </samlp:AuthnRequest>
@@ -218,30 +213,25 @@ func ExampleAuthnRequest() {
 
 func ExampleResponse1() {
 	request, _ := NewAuthnRequest(nil, idpmetadata, spmetadata, "")
-	for i := range [1000]int{} {
-		for _ = range [1000]int{} {
+	//for i := range [1000]int{} {
+	//	for _ = range [1000]int{} {
 			_ = NewResponse(idpmetadata, spmetadata, request, response)
 			//_ = goxml.NewXpFromString(template)
 			//time.Sleep(1 * time.Millisecond)
-		}
-		log.Println(i)
-	}
-	time.Sleep(20 * time.Second)
+	//	}
+	//	log.Println(i)
+	//}
+	//time.Sleep(20 * time.Second)
 	// Output:
 	// abc
 }
 
 func ExampleResponse() {
-	for _ = range [1]int{} {
-		request, _ := NewAuthnRequest(nil, idpmetadata, spmetadata, "")
-		newResponse := NewResponse(idpmetadata, spmetadata, request, response)
-		//response.Xpath.Free()
-		//response.Doc.Free()
-		//	    q.Q(response)
-		fmt.Printf("%x\n", goxml.Hash(crypto.SHA1, newResponse.PP()))
-	}
+	request, _ := NewAuthnRequest(nil, idpmetadata, spmetadata, "")
+	newResponse := NewResponse(idpmetadata, spmetadata, request, response)
+	fmt.Printf("%x\n", sha1.Sum([]byte(newResponse.PP())))
 	// Output:
-	// 363b0708171e85031beab0fb22923b1f9dded823
+	// ce0532bdfe428d7c9450216a6e9e503a950219e3
 }
 
 func ExampleAttributeCanonicalDump() {
@@ -292,7 +282,7 @@ func ExampleSAMLRequest2Url() {
 	url, err := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	fmt.Println(url, err)
 	// Output:
-	// https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO?SAMLRequest=pJJBb9swDIXv%2FRWC7rbsoEALIU6RNShmoFuD2N1hN8VmagKy5JF00v37IU4yZJdcdpXI970HvvnTZ%2B%2FVHogxhkLnaaYVhCa2GD4K%2FV6%2FJI%2F6aXE3Z9f7wS5H6cIGfo3Aoj57H9hOH4UeKdjoGNkG1wNbaWy1%2FPZqZ2lmB4oSm%2Bj11crtDccMJBiDVj8u1mZHa%2Buz1BcMJ4e3VLanIbZf63qdrN%2BqWqtyVehypVXJPEIZWFyQQs%2By%2FD7JHpL8oc5ym%2BX2%2FvGnVitgweBkwnciA1tjnMPEx48YUj6gNF3adAbbwQwUd%2BjBHOkzs4EWCRoxVfWm1fIS5zkGHnugCmiPDbxvXq%2BERQi3o0CyRzgApc7hNSMI0A5aoMlQIsBiqg632%2BhBupQ5ntlT0PPJ7JSTFv8D4b%2BQubnWvJTiu%2BuhXK2jx%2Ba3eonUO7l9l%2BMLtsluGrVCLjBCEK2W3sfDM4ETKLTQCNos7k7Qf7u3uPsTAAD%2F%2Fw%3D%3D&RelayState=anton-banton <nil>
+	// https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO?SAMLRequest=pJJBj9o%2BEMXvfArL98Qk%2F8P%2BaxFWdNGqkbZdRLI99GaSYTOSY6czE9h%2B%2B4oAFb1w6dWeeb%2F3NG%2Fx%2BNF7dQBijKHQWTrXCkITWwzvhX6rn5P%2F9eNytmDX%2B8GuRunCFn6OwKI%2Beh%2FYTh%2BFHinY6BjZBtcDW2lstfr6YvN0bgeKEpvo9c3K%2FQ3HDCQYg1bfr9byk7XNReozhrPDeyq78xDbL3W9STavVa1VuS50udaqZB6hDCwuSKHzefaQZFmSf6qz3P73YLPsh1ZrYMHgZMJ3IgNbY5zDxMf3GFI%2BojRd2nQG28EMFPfowZzoudlCiwSNmKp61Wp1jfMUA489UAV0wAbeti83wiKEu1EgOSAcgVLn8JYRBGgPLdBkKBFgMVWHu130IF3KHC%2FsKejlZHbKSct%2FgfAfyMLcal5L8c31UK430WPzSz1H6p3cv8vpBdtkP41aIRcYIYhWK%2B%2Fj8YnACRRaaARtlrMz9O%2FuLWe%2FAwAA%2F%2F8%3D&RelayState=anton-banton <nil>
 }
 
 func ExampleUrl2SAMLRequest() {
@@ -311,7 +301,7 @@ func ExampleDeflate() {
 	req := base64.StdEncoding.EncodeToString(Deflate([]byte(newrequest.Doc.Dump(false))))
 	fmt.Println(req)
 	// Output:
-	// pJJBb9swDIXv/RWC7rbsoEALIU6RNShmoFuD2N1hN8VmagKy5JF00v37IU4yZJdcdpXI970HvvnTZ+/VHogxhkLnaaYVhCa2GD4K/V6/JI/6aXE3Z9f7wS5H6cIGfo3Aoj57H9hOH4UeKdjoGNkG1wNbaWy1/PZqZ2lmB4oSm+j11crtDccMJBiDVj8u1mZHa+uz1BcMJ4e3VLanIbZf63qdrN+qWqtyVehypVXJPEIZWFyQQs+y/D7JHpL8oc5ym+X2/vGnVitgweBkwnciA1tjnMPEx48YUj6gNF3adAbbwQwUd+jBHOkzs4EWCRoxVfWm1fIS5zkGHnugCmiPDbxvXq+ERQi3o0CyRzgApc7hNSMI0A5aoMlQIsBiqg632+hBupQ5ntlT0PPJ7JSTFv8D4b+QubnWvJTiu+uhXK2jx+a3eonUO7l9l+MLtsluGrVCLjBCEK2W3sfDM4ETKLTQCNos7k7Qf7u3uPsTAAD//w==
+	// pJJBj9o+EMXvfArL98Qk/8P+axFWdNGqkbZdRLI99GaSYTOSY6czE9h++4oAFb1w6dWeeb/3NG/x+NF7dQBijKHQWTrXCkITWwzvhX6rn5P/9eNytmDX+8GuRunCFn6OwKI+eh/YTh+FHinY6BjZBtcDW2lstfr6YvN0bgeKEpvo9c3K/Q3HDCQYg1bfr9byk7XNReozhrPDeyq78xDbL3W9STavVa1VuS50udaqZB6hDCwuSKHzefaQZFmSf6qz3P73YLPsh1ZrYMHgZMJ3IgNbY5zDxMf3GFI+ojRd2nQG28EMFPfowZzoudlCiwSNmKp61Wp1jfMUA489UAV0wAbeti83wiKEu1EgOSAcgVLn8JYRBGgPLdBkKBFgMVWHu130IF3KHC/sKejlZHbKSct/gfAfyMLcal5L8c31UK430WPzSz1H6p3cv8vpBdtkP41aIRcYIYhWK+/j8YnACRRaaARtlrMz9O/uLWe/AwAA//8=
 }
 
 func ExampleInflate() {
@@ -321,7 +311,7 @@ func ExampleInflate() {
 	fmt.Println(string(res))
 	// Output:
 	// <?xml version="1.0" encoding="UTF-8"?>
-	// <samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" ID="ID" IssueInstant="2014-07-17T01:01:48Z" Destination="https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO" AssertionConsumerServiceURL="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
+	// <samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" ID="ID" IssueInstant="2017-11-29T12:37:11Z" Destination="https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO" AssertionConsumerServiceURL="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
 	// <saml:Issuer>https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth</saml:Issuer>
 	// <samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" AllowCreate="true"/>
 	// </samlp:AuthnRequest>
@@ -600,7 +590,7 @@ func ExampleNoTime2() {
 func ExampleEncryptAndDecrypt() {
 	request, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
 	response := NewResponse(idpmetadata, spmetadata, request, response)
-	fmt.Printf("%x\n", goxml.Hash(crypto.SHA1, response.PP()))
+	fmt.Printf("%x\n", sha1.Sum([]byte(response.PP())))
 	// Output:
 	// 74129b21c6f10cf0052fdb3225cf2e0cc9e73342
 }
