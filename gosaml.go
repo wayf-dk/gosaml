@@ -77,9 +77,10 @@ var (
 	Config                  = Conf{}
 	ACSError                = errors.New("invalid AsssertionConsumerService or AsssertionConsumerServiceIndex")
 )
-
-// PublicKeyInfo extracts the keyname, publickey and cert (base64 DER - no PEM) from the given certificate.
-// The keyname is computed from the public key corresponding to running this command: openssl x509 -modulus -noout -in <cert> | openssl sha1.
+/*
+  PublicKeyInfo extracts the keyname, publickey and cert (base64 DER - no PEM) from the given certificate.
+  The keyname is computed from the public key corresponding to running this command: openssl x509 -modulus -noout -in <cert> | openssl sha1.
+*/
 func PublicKeyInfo(cert string) (keyname string, publickey *rsa.PublicKey, err error) {
 	// no pem so no pem.Decode
 	key, err := base64.StdEncoding.DecodeString(regexp.MustCompile("\\s").ReplaceAllString(cert, ""))
@@ -92,6 +93,9 @@ func PublicKeyInfo(cert string) (keyname string, publickey *rsa.PublicKey, err e
 	return
 }
 
+/*
+  GetPrivateKey extract the key from Metadata and builds a name and reads the key
+*/
 func GetPrivateKey(md *goxml.Xp) (privatekey []byte, err error) {
     cert := md.Query1(nil, "./md:SPSSODescriptor"+signingCertQuery) // actual signing key is always first
     keyname, _, err := PublicKeyInfo(cert)
@@ -105,15 +109,18 @@ func GetPrivateKey(md *goxml.Xp) (privatekey []byte, err error) {
     }
     return
 }
-
-// Make a random id
+/*
+  Make a random id
+*/
 func Id() (id string) {
 	b := make([]byte, 21) // 168 bits - just over the 160 bit recomendation without base64 padding
 	rand.Read(b)
 	return "_" + hex.EncodeToString(b)
 }
 
-// Deflate utility that compresses a string using the flate algo
+/*
+  Deflate utility that compresses a string using the flate algo
+*/
 func Deflate(inflated []byte) []byte {
 	var b bytes.Buffer
 	w, _ := flate.NewWriter(&b, -1)
@@ -121,8 +128,9 @@ func Deflate(inflated []byte) []byte {
 	w.Close()
 	return b.Bytes()
 }
-
-// Inflate utility that decompresses a string using the flate algo
+/*
+  Inflate utility that decompresses a string using the flate algo
+*/
 func Inflate(deflated []byte) []byte {
 	var b bytes.Buffer
 	r := flate.NewReader(bytes.NewReader(deflated))
@@ -131,7 +139,9 @@ func Inflate(deflated []byte) []byte {
 	return b.Bytes()
 }
 
-// Html2SAMLResponse extracts the SAMLResponse from a html document
+/*
+  Html2SAMLResponse extracts the SAMLResponse from a html document
+*/
 func Html2SAMLResponse(html []byte) (samlresponse *goxml.Xp, relayState string) {
 	response := goxml.NewHtmlXp(html)
 	samlbase64 := response.Query1(nil, `//input[@name="SAMLResponse"]/@value`)
@@ -141,7 +151,9 @@ func Html2SAMLResponse(html []byte) (samlresponse *goxml.Xp, relayState string) 
 	return
 }
 
-// Url2SAMLRequest extracts the SAMLRequest from an URL
+/*
+  Url2SAMLRequest extracts the SAMLRequest from an URL
+*/
 func Url2SAMLRequest(url *url.URL, err error) (samlrequest *goxml.Xp, relayState string) {
 	query := url.Query()
 	req, _ := base64.StdEncoding.DecodeString(query.Get("SAMLRequest"))
@@ -150,7 +162,9 @@ func Url2SAMLRequest(url *url.URL, err error) (samlrequest *goxml.Xp, relayState
 	return
 }
 
-// SAMLRequest2Url creates a redirect URL from a saml request
+/*
+  SAMLRequest2Url creates a redirect URL from a saml request
+*/
 func SAMLRequest2Url(samlrequest *goxml.Xp, relayState, privatekey, pw, algo string) (destination *url.URL, err error) {
 	var paramName string
 	switch samlrequest.QueryString(nil, "local-name(/*)") {
@@ -186,6 +200,9 @@ func SAMLRequest2Url(samlrequest *goxml.Xp, relayState, privatekey, pw, algo str
 	return
 }
 
+/*
+  AttributeCanonicalDump
+*/
 func AttributeCanonicalDump(w io.Writer, xp *goxml.Xp) {
 	attrsmap := map[string][]string{}
 	keys := []string{}
@@ -220,6 +237,12 @@ func AttributeCanonicalDump(w io.Writer, xp *goxml.Xp) {
 	}
 }
 
+/*
+  ReceiveAuthnRequest receives the authentication request
+  Checks for Subject and  NameidPolicy(Persistent or Transient)
+  Receives the metadatasets for resp. the sender and the receiver
+  Returns metadata for the sender and the receiver
+*/
 func ReceiveAuthnRequest(r *http.Request, issuerMdSet, destinationMdSet Md) (xp, md, memd *goxml.Xp, relayState string, err error) {
 	xp, md, memd, relayState, err = DecodeSAMLMsg(r, issuerMdSet, destinationMdSet, IdPRole, []string{"AuthnRequest"}, true)
 	if err != nil {
@@ -245,11 +268,12 @@ func ReceiveAuthnRequest(r *http.Request, issuerMdSet, destinationMdSet Md) (xp,
 	return
 }
 
-// ReceiveSAMLResponse handles the SAML minutiae when receiving a SAMLResponse
-// Currently the only supported binding is POST
-// Receives the metadatasets for resp. the sender and the receiver
-// For
-// Returns metadata for the sender and the receiver
+/*
+  ReceiveSAMLResponse handles the SAML minutiae when receiving a SAMLResponse
+  Currently the only supported binding is POST
+  Receives the metadatasets for resp. the sender and the receiver
+  Returns metadata for the sender and the receiver
+*/
 func ReceiveSAMLResponse(r *http.Request, issuerMdSet, destinationMdSet Md) (xp, md, memd *goxml.Xp, relayState string, err error) {
 	xp, md, memd, relayState, err = DecodeSAMLMsg(r, issuerMdSet, destinationMdSet, SPRole, []string{"Response"}, true)
 	if err != nil {
@@ -258,6 +282,11 @@ func ReceiveSAMLResponse(r *http.Request, issuerMdSet, destinationMdSet Md) (xp,
 	return
 }
 
+/*
+  ReceiveLogoutMessage receives the Logout Message
+  Receives the metadatasets for resp. the sender and the receiver
+  Returns metadata for the sender and the receiver
+*/
 func ReceiveLogoutMessage(r *http.Request, issuerMdSet, destinationMdSet Md, role int) (xp, md, memd *goxml.Xp, relayState string, err error) {
 	xp, md, memd, relayState, err = DecodeSAMLMsg(r, issuerMdSet, destinationMdSet, role, []string{"LogoutRequest", "LogoutResponse"}, true)
 	if err != nil {
@@ -266,6 +295,13 @@ func ReceiveLogoutMessage(r *http.Request, issuerMdSet, destinationMdSet Md, rol
 	return
 }
 
+/*
+  DecodeSAMLMsg decodes the Request. Extracts Issuer, Destination
+  Check for Protocol for example (AuthnRequest)
+  Validates the schema
+  Receives the metadatasets for resp. the sender and the receiver
+  Returns metadata for the sender and the receiver
+*/
 func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, protocols []string, checkDestination bool) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, err error) {
 
 	defer r.Body.Close()
@@ -348,6 +384,10 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 	return
 }
 
+/*
+  CheckSAMLMessage checks for Authentication Requests, Reponses and Logout Requests
+  Checks for invalid Bindings. Check for Certificates. Verify Signatures
+*/
 func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err error) {
 
 	providedSignatures := 0
@@ -524,11 +564,10 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 
 	return
 }
-
-// ReceiveAuthnRequest handles the SAML minutiae when receiving a SAMLRequest
-// Supports POST and Redirect bindings
-// Receives the metadatasets for resp. the sender and the receiver
-// Returns metadata for the sender and the receiver
+/*
+  checkDestinationAndACS checks for valid destination
+  Returns Error Otherwise
+*/
 func checkDestinationAndACS(message, issuer, destination *goxml.Xp, role int) (err error) {
 	var checkedDest string
 	var acsIndex string
@@ -589,8 +628,10 @@ func parseQueryRaw(query string) url.Values {
 	return m
 }
 
-// Function to verify Signature
-// Takes Certificate, signature and xp as an input
+/*
+  Function to verify Signature
+  Takes Certificate, signature and xp as an input
+*/
 func VerifySign(xp *goxml.Xp, certificates []string, signatures types.NodeList) (err error) {
 	verified := 0
 	signerrors := []error{}
@@ -626,7 +667,7 @@ func VerifySign(xp *goxml.Xp, certificates []string, signatures types.NodeList) 
 	return
 }
 
-/**
+/*
   Verify the presence and value of timestamps
 */
 func VerifyTiming(xp *goxml.Xp) (err error) {
@@ -711,6 +752,9 @@ func IdAndTiming() (issueInstant, id, assertionId, assertionNotOnOrAfter, sessio
 	return
 }
 
+/*
+  NewErrorResponse makes a new error response with Entityid, issuer, destination and returns the response
+*/
 func NewErrorResponse(idpmd, spmd, authnrequest, sourceResponse *goxml.Xp) (response *goxml.Xp) {
 	idpEntityID := idpmd.Query1(nil, `/md:EntityDescriptor/@entityID`)
 	response = goxml.NewXpFromNode(*sourceResponse.DocGetRootElement())
@@ -721,6 +765,9 @@ func NewErrorResponse(idpmd, spmd, authnrequest, sourceResponse *goxml.Xp) (resp
 	return
 }
 
+/*
+  NewLogoutRequest makes a logout request with issuer destination ... and returns a NewRequest
+*/
 func NewLogoutRequest(issuer, destination, sourceLogoutRequest *goxml.Xp, sloinfo *SLOInfo) (request *goxml.Xp) {
 	template := `<samlp:LogoutRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0"></samlp:LogoutRequest>`
 	request = goxml.NewXpFromString(template)
@@ -737,6 +784,9 @@ func NewLogoutRequest(issuer, destination, sourceLogoutRequest *goxml.Xp, sloinf
 	return
 }
 
+/*
+  NewLogoutResponse creates a Logout Response oon the basis of Logout request
+*/
 func NewLogoutResponse(source, destination, request, sourceResponse *goxml.Xp) (response *goxml.Xp) {
 	response = goxml.NewXpFromNode(*sourceResponse.DocGetRootElement())
 	response.QueryDashP(nil, "./@InResponseTo", request.Query1(nil, "@ID"), nil)
@@ -747,6 +797,9 @@ func NewLogoutResponse(source, destination, request, sourceResponse *goxml.Xp) (
 	return
 }
 
+/*
+  NewSLOInfo extract necessary Logout information
+*/
 func NewSLOInfo(response, destination *goxml.Xp) *SLOInfo {
 	entityID := response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Issuer")
 	nameID := response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID")
@@ -762,7 +815,10 @@ func NameIDHash(xp *goxml.Xp, tag string) string {
 	spNameQualifier := xp.Query1(nil, "//saml:NameID/@SPNameQualifier")
 	return fmt.Sprintf("%x", sha1.Sum([]byte(tag+"#"+nameID+"#"+format+"#"+spNameQualifier)))
 }
-
+/*
+  SignResponse signs the response with sha1.
+  Returns an error if unable to sign.
+*/
 func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp) (err error) {
 	cert := md.Query1(nil, "md:IDPSSODescriptor"+signingCertQuery) // actual signing key is always first
 	var keyname string
@@ -848,7 +904,7 @@ func NewAuthnRequest(originalRequest, spmd, idpmd *goxml.Xp, providerID string) 
 	return
 }
 
-/**
+/*
   NewResponse - create a new response using the supplied metadata and resp. authnrequest and response for filling out the fields
   The response is primarily for the attributes, but other fields is eg. the AuthnContextClassRef is also drawn from it
 */
