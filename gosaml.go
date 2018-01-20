@@ -267,7 +267,6 @@ func ReceiveLogoutMessage(r *http.Request, issuerMdSet, destinationMdSet Md, rol
 }
 
 func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, protocols []string, checkDestination bool) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, err error) {
-
 	defer r.Body.Close()
 	r.ParseForm()
 	method := r.Method
@@ -283,7 +282,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 		}
 	}
 
-	bmsg, err := base64.StdEncoding.DecodeString(msg)
+    bmsg, err := base64.StdEncoding.DecodeString(msg)
 	if err != nil {
 		return
 	}
@@ -293,7 +292,6 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 
 	xp = goxml.NewXp(bmsg)
 	//log.Println("stack", goxml.New().Stack(1))
-	//log.Println("DecodeSAMLMsg", xp.PP())
 	_, err = xp.SchemaValidate(Config.SamlSchema)
 	if err != nil {
 		err = goxml.Wrap(err)
@@ -505,6 +503,7 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 				}
 			}
 		}
+
 	}
 
 	if providedSignatures < minSignatures {
@@ -763,7 +762,7 @@ func NameIDHash(xp *goxml.Xp, tag string) string {
 	return fmt.Sprintf("%x", sha1.Sum([]byte(tag+"#"+nameID+"#"+format+"#"+spNameQualifier)))
 }
 
-func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp) (err error) {
+func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp, signingMethod string) (err error) {
 	cert := md.Query1(nil, "md:IDPSSODescriptor"+signingCertQuery) // actual signing key is always first
 	var keyname string
 	keyname, _, err = PublicKeyInfo(cert)
@@ -783,7 +782,7 @@ func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp) (err er
 	}
 	// Put signature before 2nd child - ie. after Issuer
 	before := response.Query(element[0], "*[2]")[0]
-	err = response.Sign(element[0].(types.Element), before.(types.Element), privatekey, []byte("-"), cert, "sha1")
+	err = response.Sign(element[0].(types.Element), before.(types.Element), privatekey, []byte("-"), cert, signingMethod)
 	return
 }
 
