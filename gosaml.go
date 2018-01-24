@@ -819,7 +819,7 @@ func NameIDHash(xp *goxml.Xp, tag string) string {
   SignResponse signs the response with sha1.
   Returns an error if unable to sign.
 */
-func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp) (err error) {
+func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp, signingMethod string) (err error) {
 	cert := md.Query1(nil, "md:IDPSSODescriptor"+signingCertQuery) // actual signing key is always first
 	var keyname string
 	keyname, _, err = PublicKeyInfo(cert)
@@ -839,7 +839,7 @@ func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp) (err er
 	}
 	// Put signature before 2nd child - ie. after Issuer
 	before := response.Query(element[0], "*[2]")[0]
-	err = response.Sign(element[0].(types.Element), before.(types.Element), privatekey, []byte("-"), cert, "sha1")
+	err = response.Sign(element[0].(types.Element), before.(types.Element), privatekey, []byte("-"), cert, signingMethod)
 	return
 }
 
