@@ -47,6 +47,8 @@ const (
 
 	Transient  = "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
 	Persistent = "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
+	X509       = "urn:oasis:names:tc:SAML:1.1:nameid-format:X509SubjectName"
+	Email      = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
 
 	REDIRECT = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
 	POST     = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
@@ -65,12 +67,10 @@ type (
 	}
 
 	SLOInfo struct {
-		IssuerID, NameID, Format, SPNameQualifier, SessionIndex, DestinationID string
-	}
-
-	SLOInfoMap interface {
-		GetSLOInfo(http.ResponseWriter, *http.Request, string) *SLOInfo
-		PutSLOInfo(http.ResponseWriter, *http.Request, string, *SLOInfo)
+		//		IssuerID, NameID, SPNameQualifier, SessionIndex, DestinationID string
+		Is, Na, Sp, Si, De string
+		//		Format int
+		Fo int
 	}
 )
 
@@ -80,6 +80,8 @@ var (
 	Roles                   = []string{"md:IDPSSODescriptor", "md:SPSSODescriptor"}
 	Config                  = Conf{}
 	ACSError                = errors.New("invalid AsssertionConsumerService or AsssertionConsumerServiceIndex")
+	nameIDList              = []string{Transient, Persistent, X509, Email}
+	nameIDMap               = map[string]int{Transient: 0, Persistent: 1, X509: 2, Email: 3}
 )
 
 /*
@@ -787,23 +789,22 @@ func NewLogoutRequest(issuer, destination, sourceLogoutRequest *goxml.Xp, sloinf
 	request = goxml.NewXpFromString(template)
 	issueInstant, _, _, _, _ := IdAndTiming()
 
-    q.Q(`./`+Roles[role]+`/md:IDPSSODescriptor/md:SingleLogoutService[@Binding="`+REDIRECT+`"]/@Location`)
 	slo := destination.Query1(nil, `./`+Roles[role]+`/md:SingleLogoutService[@Binding="`+REDIRECT+`"]/@Location`)
 	if slo == "" {
-	    err = goxml.NewWerror("cause:no SingleLogoutService found", "entityID:"+destination.Query1(nil, "./@entityID"), "binding:"+REDIRECT)
+		err = goxml.NewWerror("cause:no SingleLogoutService found", "entityID:"+destination.Query1(nil, "./@entityID"), "binding:"+REDIRECT)
 	}
 	request.QueryDashP(nil, "./@IssueInstant", issueInstant, nil)
 	request.QueryDashP(nil, "./@ID", sourceLogoutRequest.Query1(nil, "@ID"), nil)
 	request.QueryDashP(nil, "./@Destination", slo, nil)
-	request.QueryDashP(nil, "./saml:Issuer", issuer.Query1(nil, "./@entityID"), nil)
-	request.QueryDashP(nil, "./saml:NameID/@Format", sloinfo.Format, nil)
-	if sloinfo.SPNameQualifier != "" {
-		request.QueryDashP(nil, "./saml:NameID/@SPNameQualifier", sloinfo.SPNameQualifier, nil)
+	request.QueryDashP(nil, "./saml:Issuer", sloinfo.Is, nil)
+	request.QueryDashP(nil, "./saml:NameID/@Format", nameIDList[sloinfo.Fo], nil)
+	if sloinfo.Sp != "" {
+		request.QueryDashP(nil, "./saml:NameID/@SPNameQualifier", sloinfo.De, nil)
 	}
-	if sloinfo.SessionIndex != "" {
-		request.QueryDashP(nil, "./samlp:SessionIndex", sloinfo.SessionIndex, nil)
+	if sloinfo.Si != "" {
+		request.QueryDashP(nil, "./samlp:SessionIndex", sloinfo.Si, nil)
 	}
-	request.QueryDashP(nil, "./saml:NameID", sloinfo.NameID, nil)
+	request.QueryDashP(nil, "./saml:NameID", sloinfo.Na, nil)
 	return
 }
 
@@ -824,12 +825,17 @@ func NewLogoutResponse(source, destination, request, sourceResponse *goxml.Xp) (
   NewSLOInfo extract necessary Logout information
 */
 func NewSLOInfo(response, destination *goxml.Xp) *SLOInfo {
-	slo := &SLOInfo{IssuerID: response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Issuer"),
-		NameID:          response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID"),
-		Format:          response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID/@Format"),
-		SPNameQualifier: response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID/@SPNameQualifier"),
-		SessionIndex:    response.Query1(nil, "/samlp:Response/saml:Assertion/saml:AuthnStatement/@SessionIndex"),
-		DestinationID:   destination.Query1(nil, "@entityID")}
+	spnq := response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID/@SPNameQualifier")
+	if spnq != "" {
+		spnq = "-"
+	}
+
+	slo := &SLOInfo{Is: response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Issuer"),
+		Na: response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID"),
+		Fo: nameIDMap[response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID/@Format")],
+		Sp: spnq,
+		Si: response.Query1(nil, "/samlp:Response/saml:Assertion/saml:AuthnStatement/@SessionIndex"),
+		De: destination.Query1(nil, "@entityID")}
 	return slo
 }
 
