@@ -514,7 +514,7 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 
 			encryptedAssertion := encryptedAssertions[0]
 			encryptedData := xp.Query(encryptedAssertion, "xenc:EncryptedData")[0]
-			decryptedAssertion, err := xp.Decrypt(encryptedData.(types.Element), privatekey)
+			decryptedAssertion, err := xp.Decrypt(encryptedData.(types.Element), privatekey, []byte("-"))
 			if err != nil {
 				return err
 			}
@@ -757,7 +757,7 @@ func IdAndTiming() (issueInstant, id, assertionId, assertionNotOnOrAfter, sessio
 */
 func NewErrorResponse(idpmd, spmd, authnrequest, sourceResponse *goxml.Xp) (response *goxml.Xp) {
 	idpEntityID := idpmd.Query1(nil, `/md:EntityDescriptor/@entityID`)
-	response = goxml.NewXpFromNode(*sourceResponse.DocGetRootElement())
+	response = goxml.NewXpFromNode(sourceResponse.DocGetRootElement())
 	acs := authnrequest.Query1(nil, "@AssertionConsumerServiceURL")
 	response.QueryDashP(nil, "./@InResponseTo", authnrequest.Query1(nil, "@ID"), nil)
 	response.QueryDashP(nil, "./@Destination", acs, nil)
@@ -788,7 +788,7 @@ func NewLogoutRequest(issuer, destination, sourceLogoutRequest *goxml.Xp, sloinf
   NewLogoutResponse creates a Logout Response oon the basis of Logout request
 */
 func NewLogoutResponse(source, destination, request, sourceResponse *goxml.Xp) (response *goxml.Xp) {
-	response = goxml.NewXpFromNode(*sourceResponse.DocGetRootElement())
+	response = goxml.NewXpFromNode(sourceResponse.DocGetRootElement())
 	response.QueryDashP(nil, "./@InResponseTo", request.Query1(nil, "@ID"), nil)
 	slo := destination.Query1(nil, `.//md:SingleLogoutService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"]/@Location`)
 	response.QueryDashP(nil, "./@Destination", slo, nil)
