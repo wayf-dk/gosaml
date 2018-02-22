@@ -338,7 +338,7 @@ func ExampleReceiveAuthnRequestPOST() {
 	_, _, _, _, err := ReceiveAuthnRequest(request, external, external)
 	fmt.Println(err)
 	// Output:
-	// invalid binding used urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST
+	// No valid binding found in metadata
 }
 
 func ExampleNoAssertion() {

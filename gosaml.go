@@ -52,6 +52,7 @@ const (
 
 	REDIRECT = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
 	POST     = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+	SIMPLESIGN = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST-SimpleSign"
 )
 
 type (
@@ -327,15 +328,15 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 		bmsg = Inflate(bmsg)
 	}
 
-	xp = goxml.NewXp(bmsg)
+	tmpXp := goxml.NewXp(bmsg)
 	//log.Println("stack", goxml.New().Stack(1))
-	_, err = xp.SchemaValidate(Config.SamlSchema)
+	_, err = tmpXp.SchemaValidate(Config.SamlSchema)
 	if err != nil {
 		err = goxml.Wrap(err)
 		return
 	}
 
-	protocol := xp.QueryString(nil, "local-name(/*)")
+	protocol := tmpXp.QueryString(nil, "local-name(/*)")
 	var protocolOK bool
 	for _, expectedProtocol := range protocols {
 		protocolOK = protocolOK || protocol == expectedProtocol
@@ -346,7 +347,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 		return
 	}
 
-	issuer := xp.Query1(nil, "./saml:Issuer")
+	issuer := tmpXp.Query1(nil, "./saml:Issuer")
 	if issuer == "" {
 		err = fmt.Errorf("no issuer found in SAMLRequest/SAMLResponse")
 		return
@@ -357,7 +358,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 		return
 	}
 
-	destination := xp.Query1(nil, "./@Destination")
+	destination := tmpXp.Query1(nil, "./@Destination")
 	if destination == "" {
 		err = fmt.Errorf("no destination found in SAMLRequest/SAMLResponse")
 		return
@@ -377,7 +378,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 		return
 	}
 
-	xp, err = CheckSAMLMessage(r, xp, issuerMd, destinationMd, role)
+	xp, err = CheckSAMLMessage(r, tmpXp, issuerMd, destinationMd, role)
 	if err != nil {
 		return
 	}
@@ -426,22 +427,26 @@ func CheckSAMLMessage(r *http.Request, xp, issuerMd, destinationMd *goxml.Xp, ro
 
 	protocol := xp.QueryString(nil, "local-name(/*)")
 
-	bindings := map[string]string{
-		"GET":  REDIRECT,
-		"POST": POST,
+	bindings := map[string][]string{
+		"GET":  []string{REDIRECT},
+		"POST": []string{POST, SIMPLESIGN},
 	}
 
-	usedBinding := bindings[r.Method]
-	mdRole := Roles[role]
+	var usedBinding string
 	destination := xp.Query1(nil, "./@Destination")
 	validBinding := false
 
-	for _, v := range destinationMd.QueryMulti(nil, `./`+mdRole+`/`+protoChecks[protocol].service+`[@Location=`+strconv.Quote(destination)+`]/@Binding`) {
-		validBinding = validBinding || v == usedBinding
+    findbinding: for _, usedBinding = range bindings[r.Method] {
+        for _, v := range destinationMd.QueryMulti(nil, `./`+Roles[role]+`/`+protoChecks[protocol].service+`[@Location=`+strconv.Quote(destination)+`]/@Binding`) {
+            validBinding = v == usedBinding
+            if validBinding {
+                break findbinding
+            }
+        }
 	}
 
 	if !validBinding || usedBinding == "" {
-		err = errors.New("invalid binding used " + usedBinding)
+		err = errors.New("No valid binding found in metadata")
 		return
 	}
 
@@ -572,6 +577,10 @@ func CheckSAMLMessage(r *http.Request, xp, issuerMd, destinationMd *goxml.Xp, ro
 				}
 			}
 		}
+	}
+
+	if usedBinding == SIMPLESIGN {
+        return nil, goxml.NewWerror("err:SimpleSign not yet supported")
 	}
 
 	// if we don't have a validatedResponse by now we are toast
@@ -797,12 +806,16 @@ func NewLogoutRequest(issuer, destination, sourceLogoutRequest *goxml.Xp, sloinf
 	request.QueryDashP(nil, "./@ID", sourceLogoutRequest.Query1(nil, "@ID"), nil)
 	request.QueryDashP(nil, "./@Destination", slo, nil)
 	request.QueryDashP(nil, "./saml:Issuer", sloinfo.Is, nil)
+	if sourceLogoutRequest.QueryBool(nil, "boolean(./samlp:Extensions/aslo:Asynchronous)") {
+	    request.QueryDashP(nil, "./samlp:Extensions/aslo:Asynchronous", "", nil)
+	}
+
 	request.QueryDashP(nil, "./saml:NameID/@Format", nameIDList[sloinfo.Fo], nil)
 	if sloinfo.Sp != "" {
 		request.QueryDashP(nil, "./saml:NameID/@SPNameQualifier", sloinfo.De, nil)
 	}
 	if sloinfo.Si != "" {
-		request.QueryDashP(nil, "./samlp:SessionIndex", sloinfo.Si, nil)
+//		request.QueryDashP(nil, "./samlp:SessionIndex", sloinfo.Si, nil)
 	}
 	request.QueryDashP(nil, "./saml:NameID", sloinfo.Na, nil)
 	return
@@ -1006,7 +1019,6 @@ func NewResponse(idpmd, spmd, authnrequest, sourceResponse *goxml.Xp) (response 
 
 	//sourceResponse = goxml.NewXpFromString(sourceResponse.Doc.Dump(true))
 	sourceAttributes := sourceResponse.Query(nil, `//saml:AttributeStatement/saml:Attribute`)
-
 	attrcache := map[string]types.Element{}
 	for _, attr := range sourceAttributes {
 		name := sourceResponse.Query1(attr, "@Name")
