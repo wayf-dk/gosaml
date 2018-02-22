@@ -115,8 +115,8 @@ func TestMain(m *testing.M) {
 	spmetadata, _ = external.MDQ("https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth")
 	idpmetadata, _ = external.MDQ("https://aai-logon.switch.ch/idp/shibboleth")
 
-	//	spmetadata = goxml.NewXpFromFile("testdata/spmetadata.xml")   //goxml.NewXp(spmetadatxml)    // NewMD(mdq+"EDUGAIN", "https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth")
-	//	idpmetadata = goxml.NewXpFromFile("testdata/idpmetadata.xml") //goxml.NewXp(idpmetadataxml) // NewMD(mdq+"EDUGAIN", "https://aai-logon.switch.ch/idp/shibboleth")
+	//spmetadata = goxml.NewXpFromFile("testdata/spmetadata.xml")   //goxml.NewXp(spmetadatxml)    // NewMD(mdq+"EDUGAIN", "https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth")
+	//idpmetadata = goxml.NewXpFromFile("testdata/idpmetadata.xml") //goxml.NewXp(idpmetadataxml) // NewMD(mdq+"EDUGAIN", "https://aai-logon.switch.ch/idp/shibboleth")
 	//	hubmetadata = goxml.xpFrNewXpFromFileomFile("testdata/wayfmd.xml")
 	response = goxml.NewXpFromFile("testdata/response.xml")
 	encryptedAssertion = goxml.NewXpFromFile("testdata/encryptedAssertion.xml")
@@ -143,6 +143,77 @@ func TestMain(m *testing.M) {
 	//	testidpmetadata = NewMD(mdq+"HUB-OPS", "https://this.is.not.a.valid.idp")
 	//	testidpviabirkmetadata = NewMD(mdq+"BIRK-OPS", "https://birk.wayf.dk/birk.php/this.is.not.a.valid.idp")
 	os.Exit(m.Run())
+}
+
+func ExampleGetPrivateKey() {
+	pKey, err := GetPrivateKey(spmetadata)
+	fmt.Println(pKey, err)
+	// Output:
+	// [] open f8c19afa414fdc045779d20a63d2f46716fe71ff.key: no such file or directory
+}
+
+func ExampleParseQueryRaw() {
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
+	request := httptest.NewRequest("GET", url.String(), nil)
+	rawValues :=parseQueryRaw(request.URL.RawQuery)
+	fmt.Println(rawValues)
+	// Output:
+	// map[SAMLRequest:[pJJBj9owEIXv%2FArL98TZqK0qi7Cii1aNtO0iku2hN5MMm5EcO52ZAP33FQEqeuHSqz3zvvc0b%2F547L3aAzHGUOiHNNMKQhNbDO%2BFfqufk8%2F6cTGbs%2Bv9YJejdGEDv0ZgUcfeB7bTR6FHCjY6RrbB9cBWGlstv73YPM3sQFFiE72%2BWbm%2F4ZiBBGPQ6sfVWn6ytr5IfcFwdnhPZXseYvu1rtfJ%2BrWqtSpXhS5XWpXMI5SBxQUpdJ5ln5LsIcnyOs9t9sFmH39qtQIWDE4mfCcysDXGOUx8fI8h5QNK06VNZ7AdzEBxhx7MiZ6bDbRI0Iipqletltc4TzHw2ANVQHts4G3zciMsQrgdBZI9wgEodQ5vGUGAdtACTYYSARZTdbjdRg%2FSpczxwp6CXk5mp5y0%2BB8I%2F4XMza3mtRTfXQ%2Flah09Nr%2FVc6Teyf27nF6wTXbTqBVygRGCaLX0Ph6eCJxAoYVG0GYxO0P%2F7d5i9icAAP%2F%2F] RelayState:[anton-banton]]
+}
+
+func ExampleNewLogoutRequestProtocol() {
+	sloInfo := NewSLOInfo(response, spmetadata)
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
+	request1 := httptest.NewRequest("GET", url.String(), nil)
+	request, _, _, _, err := ReceiveLogoutMessage(request1, external, external, 1)
+	logoutRequest := NewLogoutRequest(spmetadata, idpmetadata, request, sloInfo)
+	fmt.Println(logoutRequest, err)
+	// Output:
+	// &{<?xml version="1.0" encoding="utf-8"?>
+	// <samlp:LogoutRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" IssueInstant="2006-01-02T22:04:05Z" ID="ID" Destination=""><saml:Issuer>https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth</saml:Issuer><saml:NameID Format="urn:oasis:names:tc:SAML:2.0:nameid-format:persistent" SPNameQualifier="https://wayfsp.wayf.dk">WAYF-DK-c5bc7e16bb6d28cb5a20b6aad84d1cba2df5c48f</saml:NameID></samlp:LogoutRequest>
+	//  0xc4202a6790 <nil> false} expected protocol(s) [LogoutRequest LogoutResponse] not found, got AuthnRequest
+}
+
+func ExampleNewErrorResponse() {
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+	response := NewErrorResponse(idpmetadata, spmetadata, newrequest, response)
+	fmt.Printf("%x\n", sha1.Sum([]byte(response.PP())))
+	// Output:
+	// 403888d96df54c62791a26d6136aa4be14061347
+}
+
+func ExampleNewLogoutResponse() {
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+	response := NewLogoutResponse(idpmetadata, spmetadata, newrequest, response)
+	fmt.Printf("%x\n", sha1.Sum([]byte(response.PP())))
+	// Output:
+	// 0c1a15f1bc5d209e93d18dc095f03ae8ef101bec
+}
+
+func ExampleNewSLOInfo() {
+	sloInfo := NewSLOInfo(response, spmetadata)
+	fmt.Println(sloInfo)
+	// Output:
+	// &{https://wayf.wayf.dk WAYF-DK-c5bc7e16bb6d28cb5a20b6aad84d1cba2df5c48f urn:oasis:names:tc:SAML:2.0:nameid-format:persistent https://wayfsp.wayf.dk https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth}
+}
+
+func ExampleNewLogoutRequest() {
+	sloInfo := NewSLOInfo(response, spmetadata)
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
+	request1 := httptest.NewRequest("GET", url.String(), nil)
+	//request1.Query(nil, "/samlp:AuthnRequest")[0].SetNodeName("LogoutRequest")
+	request, _, _, _, _ := ReceiveLogoutMessage(request1, external, external, 1)
+	request.Query(nil, "/samlp:AuthnRequest")[0].SetNodeName("LogoutRequest")
+	res := NewLogoutRequest(spmetadata, idpmetadata, request, sloInfo)
+	fmt.Println(res)
+	// Output:
+	// &{<?xml version="1.0" encoding="utf-8"?>
+	// <samlp:LogoutRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" IssueInstant="2006-01-02T22:04:05Z" ID="ID" Destination=""><saml:Issuer>https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth</saml:Issuer><saml:NameID Format="urn:oasis:names:tc:SAML:2.0:nameid-format:persistent" SPNameQualifier="https://wayfsp.wayf.dk">WAYF-DK-c5bc7e16bb6d28cb5a20b6aad84d1cba2df5c48f</saml:NameID></samlp:LogoutRequest>
+	//  0xc42025f588 <nil> false}
+
 }
 
 func ExampleMetadata() { //Previous Result // urn:oasis:names:tc:SAML:2.0:nameid-format:transient
