@@ -162,13 +162,14 @@ func ExampleParseQueryRaw() {
 	// map[SAMLRequest:[pJJBj9owEIXv%2FArL98TZqK0qi7Cii1aNtO0iku2hN5MMm5EcO52ZAP33FQEqeuHSqz3zvvc0b%2F547L3aAzHGUOiHNNMKQhNbDO%2BFfqufk8%2F6cTGbs%2Bv9YJejdGEDv0ZgUcfeB7bTR6FHCjY6RrbB9cBWGlstv73YPM3sQFFiE72%2BWbm%2F4ZiBBGPQ6sfVWn6ytr5IfcFwdnhPZXseYvu1rtfJ%2BrWqtSpXhS5XWpXMI5SBxQUpdJ5ln5LsIcnyOs9t9sFmH39qtQIWDE4mfCcysDXGOUx8fI8h5QNK06VNZ7AdzEBxhx7MiZ6bDbRI0Iipqletltc4TzHw2ANVQHts4G3zciMsQrgdBZI9wgEodQ5vGUGAdtACTYYSARZTdbjdRg%2FSpczxwp6CXk5mp5y0%2BB8I%2F4XMza3mtRTfXQ%2Flah09Nr%2FVc6Teyf27nF6wTXbTqBVygRGCaLX0Ph6eCJxAoYVG0GYxO0P%2F7d5i9icAAP%2F%2F] RelayState:[anton-banton]]
 }
 
-func ExampleNewLogoutRequestProtocol() {
+func xExampleNewLogoutRequestProtocol() {
 	sloInfo := NewSLOInfo(response, spmetadata)
 	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request1 := httptest.NewRequest("GET", url.String(), nil)
 	request, _, _, _, err := ReceiveLogoutMessage(request1, external, external, 1)
-	logoutRequest := NewLogoutRequest(spmetadata, idpmetadata, request, sloInfo)
+	q.Q(request, err)
+	logoutRequest, err := NewLogoutRequest(spmetadata, idpmetadata, request, sloInfo, IdPRole)
 	fmt.Println(logoutRequest, err)
 	// Output:
 	// &{<?xml version="1.0" encoding="utf-8"?>
@@ -194,12 +195,13 @@ func ExampleNewLogoutResponse() {
 
 func ExampleNewSLOInfo() {
 	sloInfo := NewSLOInfo(response, spmetadata)
+//	q.Q(sloInfo)
 	fmt.Println(sloInfo)
 	// Output:
-	// &{https://wayf.wayf.dk WAYF-DK-c5bc7e16bb6d28cb5a20b6aad84d1cba2df5c48f urn:oasis:names:tc:SAML:2.0:nameid-format:persistent https://wayfsp.wayf.dk https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth}
+	// &{https://wayf.wayf.dk WAYF-DK-c5bc7e16bb6d28cb5a20b6aad84d1cba2df5c48f -  https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth 1}
 }
 
-func ExampleNewLogoutRequest() {
+func xExampleNewLogoutRequest() {
 	sloInfo := NewSLOInfo(response, spmetadata)
 	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
@@ -207,8 +209,8 @@ func ExampleNewLogoutRequest() {
 	//request1.Query(nil, "/samlp:AuthnRequest")[0].SetNodeName("LogoutRequest")
 	request, _, _, _, _ := ReceiveLogoutMessage(request1, external, external, 1)
 	request.Query(nil, "/samlp:AuthnRequest")[0].SetNodeName("LogoutRequest")
-	res := NewLogoutRequest(spmetadata, idpmetadata, request, sloInfo)
-	fmt.Println(res)
+	res, err := NewLogoutRequest(spmetadata, idpmetadata, request, sloInfo, IdPRole)
+	fmt.Println(res, err)
 	// Output:
 	// &{<?xml version="1.0" encoding="utf-8"?>
 	// <samlp:LogoutRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" IssueInstant="2006-01-02T22:04:05Z" ID="ID" Destination=""><saml:Issuer>https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth</saml:Issuer><saml:NameID Format="urn:oasis:names:tc:SAML:2.0:nameid-format:persistent" SPNameQualifier="https://wayfsp.wayf.dk">WAYF-DK-c5bc7e16bb6d28cb5a20b6aad84d1cba2df5c48f</saml:NameID></samlp:LogoutRequest>
