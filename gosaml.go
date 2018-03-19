@@ -5,14 +5,17 @@ package gosaml
 import (
 	"bytes"
 	"compress/flate"
-	"crypto"
+	//"crypto"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha1"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/xml"
 	"errors"
 	"fmt"
+	//"github.com/wayf-dk/go-libxml2/clib"
 	"github.com/wayf-dk/go-libxml2/types"
 	"github.com/wayf-dk/goxml"
 	"github.com/y0ssar1an/q"
@@ -39,12 +42,23 @@ const (
 )
 
 const (
+	SAMLSign  = iota
+	WSFedSign = iota
+)
+
+const (
 	XsDateTime          = "2006-01-02T15:04:05Z"
-	signingCertQuery    = `/md:KeyDescriptor[@use="signing" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
-	encryptionCertQuery = `./md:SPSSODescriptor/md:KeyDescriptor[@use="encryption" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
+	SigningCertQuery    = `/md:KeyDescriptor[@use="signing" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
+	EncryptionCertQuery = `/md:KeyDescriptor[@use="encryption" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
 
 	Transient  = "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
 	Persistent = "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
+	X509       = "urn:oasis:names:tc:SAML:1.1:nameid-format:X509SubjectName"
+	Email      = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
+
+	REDIRECT   = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+	POST       = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+	SIMPLESIGN = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST-SimpleSign"
 )
 
 type (
@@ -56,16 +70,15 @@ type (
 	Conf struct {
 		SamlSchema    string
 		CertPath      string
+		LogPath       string
 		NameIDFormats []string
 	}
 
 	SLOInfo struct {
-		EntityID, NameID, Format, SPNameQualifier, Issuer string
-	}
-
-	SLOInfoMap interface {
-		GetSLOInfo(http.ResponseWriter, *http.Request, string) *SLOInfo
-		PutSLOInfo(http.ResponseWriter, *http.Request, string, *SLOInfo)
+		//		IssuerID, NameID, SPNameQualifier, SessionIndex, DestinationID string
+		Is, Na, Sp, Si, De string
+		//		Format int
+		Fo int
 	}
 )
 
@@ -75,10 +88,24 @@ var (
 	Roles                   = []string{"md:IDPSSODescriptor", "md:SPSSODescriptor"}
 	Config                  = Conf{}
 	ACSError                = errors.New("invalid AsssertionConsumerService or AsssertionConsumerServiceIndex")
+	nameIDList              = []string{Transient, Persistent, X509, Email}
+	nameIDMap               = map[string]int{Transient: 0, Persistent: 1, X509: 2, Email: 3}
 )
 
-// PublicKeyInfo extracts the keyname, publickey and cert (base64 DER - no PEM) from the given certificate.
-// The keyname is computed from the public key corresponding to running this command: openssl x509 -modulus -noout -in <cert> | openssl sha1.
+func DumpFile(xp *goxml.Xp) (logtag string) {
+	logtag = time.Now().Format("2006-01-02T15:04:05.0000000") // local time with microseconds
+	msgType := xp.QueryString(nil, "local-name(/*)")
+	//log.Println("stack", goxml.New().Stack(1))
+	if err := ioutil.WriteFile(fmt.Sprintf("log/%s-%s", logtag, msgType), []byte(fmt.Sprintf("%s\n###\n%s", xp.PP(), goxml.NewWerror("").Stack(1))), 0644); err != nil {
+		log.Panic(err)
+	}
+	return
+}
+
+/*
+  PublicKeyInfo extracts the keyname, publickey and cert (base64 DER - no PEM) from the given certificate.
+  The keyname is computed from the public key corresponding to running this command: openssl x509 -modulus -noout -in <cert> | openssl sha1.
+*/
 func PublicKeyInfo(cert string) (keyname string, publickey *rsa.PublicKey, err error) {
 	// no pem so no pem.Decode
 	key, err := base64.StdEncoding.DecodeString(regexp.MustCompile("\\s").ReplaceAllString(cert, ""))
@@ -87,18 +114,39 @@ func PublicKeyInfo(cert string) (keyname string, publickey *rsa.PublicKey, err e
 		return
 	}
 	publickey = pk.PublicKey.(*rsa.PublicKey)
-	keyname = fmt.Sprintf("%x", goxml.Hash(crypto.SHA1, fmt.Sprintf("Modulus=%X\n", publickey.N)))
+	keyname = fmt.Sprintf("%x", sha1.Sum([]byte(fmt.Sprintf("Modulus=%X\n", publickey.N))))
 	return
 }
 
-// Make a random id
+/*
+  GetPrivateKey extract the key from Metadata and builds a name and reads the key
+*/
+func GetPrivateKey(md *goxml.Xp) (privatekey []byte, err error) {
+	cert := md.Query1(nil, "./md:SPSSODescriptor"+SigningCertQuery) // actual signing key is always first
+	keyname, _, err := PublicKeyInfo(cert)
+	if err != nil {
+		return
+	}
+
+	privatekey, err = ioutil.ReadFile(Config.CertPath + keyname + ".key")
+	if err != nil {
+		return
+	}
+	return
+}
+
+/*
+  Make a random id
+*/
 func Id() (id string) {
 	b := make([]byte, 21) // 168 bits - just over the 160 bit recomendation without base64 padding
 	rand.Read(b)
 	return "_" + hex.EncodeToString(b)
 }
 
-// Deflate utility that compresses a string using the flate algo
+/*
+  Deflate utility that compresses a string using the flate algo
+*/
 func Deflate(inflated []byte) []byte {
 	var b bytes.Buffer
 	w, _ := flate.NewWriter(&b, -1)
@@ -107,7 +155,9 @@ func Deflate(inflated []byte) []byte {
 	return b.Bytes()
 }
 
-// Inflate utility that decompresses a string using the flate algo
+/*
+  Inflate utility that decompresses a string using the flate algo
+*/
 func Inflate(deflated []byte) []byte {
 	var b bytes.Buffer
 	r := flate.NewReader(bytes.NewReader(deflated))
@@ -116,7 +166,9 @@ func Inflate(deflated []byte) []byte {
 	return b.Bytes()
 }
 
-// Html2SAMLResponse extracts the SAMLResponse from a html document
+/*
+  Html2SAMLResponse extracts the SAMLResponse from a html document
+*/
 func Html2SAMLResponse(html []byte) (samlresponse *goxml.Xp, relayState string) {
 	response := goxml.NewHtmlXp(html)
 	samlbase64 := response.Query1(nil, `//input[@name="SAMLResponse"]/@value`)
@@ -126,7 +178,9 @@ func Html2SAMLResponse(html []byte) (samlresponse *goxml.Xp, relayState string) 
 	return
 }
 
-// Url2SAMLRequest extracts the SAMLRequest from an URL
+/*
+  Url2SAMLRequest extracts the SAMLRequest from an URL
+*/
 func Url2SAMLRequest(url *url.URL, err error) (samlrequest *goxml.Xp, relayState string) {
 	query := url.Query()
 	req, _ := base64.StdEncoding.DecodeString(query.Get("SAMLRequest"))
@@ -135,7 +189,9 @@ func Url2SAMLRequest(url *url.URL, err error) (samlrequest *goxml.Xp, relayState
 	return
 }
 
-// SAMLRequest2Url creates a redirect URL from a saml request
+/*
+  SAMLRequest2Url creates a redirect URL from a saml request
+*/
 func SAMLRequest2Url(samlrequest *goxml.Xp, relayState, privatekey, pw, algo string) (destination *url.URL, err error) {
 	var paramName string
 	switch samlrequest.QueryString(nil, "local-name(/*)") {
@@ -145,7 +201,8 @@ func SAMLRequest2Url(samlrequest *goxml.Xp, relayState, privatekey, pw, algo str
 		paramName = "SAMLRequest="
 	}
 
-	req := base64.StdEncoding.EncodeToString(Deflate([]byte(samlrequest.Doc.Dump(false))))
+	DumpFile(samlrequest)
+	req := base64.StdEncoding.EncodeToString(Deflate(samlrequest.Dump()))
 
 	destination, _ = url.Parse(samlrequest.Query1(nil, "@Destination"))
 	q := paramName + url.QueryEscape(req)
@@ -171,14 +228,17 @@ func SAMLRequest2Url(samlrequest *goxml.Xp, relayState, privatekey, pw, algo str
 	return
 }
 
+/*
+  AttributeCanonicalDump
+*/
 func AttributeCanonicalDump(w io.Writer, xp *goxml.Xp) {
 	attrsmap := map[string][]string{}
 	keys := []string{}
 	attrs := xp.Query(nil, "./saml:Assertion/saml:AttributeStatement/saml:Attribute")
 	for _, attr := range attrs {
 		values := []string{}
-		for _, value := range xp.Query(attr, "saml:AttributeValue") {
-			values = append(values, value.NodeValue())
+		for _, value := range xp.QueryMulti(attr, "saml:AttributeValue") {
+			values = append(values, value)
 		}
 		name := xp.Query1(attr, "@Name") + " "
 		friendlyName := xp.Query1(attr, "@FriendlyName") + " "
@@ -198,15 +258,22 @@ func AttributeCanonicalDump(w io.Writer, xp *goxml.Xp) {
 		sort.Strings(values)
 		for _, value := range values {
 			if value != "" {
-				fmt.Fprint(w, "    "+strings.TrimSpace(value))
+				fmt.Fprint(w, "    ")
+				xml.EscapeText(w, bytes.TrimSpace([]byte(value)))
 			}
 			fmt.Fprintln(w)
 		}
 	}
 }
 
-func ReceiveAuthnRequest(r *http.Request, issuerMdSet, destinationMdSet Md) (xp, md, memd *goxml.Xp, relayState string, err error) {
-	xp, md, memd, relayState, err = DecodeSAMLMsg(r, issuerMdSet, destinationMdSet, IdPRole, []string{"AuthnRequest"}, true)
+/*
+  ReceiveAuthnRequest receives the authentication request
+  Checks for Subject and  NameidPolicy(Persistent or Transient)
+  Receives the metadatasets for resp. the sender and the receiver
+  Returns metadata for the sender and the receiver
+*/
+func ReceiveAuthnRequest(r *http.Request, issuerMdSet, destinationMdSet Md) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, err error) {
+	xp, issuerMd, destinationMd, relayState, err = DecodeSAMLMsg(r, issuerMdSet, destinationMdSet, IdPRole, []string{"AuthnRequest"}, true)
 	if err != nil {
 		return
 	}
@@ -230,29 +297,33 @@ func ReceiveAuthnRequest(r *http.Request, issuerMdSet, destinationMdSet Md) (xp,
 	return
 }
 
-// ReceiveSAMLResponse handles the SAML minutiae when receiving a SAMLResponse
-// Currently the only supported binding is POST
-// Receives the metadatasets for resp. the sender and the receiver
-// For
-// Returns metadata for the sender and the receiver
-func ReceiveSAMLResponse(r *http.Request, issuerMdSet, destinationMdSet Md) (xp, md, memd *goxml.Xp, relayState string, err error) {
-	xp, md, memd, relayState, err = DecodeSAMLMsg(r, issuerMdSet, destinationMdSet, SPRole, []string{"Response"}, true)
-	if err != nil {
-		return
-	}
-	return
+/*
+  ReceiveSAMLResponse handles the SAML minutiae when receiving a SAMLResponse
+  Currently the only supported binding is POST
+  Receives the metadatasets for resp. the sender and the receiver
+  Returns metadata for the sender and the receiver
+*/
+func ReceiveSAMLResponse(r *http.Request, issuerMdSet, destinationMdSet Md) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, err error) {
+	return DecodeSAMLMsg(r, issuerMdSet, destinationMdSet, SPRole, []string{"Response"}, true)
 }
 
-func ReceiveLogoutMessage(r *http.Request, issuerMdSet, destinationMdSet Md, role int) (xp, md, memd *goxml.Xp, relayState string, err error) {
-	xp, md, memd, relayState, err = DecodeSAMLMsg(r, issuerMdSet, destinationMdSet, role, []string{"LogoutRequest", "LogoutResponse"}, true)
-	if err != nil {
-		return
-	}
-	return
+/*
+  ReceiveLogoutMessage receives the Logout Message
+  Receives the metadatasets for resp. the sender and the receiver
+  Returns metadata for the sender and the receiver
+*/
+func ReceiveLogoutMessage(r *http.Request, issuerMdSet, destinationMdSet Md, role int) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, err error) {
+	return DecodeSAMLMsg(r, issuerMdSet, destinationMdSet, role, []string{"LogoutRequest", "LogoutResponse"}, true)
 }
 
+/*
+  DecodeSAMLMsg decodes the Request. Extracts Issuer, Destination
+  Check for Protocol for example (AuthnRequest)
+  Validates the schema
+  Receives the metadatasets for resp. the sender and the receiver
+  Returns metadata for the sender and the receiver
+*/
 func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, protocols []string, checkDestination bool) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, err error) {
-
 	defer r.Body.Close()
 	r.ParseForm()
 	method := r.Method
@@ -263,8 +334,11 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 	if msg == "" {
 		msg = r.Form.Get("SAMLResponse")
 		if msg == "" {
-			err = fmt.Errorf("no SAMLRequest/SAMLResponse found")
-			return
+			msg, relayState = wsfedRequest2samlRequest(r, issuerMdSet, destinationMdSet)
+			if msg == "" {
+				err = fmt.Errorf("no SAMLRequest/SAMLResponse found")
+				return
+			}
 		}
 	}
 
@@ -276,18 +350,17 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 		bmsg = Inflate(bmsg)
 	}
 
-	xp = goxml.NewXp(bmsg)
+	tmpXp := goxml.NewXp(bmsg)
+
+	logtag := DumpFile(tmpXp)
 	//log.Println("stack", goxml.New().Stack(1))
-	//log.Println("DecodeSAMLMsg", xp.PP())
-	_, err = xp.SchemaValidate(Config.SamlSchema)
+	_, err = tmpXp.SchemaValidate(Config.SamlSchema)
 	if err != nil {
 		err = goxml.Wrap(err)
-		//log.Println("schemaerrors", errs)
-		//q.Q(xp.PP())
 		return
 	}
 
-	protocol := xp.QueryString(nil, "local-name(/*)")
+	protocol := tmpXp.QueryString(nil, "local-name(/*)")
 	var protocolOK bool
 	for _, expectedProtocol := range protocols {
 		protocolOK = protocolOK || protocol == expectedProtocol
@@ -298,17 +371,18 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 		return
 	}
 
-	issuer := xp.Query1(nil, "./saml:Issuer")
+	issuer := tmpXp.Query1(nil, "./saml:Issuer")
 	if issuer == "" {
 		err = fmt.Errorf("no issuer found in SAMLRequest/SAMLResponse")
 		return
 	}
+
 	issuerMd, err = issuerMdSet.MDQ(issuer)
 	if err != nil {
 		return
 	}
 
-	destination := xp.Query1(nil, "./@Destination")
+	destination := tmpXp.Query1(nil, "./@Destination")
 	if destination == "" {
 		err = fmt.Errorf("no destination found in SAMLRequest/SAMLResponse")
 		return
@@ -323,93 +397,132 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 		}
 	}
 
+
+/*
+    if r.Host == "krib.wayf.dk" {
+        destination = "{sha1}"+strings.Split(r.URL.Path, "/")[1]
+    }
+q.Q(r.URL.Path, destination)
+*/
+
 	destinationMd, err = destinationMdSet.MDQ(destination)
 	if err != nil {
 		return
 	}
 
-	err = CheckSAMLMessage(r, xp, issuerMd, destinationMd, role)
-
-	return
-}
-
-func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err error) {
-
-	providedSignatures := 0
-
-	// Look for Bindings for the destination in metadata
-	// We don't check that we are the destination here - that should be done in the specific Functions,
-	// otherwise we won't be able to let responses go to a test sp
-	service := ""
-	minSignatures := 1
-	switch xp.QueryString(nil, "local-name(/*)") {
-	case "LogoutRequest", "LogoutResponse":
-		minSignatures = 0
-		service = "md:SingleLogoutService"
-	case "Response":
-		service = "md:AssertionConsumerService"
-	case "AuthnRequest":
-		minSignatures = 0
-		service = "md:SingleSignOnService"
-	}
-
-	bindings := map[string]string{
-		"GET":  "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect",
-		"POST": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST",
-	}
-	usedBinding := bindings[r.Method]
-
-	checkSignatures := minSignatures > 0
-	mdRole := Roles[role]
-	destination := xp.Query1(nil, "./@Destination")
-
-	validBinding := false
-	for _, v := range memd.QueryMulti(nil, `./`+mdRole+`/`+service+`[@Location=`+strconv.Quote(destination)+`]/@Binding`) {
-		validBinding = validBinding || v == usedBinding
-	}
-
-	if !validBinding || usedBinding == "" {
-		err = errors.New("invalid binding used " + usedBinding)
+	xp, err = CheckSAMLMessage(r, tmpXp, issuerMd, destinationMd, role)
+	if err != nil {
+		err = goxml.Wrap(err, "logtag:"+logtag)
 		return
 	}
 
-	certificates := md.Query(nil, `./`+Roles[(role+1)%2]+signingCertQuery) // the issuer's role
+	xp, err = checkDestinationAndACS(xp, issuerMd, destinationMd, role)
+	if err != nil {
+		return
+	}
+
+	xp, err = VerifyTiming(xp)
+	if err != nil {
+		return
+	}
+	return
+}
+
+/*
+  CheckSAMLMessage checks for Authentication Requests, Reponses and Logout Requests
+  Checks for invalid Bindings. Check for Certificates. Verify Signatures
+*/
+func CheckSAMLMessage(r *http.Request, xp, issuerMd, destinationMd *goxml.Xp, role int) (validatedMessage *goxml.Xp, err error) {
+	type protoCheckInfoStruct struct {
+		minSignatures     int
+		service           string
+		signatureElements []string
+		checks            []string
+	}
+	// add checks for xtra element on top level in tests - does schema checks handle that or should we do it here???
+	protoChecks := map[string]protoCheckInfoStruct{
+		"AuthnRequest": {
+			minSignatures:     0,
+			service:           "md:SingleSignOnService",
+			signatureElements: []string{"/samlp:AuthnRequest[1]/ds:Signature[1]/..]", ""}},
+		"Response": {
+			minSignatures:     1,
+			service:           "md:AssertionConsumerService",
+			signatureElements: []string{"/samlp:Response[1]/ds:Signature[1]/..", "/samlp:Response[1]/saml:Assertion[1]/ds:Signature[1]/.."},
+			checks:            []string{"count(/samlp:Response/saml:Assertion) = 1", "/samlp:Response/saml:Issuer = /samlp:Response/saml:Assertion/saml:Issuer"}},
+		"LogoutRequest": {
+			minSignatures:     0,
+			service:           "md:SingleLogoutService",
+			signatureElements: []string{"/samlp:LogoutRequest[1]/ds:Signature[1]/..", ""}},
+		"LogoutResponse": {
+			minSignatures:     0,
+			service:           "md:SingleLogoutService",
+			signatureElements: []string{"/samlp:LogoutResponse[1]/ds:Signature[1]/..", ""}},
+	}
+
+	protocol := xp.QueryString(nil, "local-name(/*)")
+
+	bindings := map[string][]string{
+		"GET":  []string{REDIRECT},
+		"POST": []string{POST, SIMPLESIGN},
+	}
+
+	var usedBinding string
+	destination := xp.Query1(nil, "./@Destination")
+	validBinding := false
+
+findbinding:
+	for _, usedBinding = range bindings[r.Method] {
+		for _, v := range destinationMd.QueryMulti(nil, `./`+Roles[role]+`/`+protoChecks[protocol].service+`[@Location=`+strconv.Quote(destination)+`]/@Binding`) {
+			validBinding = v == usedBinding
+			if validBinding {
+				break findbinding
+			}
+		}
+	}
+
+	if !validBinding || usedBinding == "" {
+		err = errors.New("No valid binding found in metadata")
+		return
+	}
+
+	certificates := issuerMd.QueryMulti(nil, `./`+Roles[(role+1)%2]+SigningCertQuery) // the issuer's role
 
 	if len(certificates) == 0 {
 		err = errors.New("no certificates found in metadata")
 		return
 	}
 
-	if checkSignatures && usedBinding == "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" {
-		sigAlg := ""
+	if usedBinding == REDIRECT {
+		if _, ok := r.Form["SigAlg"]; !ok && protoChecks[protocol].minSignatures <= 0 {
+			return xp, nil
+		}
 		rawValues := parseQueryRaw(r.URL.RawQuery)
-		q := ""
-		if _, ok := rawValues["SAMLRequest"]; ok {
-			q += "SAMLRequest=" + rawValues["SAMLRequest"][0]
-		}
-		if _, ok := rawValues["SAMLResponse"]; ok {
-			q += "SAMLResponse=" + rawValues["SAMLResponse"][0]
-		}
-		if _, ok := rawValues["RelayState"]; ok {
-			q += "&RelayState=" + rawValues["RelayState"][0]
-		}
-		if _, ok := rawValues["SigAlg"]; ok {
-			q += "&SigAlg=" + rawValues["SigAlg"][0]
-			sigAlg = r.Form.Get("SigAlg") // needed as decoded value
+		query := ""
+		delim := ""
+		for _, key := range []string{"SAMLRequest", "SAMLResponse", "RelayState", "SigAlg"} {
+			if rw, ok := rawValues[key]; ok {
+				query += delim + key + "=" + rw[0]
+				delim = "&"
+			}
 		}
 
-		digest := goxml.Hash(goxml.Algos[sigAlg].Algo, q)
+		sigAlg := r.Form.Get("SigAlg") // needed as decoded value
+		if _, ok := goxml.Algos[sigAlg]; !ok {
+			return nil, goxml.NewWerror("unsupported SigAlg", sigAlg)
+		}
+		digest := goxml.Hash(goxml.Algos[sigAlg].Algo, query)
+		signature, _ := base64.StdEncoding.DecodeString(r.Form.Get("Signature"))
 
 		verified := 0
 		signerrors := []error{}
 		for _, certificate := range certificates {
 			var pub *rsa.PublicKey
-			_, pub, err = PublicKeyInfo(certificate.NodeValue())
+			_, pub, err = PublicKeyInfo(certificate)
 
 			if err != nil {
-				return
+				return nil, goxml.Wrap(err)
 			}
-			signature, _ := base64.StdEncoding.DecodeString(r.Form.Get("Signature"))
 			signerror := rsa.VerifyPKCS1v15(pub, goxml.Algos[sigAlg].Algo, digest[:], signature)
 			if signerror != nil {
 				signerrors = append(signerrors, signerror)
@@ -425,94 +538,112 @@ func CheckSAMLMessage(r *http.Request, xp, md, memd *goxml.Xp, role int) (err er
 				errorstring += e.Error() + delim
 				delim = ", "
 			}
-			err = fmt.Errorf("unable to validate signature: %s", errorstring)
+			err = goxml.NewWerror("cause:unable to validate signature", errorstring)
 			return
 		}
+		validatedMessage = xp
 	}
 
-	if usedBinding == "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" {
-		if checkSignatures {
-			signatures := xp.Query(nil, "/samlp:Response[1]/ds:Signature[1]/..")
+	if usedBinding == POST {
+		if query := protoChecks[protocol].signatureElements[0]; query != "" {
+			signatures := xp.Query(nil, query)
 			if len(signatures) == 1 {
-				providedSignatures++
 				if err = VerifySign(xp, certificates, signatures); err != nil {
 					return
 				}
+				validatedMessage = xp
 			}
 		}
-		encryptedAssertions := xp.Query(nil, "/samlp:Response/saml:EncryptedAssertion")
-		if len(encryptedAssertions) == 1 {
+		if protocol == "Response" {
+			encryptedAssertions := xp.Query(nil, "/samlp:Response/saml:EncryptedAssertion")
+			if len(encryptedAssertions) == 1 {
 
-			cert := memd.Query1(nil, encryptionCertQuery) // actual encryption key is always first
-			var keyname string
-			keyname, _, err = PublicKeyInfo(cert)
-			if err != nil {
-				return
+				cert := destinationMd.Query1(nil, "./md:SPSSODescriptor"+EncryptionCertQuery) // actual encryption key is always first
+				var keyname string
+				keyname, _, err = PublicKeyInfo(cert)
+				if err != nil {
+					return nil, goxml.Wrap(err)
+				}
+				var privatekey []byte
+
+				privatekey, err = ioutil.ReadFile(Config.CertPath + keyname + ".key")
+				if err != nil {
+					return nil, goxml.Wrap(err)
+				}
+
+				encryptedAssertion := encryptedAssertions[0]
+				encryptedData := xp.Query(encryptedAssertion, "xenc:EncryptedData")[0]
+				decryptedAssertion, err := xp.Decrypt(encryptedData.(types.Element), privatekey, []byte("-"))
+				if err != nil {
+				    err = goxml.Wrap(err)
+				    err = goxml.PublicError(err.(goxml.Werror), "cause:encryption error") // hide the real problem from attacker
+					return nil, err
+				}
+
+				decryptedAssertionElement, _ := decryptedAssertion.Doc.DocumentElement()
+				decryptedAssertionElement = xp.CopyNode(decryptedAssertionElement, 1)
+				_ = encryptedAssertion.AddPrevSibling(decryptedAssertionElement)
+				parent, _ := encryptedAssertion.ParentNode()
+				parent.RemoveChild(encryptedAssertion)
+
+				// repeat schemacheck
+				_, err = xp.SchemaValidate(Config.SamlSchema)
+				if err != nil {
+				    err = goxml.Wrap(err)
+				    err = goxml.PublicError(err.(goxml.Werror), "cause:encryption error") // hide the real problem from attacker
+					return nil, err
+				}
+			} else if len(encryptedAssertions) != 0 {
+				err = fmt.Errorf("only 1 EncryptedAssertion allowed, %d found", len(encryptedAssertions))
 			}
-			var privatekey []byte
-
-			privatekey, err = ioutil.ReadFile(Config.CertPath + keyname + ".key")
-			if err != nil {
-				return goxml.Wrap(err)
-			}
-
-			encryptedAssertion := encryptedAssertions[0]
-			encryptedData := xp.Query(encryptedAssertion, "xenc:EncryptedData")[0]
-			decryptedAssertion, err := xp.Decrypt(encryptedData.(types.Element), privatekey)
-			if err != nil {
-				return err
-			}
-
-			decryptedAssertionElement, _ := decryptedAssertion.Doc.DocumentElement()
-			decryptedAssertionElement = xp.CopyNode(decryptedAssertionElement, 1)
-			_ = encryptedAssertion.AddPrevSibling(decryptedAssertionElement)
-			parent, _ := encryptedAssertion.ParentNode()
-			parent.RemoveChild(encryptedAssertion)
-
-			// repeat schemacheck
-			_, err = xp.SchemaValidate(Config.SamlSchema)
-			if err != nil {
-				return err
-			}
-		} else if len(encryptedAssertions) != 0 {
-			err = fmt.Errorf("only 1 EncryptedAssertion allowed, %d found", len(encryptedAssertions))
 		}
-
-		//no ds:Object in signatures
-		if checkSignatures {
-			signatures := xp.Query(nil, "/samlp:Response[1]/saml:Assertion[1]/ds:Signature[1]/..")
+		// Only Responses with an Assertion will have a second signatureElements query
+		if query := protoChecks[protocol].signatureElements[1]; query != "" {
+			signatures := xp.Query(nil, query)
 			if len(signatures) == 1 {
-				providedSignatures++
 				if err = VerifySign(xp, certificates, signatures); err != nil {
-					return
+					return nil, goxml.Wrap(err)
+				}
+				//validatedMessage = xp
+				// we trust the whole message if the first signature was validated
+
+				if validatedMessage == nil {
+					// replace with the validated assertion
+					validatedMessage = goxml.NewXp(nil)
+					shallowresponse := validatedMessage.CopyNode(xp.Query(nil, "/samlp:Response[1]")[0], 2)
+					validatedMessage.Doc.SetDocumentElement(shallowresponse)
+					validatedMessage.QueryDashP(nil, "./saml:Issuer", xp.Query1(nil, "/samlp:Response/saml:Issuer"), nil)
+					validatedMessage.QueryDashP(nil, "./samlp:Status/samlp:StatusCode/@Value", xp.Query1(nil, "/samlp:Response/samlp:Status/samlp:StatusCode/@Value"), nil)
+					shallowresponse.AddChild(validatedMessage.CopyNode(xp.Query(nil, "/samlp:Response[1]/saml:Assertion[1]")[0], 1))
 				}
 			}
 		}
 	}
 
-	if providedSignatures < minSignatures {
-		err = fmt.Errorf("No signatures found")
-		return
+	if usedBinding == SIMPLESIGN {
+		return nil, goxml.NewWerror("err:SimpleSign not yet supported")
 	}
 
-	err = checkDestinationAndACS(xp, md, memd, role)
-	if err != nil {
-		return
+	// if we don't have a validatedResponse by now we are toast
+	if validatedMessage == nil {
+        err = goxml.NewWerror("err:no signatures found")
+		err = goxml.PublicError(err.(goxml.Werror), "cause:encryption error") // hide the real problem from attacker
+		return nil, err
 	}
 
-	err = VerifyTiming(xp)
-	if err != nil {
-		return
+	for _, check := range protoChecks[protocol].checks {
+		if !validatedMessage.QueryBool(nil, check) {
+			return nil, goxml.NewWerror("cause: check failed", "check: "+check)
+		}
 	}
-
 	return
 }
 
-// ReceiveAuthnRequest handles the SAML minutiae when receiving a SAMLRequest
-// Supports POST and Redirect bindings
-// Receives the metadatasets for resp. the sender and the receiver
-// Returns metadata for the sender and the receiver
-func checkDestinationAndACS(message, issuer, destination *goxml.Xp, role int) (err error) {
+/*
+  checkDestinationAndACS checks for valid destination
+  Returns Error Otherwise
+*/
+func checkDestinationAndACS(message, issuerMd, destinationMd *goxml.Xp, role int) (checkedMessage *goxml.Xp, err error) {
 	var checkedDest string
 	var acsIndex string
 	dest := message.Query1(nil, "./@Destination")
@@ -523,27 +654,68 @@ func checkDestinationAndACS(message, issuer, destination *goxml.Xp, role int) (e
 		acs := message.Query1(nil, "@AssertionConsumerServiceURL")
 		if acs == "" {
 			acsIndex := message.Query1(nil, "@AttributeConsumingServiceIndex")
-			acs = issuer.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Index=`+strconv.Quote(acsIndex)+`]/@Location`)
+			acs = issuerMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Index=`+strconv.Quote(acsIndex)+`]/@Location`)
+		}
+		if acs == "" {
+			acs = issuerMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`" and (@isDefault="true" or @isDefault!="false" or not(@isDefault))]/@Location`)
 		}
 
-		checkedAcs := issuer.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" and @Location=`+strconv.Quote(acs)+`]/@Location`)
+		checkedAcs := issuerMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`" and @Location=`+strconv.Quote(acs)+`]/@Location`)
 		if checkedAcs == "" {
-			return goxml.Wrap(ACSError, "acs:"+acs, "acsindex:"+acsIndex)
+			return nil, goxml.Wrap(ACSError, "acs:"+acs, "acsindex:"+acsIndex)
 		}
-		checkedDest = destination.Query1(nil, `./md:IDPSSODescriptor/md:SingleSignOnService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" and @Location=`+strconv.Quote(dest)+`]/@Location`)
+
+		// we now have a validated AssertionConsumerService - and Binding - let's put them into the request
+		message.QueryDashP(nil, "@AssertionConsumerServiceURL", acs, nil)
+		message.QueryDashP(nil, "@ProtocolBinding", POST, nil)
+
+		checkedDest = destinationMd.Query1(nil, `./md:IDPSSODescriptor/md:SingleSignOnService[@Binding="`+REDIRECT+`" and @Location=`+strconv.Quote(dest)+`]/@Location`)
 		if checkedDest == "" {
-			checkedDest = destination.Query1(nil, `./md:IDPSSODescriptor/md:SingleSignOnService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" and @Location=`+strconv.Quote(dest)+`]/@Location`)
+			checkedDest = destinationMd.Query1(nil, `./md:IDPSSODescriptor/md:SingleSignOnService[@Binding="`+POST+`" and @Location=`+strconv.Quote(dest)+`]/@Location`)
 		}
-	case "LogoutRequest":
-		checkedDest = destination.Query1(nil, mdRole+`/md:SingleLogoutService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" and @Location=`+strconv.Quote(dest)+`]/@Location`)
-	case "LogoutResponse":
-		checkedDest = destination.Query1(nil, mdRole+`/md:SingleLogoutService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" and @Location=`+strconv.Quote(dest)+`]/@Location`)
+	case "LogoutRequest", "LogoutResponse":
+		checkedDest = destinationMd.Query1(nil, mdRole+`/md:SingleLogoutService[@Binding="`+REDIRECT+`" and @Location=`+strconv.Quote(dest)+`]/@Location`)
 	case "Response":
-		checkedDest = destination.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" and @Location=`+strconv.Quote(dest)+`]/@Location`)
+		destination := message.Query1(nil, "./@Destination") // already checked
+
+		recipient := message.Query1(nil, "./saml:Assertion/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@Recipient")
+
+		if recipient == "" {
+			err = fmt.Errorf("no receipient found in SubjectConfirmationData")
+			return
+		}
+
+		if recipient != destination {
+			err = fmt.Errorf("response.Destination != SubjectConfirmationData.Recipient")
+			return
+		}
+
+		issuer := message.Query1(nil, "./saml:Issuer") // already checked
+
+		assertionIssuer := message.Query1(nil, "./saml:Assertion/saml:Issuer")
+		if assertionIssuer == "" {
+			err = fmt.Errorf("no issuer found in Assertion")
+			return
+		}
+
+		if issuer != assertionIssuer {
+			err = fmt.Errorf("response.Issuer != assertion.Issuer not supported")
+			return
+		}
+
+		rInResponseTo := message.Query1(nil, "./@InResponseTo")
+		aInResponseTo := message.Query1(nil, "./saml:Assertion/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@InResponseTo")
+
+		if rInResponseTo != aInResponseTo {
+			return nil, goxml.NewWerror("cause:InResponseTo not the same in Response and Assertion")
+		}
+		checkedDest = destinationMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`" and @Location=`+strconv.Quote(dest)+`]/@Location`)
+
 	}
 	if checkedDest == "" {
-		err = fmt.Errorf("Destination: %s is not valid", dest)
+		return nil, goxml.NewWerror("Destination is not valid", "destination:"+dest)
 	}
+	checkedMessage = message
 	return
 }
 
@@ -572,22 +744,23 @@ func parseQueryRaw(query string) url.Values {
 	return m
 }
 
-// Function to verify Signature
-// Takes Certificate, signature and xp as an input
-func VerifySign(xp *goxml.Xp, certificates, signatures types.NodeList) (err error) {
+/*
+  Function to verify Signature
+  Takes Certificate, signature and xp as an input
+*/
+func VerifySign(xp *goxml.Xp, certificates []string, signatures types.NodeList) (err error) {
 	verified := 0
 	signerrors := []error{}
 	for _, certificate := range certificates {
-
 		var key *rsa.PublicKey
-		_, key, err = PublicKeyInfo(certificate.NodeValue())
+		_, key, err = PublicKeyInfo(certificate)
 
 		if err != nil {
 			return
 		}
 
 		for _, signature := range signatures {
-			signerror := xp.VerifySignature(signature.(types.Element), key)
+			signerror := xp.VerifySignature(signature, key)
 			if signerror != nil {
 				signerrors = append(signerrors, signerror)
 			} else {
@@ -595,6 +768,7 @@ func VerifySign(xp *goxml.Xp, certificates, signatures types.NodeList) (err erro
 			}
 		}
 	}
+
 	if verified == 0 || verified != len(signatures) {
 		errorstring := ""
 		delim := ""
@@ -608,10 +782,10 @@ func VerifySign(xp *goxml.Xp, certificates, signatures types.NodeList) (err erro
 	return
 }
 
-/**
+/*
   Verify the presence and value of timestamps
 */
-func VerifyTiming(xp *goxml.Xp) (err error) {
+func VerifyTiming(xp *goxml.Xp) (verifiedXp *goxml.Xp, err error) {
 	const timeskew = 90
 
 	type timing struct {
@@ -637,13 +811,13 @@ func VerifyTiming(xp *goxml.Xp) (err error) {
 		}
 	case "Response":
 		checks = map[string]timing{
-			"/samlp:Response[1]/@IssueInstant":                                                                                      timing{true, true, true},
-//			"/samlp:Response[1]/saml:Assertion[1]/@IssueInstant":                                                                    timing{true, true, true},
+			"/samlp:Response[1]/@IssueInstant": timing{true, true, true},
+			//			"/samlp:Response[1]/saml:Assertion[1]/@IssueInstant":                                                                    timing{true, true, true},
 			"/samlp:Response[1]/saml:Assertion[1]/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@NotOnOrAfter": timing{false, true, false},
 			"/samlp:Response[1]/saml:Assertion[1]/saml:Conditions/@NotBefore":                                                       timing{false, false, true},
 			"/samlp:Response[1]/saml:Assertion[1]/saml:Conditions/@NotOnOrAfter":                                                    timing{false, true, false},
-//			"/samlp:Response[1]/saml:Assertion[1]/saml:AuthnStatement/@AuthnInstant":                                                timing{true, true, true},
-//			"/samlp:Response[1]/saml:Assertion[1]/saml:AuthnStatement/@SessionNotOnOrAfter":                                         timing{false, true, false},
+			//			"/samlp:Response[1]/saml:Assertion[1]/saml:AuthnStatement/@AuthnInstant":                                                timing{true, true, true},
+			//			"/samlp:Response[1]/saml:Assertion[1]/saml:AuthnStatement/@SessionNotOnOrAfter":                                         timing{false, true, false},
 		}
 	}
 
@@ -656,7 +830,7 @@ func VerifyTiming(xp *goxml.Xp) (err error) {
 		if xmltime != "" {
 			samltime, err := time.Parse(XsDateTime, xmltime)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			ok := true
 			if t.notbefore {
@@ -667,10 +841,11 @@ func VerifyTiming(xp *goxml.Xp) (err error) {
 			}
 			if !ok { // Only check if the time is actually there
 				err = fmt.Errorf("timing problem: %s  %s < %s <= %s", q, intervalstart, samltime, intervalend)
-				return err
+				return nil, err
 			}
 		}
 	}
+	verifiedXp = xp
 	return
 }
 
@@ -693,60 +868,86 @@ func IdAndTiming() (issueInstant, id, assertionId, assertionNotOnOrAfter, sessio
 	return
 }
 
+/*
+  NewErrorResponse makes a new error response with Entityid, issuer, destination and returns the response
+*/
 func NewErrorResponse(idpmd, spmd, authnrequest, sourceResponse *goxml.Xp) (response *goxml.Xp) {
 	idpEntityID := idpmd.Query1(nil, `/md:EntityDescriptor/@entityID`)
-	response = goxml.NewXpFromNode(*sourceResponse.DocGetRootElement())
-	acs := authnrequest.Query1(nil, "@AssertionConsumerServiceURL")
+	response = goxml.NewXpFromNode(sourceResponse.DocGetRootElement())
 	response.QueryDashP(nil, "./@InResponseTo", authnrequest.Query1(nil, "@ID"), nil)
-	response.QueryDashP(nil, "./@Destination", acs, nil)
+	response.QueryDashP(nil, "./@Destination", authnrequest.Query1(nil, "@AssertionConsumerServiceURL"), nil)
 	response.QueryDashP(nil, "./saml:Issuer", idpEntityID, nil)
 	return
 }
 
-func NewLogoutRequest(issuer, destination, sourceLogoutRequest *goxml.Xp, sloinfo *SLOInfo) (request *goxml.Xp) {
+/*
+  NewLogoutRequest makes a logout request with issuer destination ... and returns a NewRequest
+*/
+func NewLogoutRequest(issuer, destination, sourceLogoutRequest *goxml.Xp, sloinfo *SLOInfo, role int) (request *goxml.Xp, err error) {
 	template := `<samlp:LogoutRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0"></samlp:LogoutRequest>`
 	request = goxml.NewXpFromString(template)
 	issueInstant, _, _, _, _ := IdAndTiming()
 
-	slo := destination.Query1(nil, `/md:EntityDescriptor/md:IDPSSODescriptor/md:SingleLogoutService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"]/@Location`)
+	slo := destination.Query1(nil, `./`+Roles[role]+`/md:SingleLogoutService[@Binding="`+REDIRECT+`"]/@Location`)
+	if slo == "" {
+		err = goxml.NewWerror("cause:no SingleLogoutService found", "entityID:"+destination.Query1(nil, "./@entityID"), "binding:"+REDIRECT)
+	}
 	request.QueryDashP(nil, "./@IssueInstant", issueInstant, nil)
 	request.QueryDashP(nil, "./@ID", sourceLogoutRequest.Query1(nil, "@ID"), nil)
 	request.QueryDashP(nil, "./@Destination", slo, nil)
-	request.QueryDashP(nil, "./saml:Issuer", sloinfo.Issuer, nil)
-	request.QueryDashP(nil, "./saml:NameID/@Format", sloinfo.Format, nil)
-	request.QueryDashP(nil, "./saml:NameID/@SPNameQualifier", sloinfo.SPNameQualifier, nil)
-	request.QueryDashP(nil, "./saml:NameID", sloinfo.NameID, nil)
+	request.QueryDashP(nil, "./saml:Issuer", sloinfo.Is, nil)
+	if sourceLogoutRequest.QueryBool(nil, "boolean(./samlp:Extensions/aslo:Asynchronous)") {
+		request.QueryDashP(nil, "./samlp:Extensions/aslo:Asynchronous", "", nil)
+	}
+
+	request.QueryDashP(nil, "./saml:NameID/@Format", nameIDList[sloinfo.Fo], nil)
+	if sloinfo.Sp != "" {
+		request.QueryDashP(nil, "./saml:NameID/@SPNameQualifier", sloinfo.De, nil)
+	}
+	if sloinfo.Si != "" {
+		//		request.QueryDashP(nil, "./samlp:SessionIndex", sloinfo.Si, nil)
+	}
+	request.QueryDashP(nil, "./saml:NameID", sloinfo.Na, nil)
 	return
 }
 
+/*
+  NewLogoutResponse creates a Logout Response oon the basis of Logout request
+*/
 func NewLogoutResponse(source, destination, request, sourceResponse *goxml.Xp) (response *goxml.Xp) {
-	response = goxml.NewXpFromNode(*sourceResponse.DocGetRootElement())
+	response = goxml.NewXpFromNode(sourceResponse.DocGetRootElement())
 	response.QueryDashP(nil, "./@InResponseTo", request.Query1(nil, "@ID"), nil)
-	slo := destination.Query1(nil, `.//md:SingleLogoutService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"]/@Location`)
+	slo := destination.Query1(nil, `.//md:SingleLogoutService[@Binding="`+REDIRECT+`"]/@Location`)
 	response.QueryDashP(nil, "./@Destination", slo, nil)
 	idpEntityID := source.Query1(nil, `/md:EntityDescriptor/@entityID`)
 	response.QueryDashP(nil, "./saml:Issuer", idpEntityID, nil)
 	return
 }
 
+/*
+  NewSLOInfo extract necessary Logout information
+*/
 func NewSLOInfo(response, destination *goxml.Xp) *SLOInfo {
-	entityID := response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Issuer")
-	nameID := response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID")
-	format := response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID/@Format")
-	spnamequalifier := response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID/@SPNameQualifier")
-	issuer := destination.Query1(nil, "@entityID")
-	return &SLOInfo{NameID: nameID, EntityID: entityID, Format: format, SPNameQualifier: spnamequalifier, Issuer: issuer}
+	spnq := response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID/@SPNameQualifier")
+	if spnq != "" {
+		spnq = "-"
+	}
+
+	slo := &SLOInfo{Is: response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Issuer"),
+		Na: response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID"),
+		Fo: nameIDMap[response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID/@Format")],
+		Sp: spnq,
+		Si: response.Query1(nil, "/samlp:Response/saml:Assertion/saml:AuthnStatement/@SessionIndex"),
+		De: destination.Query1(nil, "@entityID")}
+	return slo
 }
 
-func NameIDHash(xp *goxml.Xp, tag string) string {
-	nameID := xp.Query1(nil, "//saml:NameID")
-	format := xp.Query1(nil, "//saml:NameID/@Format")
-	spNameQualifier := xp.Query1(nil, "//saml:NameID/@SPNameQualifier")
-	return fmt.Sprintf("%x", goxml.Hash(crypto.SHA1, tag+"#"+nameID+"#"+format+"#"+spNameQualifier))
-}
-
-func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp) (err error) {
-	cert := md.Query1(nil, "md:IDPSSODescriptor"+signingCertQuery) // actual signing key is always first
+/*
+  SignResponse signs the response with the given method.
+  Returns an error if unable to sign.
+*/
+func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp, signingMethod string, signFor int) (err error) {
+	cert := md.Query1(nil, "md:IDPSSODescriptor"+SigningCertQuery) // actual signing key is always first
 	var keyname string
 	keyname, _, err = PublicKeyInfo(cert)
 	if err != nil {
@@ -764,8 +965,15 @@ func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp) (err er
 		return
 	}
 	// Put signature before 2nd child - ie. after Issuer
-	before := response.Query(element[0], "*[2]")[0]
-	err = response.Sign(element[0].(types.Element), before.(types.Element), privatekey, []byte("-"), cert, "sha1")
+	var before types.Node
+	switch signFor {
+	case SAMLSign:
+		before = response.Query(element[0], "*[2]")[0]
+	case WSFedSign:
+		before = nil
+	}
+
+	err = response.Sign(element[0].(types.Element), before, privatekey, []byte("-"), cert, signingMethod)
 	return
 }
 
@@ -773,7 +981,7 @@ func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp) (err er
     - The Destination is the 1st SingleSignOnService with a redirect binding in the idpmetadata
     - The AssertionConsumerServiceURL is the Location of the 1st ACS with a post binding in the spmetadata
     - The ProtocolBinding is post
-    - The Issuer is the entityID ín the idpmetadata
+    - The Issuer is the entityID in the idpmetadata
     - The NameID defaults to transient
 */
 func NewAuthnRequest(originalRequest, spmd, idpmd *goxml.Xp, providerID string) (request *goxml.Xp, err error) {
@@ -790,9 +998,9 @@ func NewAuthnRequest(originalRequest, spmd, idpmd *goxml.Xp, providerID string) 
 	request = goxml.NewXpFromString(template)
 	request.QueryDashP(nil, "./@ID", msgId, nil)
 	request.QueryDashP(nil, "./@IssueInstant", issueInstant, nil)
-	request.QueryDashP(nil, "./@Destination", idpmd.Query1(nil, `//md:SingleSignOnService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"]/@Location`), nil)
-	request.QueryDashP(nil, "./@AssertionConsumerServiceURL", spmd.Query1(nil, `//md:AssertionConsumerService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"]/@Location`), nil)
-	request.QueryDashP(nil, "./saml:Issuer", spmd.Query1(nil, `/md:EntityDescriptor/@entityID`), nil)
+	request.QueryDashP(nil, "./@Destination", idpmd.Query1(nil, `./md:IDPSSODescriptor/md:SingleSignOnService[@Binding="`+REDIRECT+`"]/@Location`), nil)
+	request.QueryDashP(nil, "./@AssertionConsumerServiceURL", spmd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`"]/@Location`), nil)
+	request.QueryDashP(nil, "./saml:Issuer", spmd.Query1(nil, `./@entityID`), nil)
 	if providerID != "" {
 		request.QueryDashP(nil, "./samlp:Scoping/samlp:IDPList/samlp:IDPEntry/@ProviderID", providerID, nil)
 	}
@@ -817,21 +1025,21 @@ func NewAuthnRequest(originalRequest, spmd, idpmd *goxml.Xp, providerID string) 
 	}
 
 	for _, nameIDFormat = range nameIDFormats {
-		if found = idpmd.Query1(nil, "./md:IDPSSODescriptor/md:NameIDFormat[.='"+nameIDFormat+"']") != ""; found {
+		if found = idpmd.Query1(nil, "./md:IDPSSODescriptor/md:NameIDFormat[.="+strconv.Quote(nameIDFormat)+"]") != ""; found {
 			break
 		}
 	}
 	if !found {
-		err = errors.New("no supported NameID format")
-		return
+		// err = errors.New("no supported NameID format")
+		// return
+		nameIDFormat = Transient
 	}
 
-    nameIDFormat = "urn:oasis:names:tc:SAML:1.1:nameid-format:X509SubjectName"
 	request.QueryDashP(nil, "./samlp:NameIDPolicy/@Format", nameIDFormat, nil)
 	return
 }
 
-/**
+/*
   NewResponse - create a new response using the supplied metadata and resp. authnrequest and response for filling out the fields
   The response is primarily for the attributes, but other fields is eg. the AuthnContextClassRef is also drawn from it
 */
