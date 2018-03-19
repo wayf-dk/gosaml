@@ -486,7 +486,11 @@ findbinding:
 		return
 	}
 
-	certificates := issuerMd.QueryMulti(nil, `./`+Roles[(role+1)%2]+SigningCertQuery) // the issuer's role
+	if protoChecks[protocol].minSignatures <= 0 {
+		return xp, nil
+	}
+
+	certificates := issuerMd.QueryMulti(nil, `./`+Roles[(role+1)%2]+signingCertQuery) // the issuer's role
 
 	if len(certificates) == 0 {
 		err = errors.New("no certificates found in metadata")
@@ -513,7 +517,6 @@ findbinding:
 		}
 		digest := goxml.Hash(goxml.Algos[sigAlg].Algo, query)
 		signature, _ := base64.StdEncoding.DecodeString(r.Form.Get("Signature"))
-
 		verified := 0
 		signerrors := []error{}
 		for _, certificate := range certificates {
@@ -603,6 +606,18 @@ findbinding:
 			if len(signatures) == 1 {
 				if err = VerifySign(xp, certificates, signatures); err != nil {
 					return nil, goxml.Wrap(err)
+				}
+				//validatedMessage = xp
+				// we trust the whole message if the first signature was validated
+
+				if validatedMessage == nil {
+					// replace with the validated assertion
+					validatedMessage = goxml.NewXp(nil)
+					shallowresponse := validatedMessage.CopyNode(xp.Query(nil, "/samlp:Response[1]")[0], 2)
+					validatedMessage.Doc.SetDocumentElement(shallowresponse)
+					validatedMessage.QueryDashP(nil, "./saml:Issuer", xp.Query1(nil, "/samlp:Response/saml:Issuer"), nil)
+					validatedMessage.QueryDashP(nil, "./samlp:Status/samlp:StatusCode/@Value", xp.Query1(nil, "/samlp:Response/samlp:Status/samlp:StatusCode/@Value"), nil)
+					shallowresponse.AddChild(validatedMessage.CopyNode(xp.Query(nil, "/samlp:Response[1]/saml:Assertion[1]")[0], 1))
 				}
 				//validatedMessage = xp
 				// we trust the whole message if the first signature was validated
@@ -710,7 +725,6 @@ func checkDestinationAndACS(message, issuerMd, destinationMd *goxml.Xp, role int
 			return nil, goxml.NewWerror("cause:InResponseTo not the same in Response and Assertion")
 		}
 		checkedDest = destinationMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`" and @Location=`+strconv.Quote(dest)+`]/@Location`)
-
 	}
 	if checkedDest == "" {
 		return nil, goxml.NewWerror("Destination is not valid", "destination:"+dest)
