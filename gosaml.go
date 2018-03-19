@@ -907,45 +907,137 @@ func NewResponse(idpmd, spmd, authnrequest, sourceResponse *goxml.Xp) (response 
 	response.QueryDashP(authstatement, "saml:AuthnContext/saml:AuthenticatingAuthority", sourceResponse.Query1(nil, "./saml:Issuer"), nil)
 	response.QueryDashP(authstatement, "saml:AuthnContext/saml:AuthnContextClassRef", sourceResponse.Query1(nil, "//saml:AuthnContextClassRef"), nil)
 
-	//sourceResponse = goxml.NewXpFromString(sourceResponse.Doc.Dump(true))
-	sourceAttributes := sourceResponse.Query(nil, `//saml:AttributeStatement/saml:Attribute`)
+	copyAttributes(sourceResponse, response, spmd, assertion)
+	return
+}
 
+func wsfedRequest2samlRequest(r *http.Request, issuerMdSet, destinationMdSet Md) (msg, relayState string) {
+	if r.Form.Get("wa") == "wsignin1.0" {
+		relayState = r.Form.Get("wctx")
+		issuer := r.Form.Get("wtrealm")
+		location := "https://" + r.Host + r.URL.Path
+		destinationMd, err := destinationMdSet.MDQ(location)
+		if err != nil {
+			return
+		}
+		issuerMd, err := issuerMdSet.MDQ(issuer)
+		if err != nil {
+			return
+		}
+		samlrequest, _ := NewAuthnRequest(nil, issuerMd, destinationMd, "")
+		msg = base64.StdEncoding.EncodeToString(Deflate(samlrequest.Dump()))
+	}
+	return
+}
+
+func NewWsFedResponse(idpmd, spmd, sourceResponse *goxml.Xp) (response *goxml.Xp) {
+	template := `<t:RequestSecurityTokenResponse xmlns:t="http://schemas.xmlsoap.org/ws/2005/02/trust" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"
+    xmlns:wsp="http://schemas.xmlsoap.org/ws/2004/09/policy" xmlns:wsa="http://www.w3.org/2005/08/addressing" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">
+	<t:Lifetime>
+		<wsu:Created></wsu:Created>
+		<wsu:Expires></wsu:Expires>
+	</t:Lifetime>
+	<wsp:AppliesTo><wsa:EndpointReference><wsa:Address></wsa:Address></wsa:EndpointReference></wsp:AppliesTo>
+	<t:RequestedSecurityToken>
+		<saml:Assertion MajorVersion="1" MinorVersion="1">
+			<saml:Conditions>
+				<saml:AudienceRestrictionCondition><saml:Audience></saml:Audience></saml:AudienceRestrictionCondition>
+			</saml:Conditions>
+			<saml:AttributeStatement>
+				<saml:Subject>
+					<saml:SubjectConfirmation>
+						<saml:ConfirmationMethod>
+							urn:oasis:names:tc:SAML:1.0:cm:bearer
+						</saml:ConfirmationMethod>
+					</saml:SubjectConfirmation>
+				</saml:Subject>
+			</saml:AttributeStatement>
+			<saml:AuthenticationStatement AuthenticationMethod="urn:oasis:names:tc:SAML:1.0:am:password">
+				<saml:Subject>
+					<saml:SubjectConfirmation>
+						<saml:ConfirmationMethod>
+							urn:oasis:names:tc:SAML:1.0:cm:bearer
+						</saml:ConfirmationMethod>
+					</saml:SubjectConfirmation>
+				</saml:Subject>
+			</saml:AuthenticationStatement>
+		</saml:Assertion>
+	</t:RequestedSecurityToken>
+	<t:TokenType>urn:oasis:names:tc:SAML:1.0:assertion</t:TokenType>
+	<t:RequestType>http://schemas.xmlsoap.org/ws/2005/02/trust/Issue</t:RequestType>
+	<t:KeyType>http://schemas.xmlsoap.org/ws/2005/05/identity/NoProofKey</t:KeyType>
+</t:RequestSecurityTokenResponse>
+`
+	response = goxml.NewXpFromString(template)
+
+	issueInstant, _, assertionId, assertionNotOnOrAfter, _ := IdAndTiming()
+	assertionIssueInstant := issueInstant
+
+	spEntityID := spmd.Query1(nil, `/md:EntityDescriptor/@entityID`)
+	idpEntityID := idpmd.Query1(nil, `/md:EntityDescriptor/@entityID`)
+
+	response.QueryDashP(nil, "./t:Lifetime/wsu:Created", issueInstant, nil)
+	response.QueryDashP(nil, "./t:Lifetime/wsu:Expires", assertionNotOnOrAfter, nil)
+	response.QueryDashP(nil, "./wsp:AppliesTo/wsa:EndpointReference/wsa:Address", spEntityID, nil)
+
+	assertion := response.Query(nil, "t:RequestedSecurityToken/saml:Assertion")[0]
+	response.QueryDashP(assertion, "@AssertionID", assertionId, nil)
+	response.QueryDashP(assertion, "@IssueInstant", assertionIssueInstant, nil)
+	response.QueryDashP(assertion, "@Issuer", idpEntityID, nil)
+
+	conditions := response.Query(assertion, "saml:Conditions")[0]
+	response.QueryDashP(conditions, "@NotBefore", assertionIssueInstant, nil)
+	response.QueryDashP(conditions, "@NotOnOrAfter", assertionNotOnOrAfter, nil)
+	response.QueryDashP(conditions, "saml:AudienceRestrictionCondition/saml:Audience", spEntityID, nil)
+
+	authstatement := response.Query(assertion, "saml:AuthenticationStatement")[0]
+	response.QueryDashP(authstatement, "@AuthenticationInstant", assertionIssueInstant, nil)
+	//response.QueryDashP(authstatement, "@SessionNotOnOrAfter", sessionNotOnOrAfter, nil)
+	//response.QueryDashP(authstatement, "@SessionIndex", "missing", nil)
+
+	copyAttributes(sourceResponse, response, spmd, assertion)
+	return
+}
+
+func copyAttributes(sourceResponse, response, spmd *goxml.Xp, assertion types.Node) {
+	sourceAttributes := sourceResponse.Query(nil, `//saml:AttributeStatement/saml:Attribute`)
 	attrcache := map[string]types.Element{}
 	for _, attr := range sourceAttributes {
-		name, _ := attr.(types.Element).GetAttribute("Name")
-		friendlyname, _ := attr.(types.Element).GetAttribute("FriendlyName")
-		attrcache[name.Value()] = attr.(types.Element)
-		if friendlyname != nil {
-			attrcache[friendlyname.Value()] = attr.(types.Element)
+		name := sourceResponse.Query1(attr, "@Name")
+		friendlyname := sourceResponse.Query1(attr, "@FriendlyName")
+		attrcache[name] = attr.(types.Element)
+		if friendlyname != "" {
+			attrcache[friendlyname] = attr.(types.Element)
 		}
 	}
 
 	requestedAttributes := spmd.Query(nil, `./md:SPSSODescriptor/md:AttributeConsumingService[1]/md:RequestedAttribute`)
 
-	destinationAttributes := response.QueryDashP(nil, `/saml:Assertion/saml:AttributeStatement`, "", nil) // only if there are actually some requested attributes
+	destinationAttributes := response.QueryDashP(assertion, `saml:AttributeStatement`, "", nil) // only if there are actually some requested attributes
 	for _, requestedAttribute := range requestedAttributes {
 
-		name, _ := requestedAttribute.(types.Element).GetAttribute("Name")
-		attribute := attrcache[name.Value()]
+		name := spmd.Query1(requestedAttribute, "@Name")
+		attribute := attrcache[name]
 		if attribute == nil {
-			friendlyname, _ := requestedAttribute.(types.Element).GetAttribute("FriendlyName")
-			attribute = attrcache[friendlyname.Value()]
+			friendlyname := spmd.Query1(requestedAttribute, "@FriendlyName")
+			attribute = attrcache[friendlyname]
 			if attribute == nil {
 				continue
 			}
 		}
+
 		newAttribute := response.CopyNode(attribute, 2)
 		destinationAttributes.AddChild(newAttribute)
-		allowedValues := spmd.Query(requestedAttribute, `saml:AttributeValue`)
+		allowedValues := spmd.QueryMulti(requestedAttribute, `saml:AttributeValue`)
 		allowedValuesMap := make(map[string]bool)
 		for _, value := range allowedValues {
-			allowedValuesMap[value.NodeValue()] = true
+			allowedValuesMap[value] = true
 		}
-		for _, valueNode := range sourceResponse.Query(attribute, `saml:AttributeValue`) {
-			value := valueNode.NodeValue()
+		i := 1
+		for _, value := range sourceResponse.QueryMulti(attribute, `saml:AttributeValue`) {
 			if len(allowedValues) == 0 || allowedValuesMap[value] {
-				valueNode := response.CopyNode(valueNode, 1)
-				newAttribute.AddChild(valueNode)
+				response.QueryDashP(newAttribute, "saml:AttributeValue["+strconv.Itoa(i)+"]", value, nil)
+				i += 1
 			}
 		}
 	}
