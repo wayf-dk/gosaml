@@ -156,7 +156,7 @@ func ExampleParseQueryRaw() {
 	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
-	rawValues :=parseQueryRaw(request.URL.RawQuery)
+	rawValues := parseQueryRaw(request.URL.RawQuery)
 	fmt.Println(rawValues)
 	// Output:
 	// map[SAMLRequest:[pJJBj9owEIXv%2FArL98TZqK0qi7Cii1aNtO0iku2hN5MMm5EcO52ZAP33FQEqeuHSqz3zvvc0b%2F547L3aAzHGUOiHNNMKQhNbDO%2BFfqufk8%2F6cTGbs%2Bv9YJejdGEDv0ZgUcfeB7bTR6FHCjY6RrbB9cBWGlstv73YPM3sQFFiE72%2BWbm%2F4ZiBBGPQ6sfVWn6ytr5IfcFwdnhPZXseYvu1rtfJ%2BrWqtSpXhS5XWpXMI5SBxQUpdJ5ln5LsIcnyOs9t9sFmH39qtQIWDE4mfCcysDXGOUx8fI8h5QNK06VNZ7AdzEBxhx7MiZ6bDbRI0Iipqletltc4TzHw2ANVQHts4G3zciMsQrgdBZI9wgEodQ5vGUGAdtACTYYSARZTdbjdRg%2FSpczxwp6CXk5mp5y0%2BB8I%2F4XMza3mtRTfXQ%2Flah09Nr%2FVc6Teyf27nF6wTXbTqBVygRGCaLX0Ph6eCJxAoYVG0GYxO0P%2F7d5i9icAAP%2F%2F] RelayState:[anton-banton]]
@@ -195,7 +195,7 @@ func ExampleNewLogoutResponse() {
 
 func ExampleNewSLOInfo() {
 	sloInfo := NewSLOInfo(response, spmetadata)
-//	q.Q(sloInfo)
+	//	q.Q(sloInfo)
 	fmt.Println(sloInfo)
 	// Output:
 	// &{https://wayf.wayf.dk WAYF-DK-c5bc7e16bb6d28cb5a20b6aad84d1cba2df5c48f -  https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth 1}
@@ -236,7 +236,7 @@ func ExampleSigningKeyNotFound() {
 	_, _, _, _, err := ReceiveSAMLResponse(request, external, external)
 	fmt.Println(err)
 	// Output:
-	// ["cause:open fd666194364791ef937224223c7387f6b26368af.key: no such file or directory"]
+	// ["cause:open fd666194364791ef937224223c7387f6b26368af.key: no such file or directory","logtag:2014-07-17T01:01:48.0000000"]
 }
 
 func ExampleUnsupportedEncryptionMethod() {
@@ -249,8 +249,11 @@ func ExampleUnsupportedEncryptionMethod() {
 	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	_, _, _, _, err := ReceiveSAMLResponse(request, external, external)
 	fmt.Println(err)
+	fmt.Println(err.(goxml.Werror).FullError())
 	// Output:
-	// ["unsupported keyEncryptionMethod","keyEncryptionMethod: http://www.w3.org/2001/04/xmlenc#rsa-1_5"]
+	// ["cause:encryption error"]
+	// ["unsupported keyEncryptionMethod","keyEncryptionMethod: http://www.w3.org/2001/04/xmlenc#rsa-1_5","logtag:2014-07-17T01:01:48.0000000","cause:encryption error"]
+
 }
 
 func ExampleInvalidDestination() {
@@ -346,7 +349,7 @@ func ExampleAttributeCanonicalDump() {
 }
 
 func ExamplePublicKeyInfo() {
-	cert := spmetadata.Query1(nil, encryptionCertQuery) // actual signing key is always first
+	cert := spmetadata.Query1(nil, "./md:SPSSODescriptor"+EncryptionCertQuery) // actual signing key is always first
 	var keyname string
 	keyname, _, err := PublicKeyInfo(cert)
 	fmt.Println(err, keyname)
@@ -411,7 +414,7 @@ func ExampleReceiveAuthnRequestPOST() {
 	_, _, _, _, err := ReceiveAuthnRequest(request, external, external)
 	fmt.Println(err)
 	// Output:
-	// No valid binding found in metadata
+	// ["cause:No valid binding found in metadata","logtag:2006-01-02T22:04:05.0000000"]
 }
 
 func ExampleNoAssertion() {
@@ -557,8 +560,10 @@ func ExampleReceiveUnSignedResponse() {
 	request1.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	_, _, _, _, err = ReceiveSAMLResponse(request1, external, external)
 	fmt.Println(err)
+	fmt.Println(err.(goxml.Werror).FullError())
 	// Output:
-	// ["err:no signatures found"]
+	// ["cause:encryption error"]
+	// ["err:no signatures found","logtag:2017-11-29T12:37:11.0000000","cause:encryption error"]
 }
 
 // When Content is Changed.
