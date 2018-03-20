@@ -554,7 +554,7 @@ findbinding:
 		if query := protoChecks[protocol].signatureElements[0]; query != "" {
 			signatures := xp.Query(nil, query)
 			if len(signatures) == 1 {
-				if err = VerifySign(xp, certificates, signatures); err != nil {
+				if err = VerifySign(xp, certificates, signatures[0]); err != nil {
 					return
 				}
 				validatedMessage = xp
@@ -607,7 +607,7 @@ findbinding:
 		if query := protoChecks[protocol].signatureElements[1]; query != "" {
 			signatures := xp.Query(nil, query)
 			if len(signatures) == 1 {
-				if err = VerifySign(xp, certificates, signatures); err != nil {
+				if err = VerifySign(xp, certificates, signatures[0]); err != nil {
 					return nil, goxml.Wrap(err)
 				}
 				//validatedMessage = xp
@@ -753,38 +753,18 @@ func parseQueryRaw(query string) url.Values {
   Function to verify Signature
   Takes Certificate, signature and xp as an input
 */
-func VerifySign(xp *goxml.Xp, certificates []string, signatures types.NodeList) (err error) {
-	verified := 0
-	signerrors := []error{}
+func VerifySign(xp *goxml.Xp, certificates []string, signature types.Node) (err error) {
+	publicKeys := []*rsa.PublicKey{}
 	for _, certificate := range certificates {
 		var key *rsa.PublicKey
 		_, key, err = PublicKeyInfo(certificate)
-
 		if err != nil {
 			return
 		}
-
-		for _, signature := range signatures {
-			signerror := xp.VerifySignature(signature, key)
-			if signerror != nil {
-				signerrors = append(signerrors, signerror)
-			} else {
-				verified++
-			}
-		}
+		publicKeys = append(publicKeys, key)
 	}
 
-	if verified == 0 || verified != len(signatures) {
-		errorstring := ""
-		delim := ""
-		for _, e := range signerrors {
-			errorstring += e.Error() + delim
-			delim = ", "
-		}
-		err = fmt.Errorf("unable to validate signature: %s", errorstring)
-		return
-	}
-	return
+	return xp.VerifySignature(signature, publicKeys)
 }
 
 /*
