@@ -490,7 +490,7 @@ findbinding:
 		return xp, nil
 	}
 
-	certificates := issuerMd.QueryMulti(nil, `./`+Roles[(role+1)%2]+signingCertQuery) // the issuer's role
+	certificates := issuerMd.QueryMulti(nil, `./`+Roles[(role+1)%2]+SigningCertQuery) // the issuer's role
 
 	if len(certificates) == 0 {
 		err = errors.New("no certificates found in metadata")
