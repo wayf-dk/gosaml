@@ -1,3 +1,4 @@
+
 // Gosaml is a library for doing SAML stuff in Go.
 
 package gosaml
@@ -764,7 +765,7 @@ func VerifySign(xp *goxml.Xp, certificates []string, signature types.Node) (err 
 		publicKeys = append(publicKeys, key)
 	}
 
-	return xp.VerifySignature(signature, publicKeys)
+    return xp.VerifySignature(signature, publicKeys)
 }
 
 /*
@@ -862,6 +863,7 @@ func NewErrorResponse(idpmd, spmd, authnrequest, sourceResponse *goxml.Xp) (resp
 	response.QueryDashP(nil, "./@InResponseTo", authnrequest.Query1(nil, "@ID"), nil)
 	response.QueryDashP(nil, "./@Destination", authnrequest.Query1(nil, "@AssertionConsumerServiceURL"), nil)
 	response.QueryDashP(nil, "./saml:Issuer", idpEntityID, nil)
+	response.Rm(nil, `./saml:Assertion`)
 	return
 }
 
