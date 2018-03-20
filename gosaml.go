@@ -401,13 +401,12 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 		}
 	}
 
-
-/*
-    if r.Host == "krib.wayf.dk" {
-        destination = "{sha1}"+strings.Split(r.URL.Path, "/")[1]
-    }
-q.Q(r.URL.Path, destination)
-*/
+	/*
+	       if r.Host == "krib.wayf.dk" {
+	           destination = "{sha1}"+strings.Split(r.URL.Path, "/")[1]
+	       }
+	   q.Q(r.URL.Path, destination)
+	*/
 
 	destinationMd, err = destinationMdSet.MDQ(destination)
 	if err != nil {
@@ -582,8 +581,8 @@ findbinding:
 				encryptedData := xp.Query(encryptedAssertion, "xenc:EncryptedData")[0]
 				decryptedAssertion, err := xp.Decrypt(encryptedData.(types.Element), privatekey, []byte("-"))
 				if err != nil {
-				    err = goxml.Wrap(err)
-				    err = goxml.PublicError(err.(goxml.Werror), "cause:encryption error") // hide the real problem from attacker
+					err = goxml.Wrap(err)
+					err = goxml.PublicError(err.(goxml.Werror), "cause:encryption error") // hide the real problem from attacker
 					return nil, err
 				}
 
@@ -596,8 +595,8 @@ findbinding:
 				// repeat schemacheck
 				_, err = xp.SchemaValidate(Config.SamlSchema)
 				if err != nil {
-				    err = goxml.Wrap(err)
-				    err = goxml.PublicError(err.(goxml.Werror), "cause:encryption error") // hide the real problem from attacker
+					err = goxml.Wrap(err)
+					err = goxml.PublicError(err.(goxml.Werror), "cause:encryption error") // hide the real problem from attacker
 					return nil, err
 				}
 			} else if len(encryptedAssertions) != 0 {
@@ -623,18 +622,6 @@ findbinding:
 					validatedMessage.QueryDashP(nil, "./samlp:Status/samlp:StatusCode/@Value", xp.Query1(nil, "/samlp:Response/samlp:Status/samlp:StatusCode/@Value"), nil)
 					shallowresponse.AddChild(validatedMessage.CopyNode(xp.Query(nil, "/samlp:Response[1]/saml:Assertion[1]")[0], 1))
 				}
-				//validatedMessage = xp
-				// we trust the whole message if the first signature was validated
-
-				if validatedMessage == nil {
-					// replace with the validated assertion
-					validatedMessage = goxml.NewXp(nil)
-					shallowresponse := validatedMessage.CopyNode(xp.Query(nil, "/samlp:Response[1]")[0], 2)
-					validatedMessage.Doc.SetDocumentElement(shallowresponse)
-					validatedMessage.QueryDashP(nil, "./saml:Issuer", xp.Query1(nil, "/samlp:Response/saml:Issuer"), nil)
-					validatedMessage.QueryDashP(nil, "./samlp:Status/samlp:StatusCode/@Value", xp.Query1(nil, "/samlp:Response/samlp:Status/samlp:StatusCode/@Value"), nil)
-					shallowresponse.AddChild(validatedMessage.CopyNode(xp.Query(nil, "/samlp:Response[1]/saml:Assertion[1]")[0], 1))
-				}
 			}
 		}
 	}
@@ -645,7 +632,7 @@ findbinding:
 
 	// if we don't have a validatedResponse by now we are toast
 	if validatedMessage == nil {
-        err = goxml.NewWerror("err:no signatures found")
+		err = goxml.NewWerror("err:no signatures found")
 		err = goxml.PublicError(err.(goxml.Werror), "cause:encryption error") // hide the real problem from attacker
 		return nil, err
 	}
