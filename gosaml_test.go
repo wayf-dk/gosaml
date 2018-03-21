@@ -182,7 +182,7 @@ func ExampleNewErrorResponse() {
 	response := NewErrorResponse(idpmetadata, spmetadata, newrequest, response)
 	fmt.Printf("%x\n", sha1.Sum([]byte(response.PP())))
 	// Output:
-	// 403888d96df54c62791a26d6136aa4be14061347
+	// 2aed4a3085ceb58e1368a625b76eac7e4ac84c9d
 }
 
 func ExampleNewLogoutResponse() {
