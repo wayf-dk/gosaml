@@ -1,3 +1,4 @@
+
 // Gosaml is a library for doing SAML stuff in Go.
 
 package gosaml
