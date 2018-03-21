@@ -126,7 +126,7 @@ func PublicKeyInfo(cert string) (keyname string, publickey *rsa.PublicKey, err e
   GetPrivateKey extract the key from Metadata and builds a name and reads the key
 */
 func GetPrivateKey(md *goxml.Xp) (privatekey []byte, err error) {
-	cert := md.Query1(nil, "./md:SPSSODescriptor"+SigningCertQuery) // actual signing key is always first
+	cert := md.Query1(nil, "./"+SigningCertQuery) // actual signing key is always first
 	keyname, _, err := PublicKeyInfo(cert)
 	if err != nil {
 		return
