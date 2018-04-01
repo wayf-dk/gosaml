@@ -1096,6 +1096,7 @@ func NewResponse(idpmd, spmd, authnrequest, sourceResponse *goxml.Xp) (response 
 
 	authstatement := response.Query(assertion, "saml:AuthnStatement")[0]
 	response.QueryDashP(authstatement, "@AuthnInstant", assertionIssueInstant, nil)
+	response.QueryDashP(authstatement, "@SessionIndex", Id(), nil)
 	response.QueryDashP(authstatement, "@SessionNotOnOrAfter", sessionNotOnOrAfter, nil)
 	//response.QueryDashP(authstatement, "@SessionIndex", "missing", nil)
 
