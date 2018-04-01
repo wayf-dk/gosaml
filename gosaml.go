@@ -1196,6 +1196,8 @@ func NewWsFedResponse(idpmd, spmd, sourceResponse *goxml.Xp) (response *goxml.Xp
 }
 
 func copyAttributes(sourceResponse, response, spmd *goxml.Xp, assertion types.Node) {
+	base64encodedOut := spmd.Query1(nil, "/md:EntityDescriptor/md:Extensions/wayf:wayf/wayf:base64attributes") == "1"
+
 	sourceAttributes := sourceResponse.Query(nil, `//saml:AttributeStatement/saml:Attribute`)
 	attrcache := map[string]types.Element{}
 	for _, attr := range sourceAttributes {
@@ -1231,6 +1233,10 @@ func copyAttributes(sourceResponse, response, spmd *goxml.Xp, assertion types.No
 		}
 		i := 1
 		for _, value := range sourceResponse.QueryMulti(attribute, `saml:AttributeValue`) {
+			if base64encodedOut {
+				v := base64.StdEncoding.EncodeToString([]byte(value))
+				value = string(v)
+			}
 			if len(allowedValues) == 0 || allowedValuesMap[value] {
 				response.QueryDashP(newAttribute, "saml:AttributeValue["+strconv.Itoa(i)+"]", value, nil)
 				i += 1
