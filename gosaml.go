@@ -56,6 +56,7 @@ const (
 	Persistent = "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
 	X509       = "urn:oasis:names:tc:SAML:1.1:nameid-format:X509SubjectName"
 	Email      = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
+	Unspecified = "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified"
 
 	REDIRECT   = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
 	POST       = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
@@ -72,7 +73,6 @@ type (
 		SamlSchema    string
 		CertPath      string
 		LogPath       string
-		NameIDFormats []string
 	}
 
 	SLOInfo struct {
@@ -89,8 +89,8 @@ var (
 	Roles                   = []string{"md:IDPSSODescriptor", "md:SPSSODescriptor"}
 	Config                  = Conf{}
 	ACSError                = errors.New("invalid AsssertionConsumerService or AsssertionConsumerServiceIndex")
-	nameIDList              = []string{Transient, Persistent, X509, Email}
-	nameIDMap               = map[string]int{Transient: 0, Persistent: 1, X509: 2, Email: 3}
+	nameIDList              = []string{"", Transient, Persistent, X509, Email} // Unspecified not accepted downstream
+	nameIDMap               = map[string]int{Transient: 1, Persistent: 2, X509: 3, Email: 4, Unspecified: 5} // Unspecified accepted but not sent upstream
 )
 
 func DumpFile(xp *goxml.Xp) (logtag string) {
@@ -287,9 +287,9 @@ func ReceiveAuthnRequest(r *http.Request, issuerMdSet, destinationMdSet Md) (xp,
 		err = fmt.Errorf("subject not allowed in SAMLRequest")
 		return
 	}
-	nameidpolicy := xp.Query1(nil, "./samlp:NameIDPolicy/@Format")
-	if nameidpolicy != "" && nameidpolicy != Transient && nameidpolicy != Persistent {
-		err = fmt.Errorf("nameidpolicy format: %s is not supported", nameidpolicy)
+	nameIdPolicy := xp.Query1(nil, "./samlp:NameIDPolicy/@Format")
+	if nameIDMap[nameIdPolicy] == 0 {
+		err = fmt.Errorf("nameidpolicy format: %s is not supported", nameIdPolicy)
 		return
 	}
 	/*
@@ -993,7 +993,7 @@ func NewAuthnRequest(originalRequest, spmd, idpmd *goxml.Xp, providerID string) 
 	}
 	found := false
 	nameIDFormat := ""
-	nameIDFormats := Config.NameIDFormats
+	nameIDFormats := nameIDList
 
 	if originalRequest != nil { // already checked for supported nameidformat
 		switch originalRequest.Query1(nil, "./@ForceAuthn") {
@@ -1007,7 +1007,7 @@ func NewAuthnRequest(originalRequest, spmd, idpmd *goxml.Xp, providerID string) 
 		//requesterID := originalRequest.Query1(nil, "./saml:Issuer")
 		//request.QueryDashP(nil, "./samlp:Scoping/samlp:RequesterID", requesterID, nil)
 		if nameIDPolicy := originalRequest.Query1(nil, "./samlp:NameIDPolicy/@Format"); nameIDPolicy != "" {
-			nameIDFormats = append([]string{nameIDPolicy}, nameIDFormats...)
+			nameIDFormats = append([]string{nameIDPolicy}, nameIDFormats...) // prioritize what the SP asked for
 		}
 	}
 
