@@ -554,7 +554,7 @@ func ExampleReceiveUnSignedResponse() {
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
 	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	xp, _, _, _, err := ReceiveSAMLResponse(request, external, external)
-	data1 := url.Values{} // Checking for unsigned Repsonse here //
+	data1 := url.Values{} // Checking for unsigned Response here //
 	data1.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(xp.Doc.Dump(false))))
 	request1 := httptest.NewRequest("POST", destination, strings.NewReader(data1.Encode()))
 	request1.Header.Add("Content-Type", "application/x-www-form-urlencoded")
