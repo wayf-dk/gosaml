@@ -675,6 +675,7 @@ func checkDestinationAndACS(message, issuerMd, destinationMd *goxml.Xp, role int
 		// we now have a validated AssertionConsumerService - and Binding - let's put them into the request
 		message.QueryDashP(nil, "@AssertionConsumerServiceURL", acs, nil)
 		message.QueryDashP(nil, "@ProtocolBinding", POST, nil)
+		message.QueryDashP(nil, "@ACSIndex", checkedAcs, nil)
 
 		checkedDest = destinationMd.Query1(nil, `./md:IDPSSODescriptor/md:SingleSignOnService[@Binding="`+REDIRECT+`" and @Location=`+strconv.Quote(dest)+`]/@Location`)
 		if checkedDest == "" {
