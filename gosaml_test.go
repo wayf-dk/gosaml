@@ -455,8 +455,8 @@ func xTestPP(*testing.T) {
 func TestReceiveAuthnRequest(*testing.T) {
 	TestTime = fixedTestTime
 	i := 0
-	for _ = range [1]int{} {
-		for _ = range [1]int{} {
+	for range [1]int{} {
+		for range [1]int{} {
 			//spmetadata, _ = external.MDQ("https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth")
 			newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
 			url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
@@ -527,8 +527,8 @@ func ExampleProtocolCheck() {
 
 func xTestReceiveResponse(*testing.T) {
 	i := 0
-	for _ = range [1]int{} {
-		for _ = range [1]int{} {
+	for range [1]int{} {
+		for range [1]int{} {
 			destination := response.Query1(nil, "@Destination")
 			//response.QueryDashP(nil, "./saml:Assertion[1]/saml:Issuer/ds:Signature", "_4099d6da09c9a1d9fad7f", nil)
 			TestTime, _ = time.Parse(XsDateTime, response.Query1(nil, "@IssueInstant"))

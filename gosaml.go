@@ -1,4 +1,3 @@
-
 // Gosaml is a library for doing SAML stuff in Go.
 
 package gosaml
@@ -52,10 +51,10 @@ const (
 	SigningCertQuery    = `/md:KeyDescriptor[@use="signing" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
 	EncryptionCertQuery = `/md:KeyDescriptor[@use="encryption" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
 
-	Transient  = "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
-	Persistent = "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
-	X509       = "urn:oasis:names:tc:SAML:1.1:nameid-format:X509SubjectName"
-	Email      = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
+	Transient   = "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
+	Persistent  = "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
+	X509        = "urn:oasis:names:tc:SAML:1.1:nameid-format:X509SubjectName"
+	Email       = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
 	Unspecified = "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified"
 
 	REDIRECT   = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
@@ -70,9 +69,9 @@ type (
 	}
 
 	Conf struct {
-		SamlSchema    string
-		CertPath      string
-		LogPath       string
+		SamlSchema string
+		CertPath   string
+		LogPath    string
 	}
 
 	SLOInfo struct {
@@ -89,8 +88,8 @@ var (
 	Roles                   = []string{"md:IDPSSODescriptor", "md:SPSSODescriptor"}
 	Config                  = Conf{}
 	ACSError                = errors.New("invalid AsssertionConsumerService or AsssertionConsumerServiceIndex")
-	nameIDList              = []string{"", Transient, Persistent, X509, Email} // Unspecified not accepted downstream
-	nameIDMap               = map[string]int{Transient: 1, Persistent: 2, X509: 3, Email: 4, Unspecified: 5} // Unspecified accepted but not sent upstream
+	NameIDList              = []string{"", Transient, Persistent, X509, Email}                                      // Unspecified not accepted downstream
+	NameIDMap               = map[string]int{"": 1, Transient: 1, Persistent: 2, X509: 3, Email: 4, Unspecified: 5} // Unspecified accepted but not sent upstream
 )
 
 func DumpFile(xp *goxml.Xp) (logtag string) {
@@ -288,8 +287,8 @@ func ReceiveAuthnRequest(r *http.Request, issuerMdSet, destinationMdSet Md) (xp,
 		return
 	}
 	nameIdPolicy := xp.Query1(nil, "./samlp:NameIDPolicy/@Format")
-	if nameIDMap[nameIdPolicy] == 0 {
-		err = fmt.Errorf("nameidpolicy format: %s is not supported", nameIdPolicy)
+	if NameIDMap[nameIdPolicy] == 0 {
+		err = fmt.Errorf("nameidpolicy format: '%s' is not supported", nameIdPolicy)
 		return
 	}
 	/*
@@ -467,8 +466,8 @@ func CheckSAMLMessage(r *http.Request, xp, issuerMd, destinationMd *goxml.Xp, ro
 	protocol := xp.QueryString(nil, "local-name(/*)")
 
 	bindings := map[string][]string{
-		"GET":  []string{REDIRECT},
-		"POST": []string{POST, SIMPLESIGN},
+		"GET":  {REDIRECT},
+		"POST": {POST, SIMPLESIGN},
 	}
 
 	var usedBinding string
@@ -667,7 +666,7 @@ func checkDestinationAndACS(message, issuerMd, destinationMd *goxml.Xp, role int
 			acs = issuerMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`" and (@isDefault="true" or @isDefault!="false" or not(@isDefault))]/@Location`)
 		}
 
-		checkedAcs := issuerMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`" and @Location=`+strconv.Quote(acs)+`]/@Location`)
+		checkedAcs := issuerMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`" and @Location=`+strconv.Quote(acs)+`]/@index`)
 		if checkedAcs == "" {
 			return nil, goxml.Wrap(ACSError, "acs:"+acs, "acsindex:"+acsIndex)
 		}
@@ -766,7 +765,7 @@ func VerifySign(xp *goxml.Xp, certificates []string, signature types.Node) (err 
 		publicKeys = append(publicKeys, key)
 	}
 
-    return xp.VerifySignature(signature, publicKeys)
+	return xp.VerifySignature(signature, publicKeys)
 }
 
 /*
@@ -794,15 +793,15 @@ func VerifyTiming(xp *goxml.Xp) (verifiedXp *goxml.Xp, err error) {
 	switch protocol {
 	case "AuthnRequest", "LogoutRequest", "LogoutResponse":
 		checks = map[string]timing{
-			"./@IssueInstant": timing{true, true, true},
+			"./@IssueInstant": {true, true, true},
 		}
 	case "Response":
 		checks = map[string]timing{
-			"/samlp:Response[1]/@IssueInstant": timing{true, true, true},
+			"/samlp:Response[1]/@IssueInstant": {true, true, true},
 			//			"/samlp:Response[1]/saml:Assertion[1]/@IssueInstant":                                                                    timing{true, true, true},
-			"/samlp:Response[1]/saml:Assertion[1]/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@NotOnOrAfter": timing{false, true, false},
-			"/samlp:Response[1]/saml:Assertion[1]/saml:Conditions/@NotBefore":                                                       timing{false, false, true},
-			"/samlp:Response[1]/saml:Assertion[1]/saml:Conditions/@NotOnOrAfter":                                                    timing{false, true, false},
+			"/samlp:Response[1]/saml:Assertion[1]/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@NotOnOrAfter": {false, true, false},
+			"/samlp:Response[1]/saml:Assertion[1]/saml:Conditions/@NotBefore":                                                       {false, false, true},
+			"/samlp:Response[1]/saml:Assertion[1]/saml:Conditions/@NotOnOrAfter":                                                    {false, true, false},
 			//			"/samlp:Response[1]/saml:Assertion[1]/saml:AuthnStatement/@AuthnInstant":                                                timing{true, true, true},
 			//			"/samlp:Response[1]/saml:Assertion[1]/saml:AuthnStatement/@SessionNotOnOrAfter":                                         timing{false, true, false},
 		}
@@ -888,7 +887,7 @@ func NewLogoutRequest(issuer, destination, sourceLogoutRequest *goxml.Xp, sloinf
 		request.QueryDashP(nil, "./samlp:Extensions/aslo:Asynchronous", "", nil)
 	}
 
-	request.QueryDashP(nil, "./saml:NameID/@Format", nameIDList[sloinfo.Fo], nil)
+	request.QueryDashP(nil, "./saml:NameID/@Format", NameIDList[sloinfo.Fo], nil)
 	if sloinfo.Sp != "" {
 		request.QueryDashP(nil, "./saml:NameID/@SPNameQualifier", sloinfo.De, nil)
 	}
@@ -923,7 +922,7 @@ func NewSLOInfo(response, destination *goxml.Xp) *SLOInfo {
 
 	slo := &SLOInfo{Is: response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Issuer"),
 		Na: response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID"),
-		Fo: nameIDMap[response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID/@Format")],
+		Fo: NameIDMap[response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID/@Format")],
 		Sp: spnq,
 		Si: response.Query1(nil, "/samlp:Response/saml:Assertion/saml:AuthnStatement/@SessionIndex"),
 		De: destination.Query1(nil, "@entityID")}
@@ -994,7 +993,7 @@ func NewAuthnRequest(originalRequest, spmd, idpmd *goxml.Xp, providerID string) 
 	}
 	found := false
 	nameIDFormat := ""
-	nameIDFormats := nameIDList
+	nameIDFormats := NameIDList
 
 	if originalRequest != nil { // already checked for supported nameidformat
 		switch originalRequest.Query1(nil, "./@ForceAuthn") {
