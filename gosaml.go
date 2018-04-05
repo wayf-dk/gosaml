@@ -37,17 +37,17 @@ var (
 )
 
 const (
-	IdPRole = iota
-	SPRole  = iota
+	IdPRole = iota	// For setting roles as IDP
+	SPRole  = iota 	// For setting roles as SP
 )
 
 const (
-	SAMLSign  = iota
-	WSFedSign = iota
+	SAMLSign  = iota	// For SAML
+	WSFedSign = iota	// For WSFed
 )
 
 const (
-	XsDateTime          = "2006-01-02T15:04:05Z"
+	XsDateTime          = "2006-01-02T15:04:05Z" 	// Setting the Date Time
 	SigningCertQuery    = `/md:KeyDescriptor[@use="signing" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
 	EncryptionCertQuery = `/md:KeyDescriptor[@use="encryption" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
 
@@ -63,18 +63,18 @@ const (
 )
 
 type (
-	// Interface for metadata provider
+	// Md Interface for metadata provider
 	Md interface {
 		MDQ(key string) (xp *goxml.Xp, err error)
 	}
 
-	Conf struct {
+	Conf struct {	// Configuration values for Schema and Certificates
 		SamlSchema string
 		CertPath   string
 		LogPath    string
 	}
 
-	SLOInfo struct {
+	SLOInfo struct {	// Single Logout information
 		//		IssuerID, NameID, SPNameQualifier, SessionIndex, DestinationID string
 		Is, Na, Sp, Si, De string
 		//		Format int
@@ -83,16 +83,16 @@ type (
 )
 
 var (
-	TestTime                time.Time
-	TestId, TestAssertionId string
+	TestTime                time.Time	// Global Time
+	TestId, TestAssertionId string		// For test
 	Roles                   = []string{"md:IDPSSODescriptor", "md:SPSSODescriptor"}
 	Config                  = Conf{}
-	ACSError                = errors.New("invalid AsssertionConsumerService or AsssertionConsumerServiceIndex")
+	ACSError                = errors.New("invalid AsssertionConsumerService or AsssertionConsumerServiceIndex")		// Error information
 	NameIDList              = []string{"", Transient, Persistent, X509, Email}                                      // Unspecified not accepted downstream
 	NameIDMap               = map[string]int{"": 1, Transient: 1, Persistent: 2, X509: 3, Email: 4, Unspecified: 5} // Unspecified accepted but not sent upstream
 )
 
-func DumpFile(xp *goxml.Xp) (logtag string) {
+func DumpFile(xp *goxml.Xp) (logtag string) {	// For Logging
 	now := TestTime
 	if now.IsZero() {
 		now = time.Now()
