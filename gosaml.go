@@ -356,7 +356,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 
 	tmpXp := goxml.NewXp(bmsg)
 
-	logtag := DumpFile(tmpXp)
+	DumpFile(tmpXp)
 	//log.Println("stack", goxml.New().Stack(1))
 	_, err = tmpXp.SchemaValidate(Config.SamlSchema)
 	if err != nil {
@@ -415,7 +415,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 
 	xp, err = CheckSAMLMessage(r, tmpXp, issuerMd, destinationMd, role)
 	if err != nil {
-		err = goxml.Wrap(err, "logtag:"+logtag)
+		err = goxml.Wrap(err)
 		return
 	}
 
@@ -608,7 +608,7 @@ findbinding:
 			signatures := xp.Query(nil, query)
 			if len(signatures) == 1 {
 				if err = VerifySign(xp, certificates, signatures[0]); err != nil {
-					return nil, goxml.Wrap(err)
+					return nil, goxml.Wrap(err, "err:unable to validate signature")
 				}
 				//validatedMessage = xp
 				// we trust the whole message if the first signature was validated

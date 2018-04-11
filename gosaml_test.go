@@ -99,8 +99,6 @@ func formatXML(file string) {
 }
 
 func TestMain(m *testing.M) {
-
-	Config.NameIDFormats = []string{Transient, Persistent}
 	Config.SamlSchema = "../goxml/schemas/saml-schema-protocol-2.0.xsd"
 	Config.CertPath = ""
 
@@ -247,7 +245,7 @@ func ExampleSigningKeyNotFound() {
 	_, _, _, _, err := ReceiveSAMLResponse(request, external, external)
 	fmt.Println(err)
 	// Output:
-	// ["cause:open fd666194364791ef937224223c7387f6b26368af.key: no such file or directory","logtag:2014-07-17T01:01:48.0000000"]
+	// ["cause:open fd666194364791ef937224223c7387f6b26368af.key: no such file or directory"]
 }
 
 func ExampleUnsupportedEncryptionMethod() {
@@ -263,7 +261,7 @@ func ExampleUnsupportedEncryptionMethod() {
 	fmt.Println(err.(goxml.Werror).FullError())
 	// Output:
 	// ["cause:encryption error"]
-	// ["unsupported keyEncryptionMethod","keyEncryptionMethod: http://www.w3.org/2001/04/xmlenc#rsa-1_5","logtag:2014-07-17T01:01:48.0000000","cause:encryption error"]
+	// ["unsupported keyEncryptionMethod","keyEncryptionMethod: http://www.w3.org/2001/04/xmlenc#rsa-1_5","cause:encryption error"]
 
 }
 
@@ -412,7 +410,7 @@ func ExampleReceiveAuthnRequestPOST() {
 	_, _, _, _, err := ReceiveAuthnRequest(request, external, external)
 	fmt.Println(err)
 	// Output:
-	// ["cause:No valid binding found in metadata","logtag:2006-01-02T22:04:05.0000000"]
+	// ["cause:No valid binding found in metadata"]
 }
 
 func ExampleNoAssertion() {
@@ -559,7 +557,7 @@ func ExampleReceiveUnSignedResponse() {
 	fmt.Println(err.(goxml.Werror).FullError())
 	// Output:
 	// ["cause:encryption error"]
-	// ["err:no signatures found","logtag:2017-11-29T12:37:11.0000000","cause:encryption error"]
+	// ["err:no signatures found","cause:encryption error"]
 }
 
 // When Content is Changed.
