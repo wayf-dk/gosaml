@@ -89,7 +89,7 @@ var (
 	Roles                   = []string{"md:IDPSSODescriptor", "md:SPSSODescriptor"}
 	Config                  = Conf{}
 	ACSError                = errors.New("invalid AsssertionConsumerService or AsssertionConsumerServiceIndex")     // Error information
-	NameIDList              = []string{"", Transient, Persistent, X509, Email}                                      // Unspecified not accepted downstream
+	NameIDList              = []string{"", Transient, Persistent, X509, Email, Unspecified}                                      // Unspecified not accepted downstream
 	NameIDMap               = map[string]int{"": 1, Transient: 1, Persistent: 2, X509: 3, Email: 4, Unspecified: 5} // Unspecified accepted but not sent upstream
 )
 
@@ -858,8 +858,8 @@ func IdAndTiming() (issueInstant, id, assertionId, assertionNotOnOrAfter, sessio
 /*
   NewErrorResponse makes a new error response with Entityid, issuer, destination and returns the response
 */
-func NewErrorResponse(idpmd, spmd, authnrequest, sourceResponse *goxml.Xp) (response *goxml.Xp) {
-	idpEntityID := idpmd.Query1(nil, `/md:EntityDescriptor/@entityID`)
+func NewErrorResponse(idpMd, spMd, authnrequest, sourceResponse *goxml.Xp) (response *goxml.Xp) {
+	idpEntityID := idpMd.Query1(nil, `/md:EntityDescriptor/@entityID`)
 	response = goxml.NewXpFromNode(sourceResponse.DocGetRootElement())
 	response.QueryDashP(nil, "./@InResponseTo", authnrequest.Query1(nil, "@ID"), nil)
 	response.QueryDashP(nil, "./@Destination", authnrequest.Query1(nil, "@AssertionConsumerServiceURL"), nil)
@@ -972,7 +972,7 @@ func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp, signing
     - The Issuer is the entityID in the idpmetadata
     - The NameID defaults to transient
 */
-func NewAuthnRequest(originalRequest, spmd, idpmd *goxml.Xp, providerID string) (request *goxml.Xp, err error) {
+func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, providerID string) (request *goxml.Xp, err error) {
 	template := `<samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
                     xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
                     Version="2.0"
@@ -986,9 +986,9 @@ func NewAuthnRequest(originalRequest, spmd, idpmd *goxml.Xp, providerID string) 
 	request = goxml.NewXpFromString(template)
 	request.QueryDashP(nil, "./@ID", msgId, nil)
 	request.QueryDashP(nil, "./@IssueInstant", issueInstant, nil)
-	request.QueryDashP(nil, "./@Destination", idpmd.Query1(nil, `./md:IDPSSODescriptor/md:SingleSignOnService[@Binding="`+REDIRECT+`"]/@Location`), nil)
-	request.QueryDashP(nil, "./@AssertionConsumerServiceURL", spmd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`"]/@Location`), nil)
-	request.QueryDashP(nil, "./saml:Issuer", spmd.Query1(nil, `./@entityID`), nil)
+	request.QueryDashP(nil, "./@Destination", idpMd.Query1(nil, `./md:IDPSSODescriptor/md:SingleSignOnService[@Binding="`+REDIRECT+`"]/@Location`), nil)
+	request.QueryDashP(nil, "./@AssertionConsumerServiceURL", spMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`"]/@Location`), nil)
+	request.QueryDashP(nil, "./saml:Issuer", spMd.Query1(nil, `./@entityID`), nil)
 	if providerID != "" {
 		request.QueryDashP(nil, "./samlp:Scoping/samlp:IDPList/samlp:IDPEntry/@ProviderID", providerID, nil)
 	}
@@ -1013,7 +1013,7 @@ func NewAuthnRequest(originalRequest, spmd, idpmd *goxml.Xp, providerID string) 
 	}
 
 	for _, nameIDFormat = range nameIDFormats {
-		if found = idpmd.Query1(nil, "./md:IDPSSODescriptor/md:NameIDFormat[.="+strconv.Quote(nameIDFormat)+"]") != ""; found {
+		if found = idpMd.Query1(nil, "./md:IDPSSODescriptor/md:NameIDFormat[.="+strconv.Quote(nameIDFormat)+"]") != ""; found {
 			break
 		}
 	}
@@ -1031,7 +1031,7 @@ func NewAuthnRequest(originalRequest, spmd, idpmd *goxml.Xp, providerID string) 
   NewResponse - create a new response using the supplied metadata and resp. authnrequest and response for filling out the fields
   The response is primarily for the attributes, but other fields is eg. the AuthnContextClassRef is also drawn from it
 */
-func NewResponse(idpmd, spmd, authnrequest, sourceResponse *goxml.Xp) (response *goxml.Xp) {
+func NewResponse(idpMd, spMd, authnrequest, sourceResponse *goxml.Xp) (response *goxml.Xp) {
 	template := `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" xmlns:xs="http://www.w3.org/2001/XMLSchema">
 	<saml:Issuer></saml:Issuer>
 	<samlp:Status>
@@ -1065,8 +1065,8 @@ func NewResponse(idpmd, spmd, authnrequest, sourceResponse *goxml.Xp) (response 
 	issueInstant, msgId, assertionId, assertionNotOnOrAfter, sessionNotOnOrAfter := IdAndTiming()
 	assertionIssueInstant := issueInstant
 
-	spEntityID := spmd.Query1(nil, `/md:EntityDescriptor/@entityID`)
-	idpEntityID := idpmd.Query1(nil, `/md:EntityDescriptor/@entityID`)
+	spEntityID := spMd.Query1(nil, `/md:EntityDescriptor/@entityID`)
+	idpEntityID := idpMd.Query1(nil, `/md:EntityDescriptor/@entityID`)
 
 	acs := authnrequest.Query1(nil, "@AssertionConsumerServiceURL")
 	response.QueryDashP(nil, "./@ID", msgId, nil)
@@ -1104,7 +1104,7 @@ func NewResponse(idpmd, spmd, authnrequest, sourceResponse *goxml.Xp) (response 
 	response.QueryDashP(authstatement, "saml:AuthnContext/saml:AuthenticatingAuthority", sourceResponse.Query1(nil, "./saml:Issuer"), nil)
 	response.QueryDashP(authstatement, "saml:AuthnContext/saml:AuthnContextClassRef", sourceResponse.Query1(nil, "//saml:AuthnContextClassRef"), nil)
 
-	copyAttributes(sourceResponse, response, spmd, assertion)
+	copyAttributes(sourceResponse, response, spMd, assertion)
 	return
 }
 
@@ -1127,7 +1127,7 @@ func wsfedRequest2samlRequest(r *http.Request, issuerMdSet, destinationMdSet Md)
 	return
 }
 
-func NewWsFedResponse(idpmd, spmd, sourceResponse *goxml.Xp) (response *goxml.Xp) {
+func NewWsFedResponse(idpMd, spMd, sourceResponse *goxml.Xp) (response *goxml.Xp) {
 	template := `<t:RequestSecurityTokenResponse xmlns:t="http://schemas.xmlsoap.org/ws/2005/02/trust" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"
     xmlns:wsp="http://schemas.xmlsoap.org/ws/2004/09/policy" xmlns:wsa="http://www.w3.org/2005/08/addressing" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">
 	<t:Lifetime>
@@ -1170,8 +1170,8 @@ func NewWsFedResponse(idpmd, spmd, sourceResponse *goxml.Xp) (response *goxml.Xp
 	issueInstant, _, assertionId, assertionNotOnOrAfter, _ := IdAndTiming()
 	assertionIssueInstant := issueInstant
 
-	spEntityID := spmd.Query1(nil, `/md:EntityDescriptor/@entityID`)
-	idpEntityID := idpmd.Query1(nil, `/md:EntityDescriptor/@entityID`)
+	spEntityID := spMd.Query1(nil, `/md:EntityDescriptor/@entityID`)
+	idpEntityID := idpMd.Query1(nil, `/md:EntityDescriptor/@entityID`)
 
 	response.QueryDashP(nil, "./t:Lifetime/wsu:Created", issueInstant, nil)
 	response.QueryDashP(nil, "./t:Lifetime/wsu:Expires", assertionNotOnOrAfter, nil)
@@ -1192,12 +1192,12 @@ func NewWsFedResponse(idpmd, spmd, sourceResponse *goxml.Xp) (response *goxml.Xp
 	//response.QueryDashP(authstatement, "@SessionNotOnOrAfter", sessionNotOnOrAfter, nil)
 	//response.QueryDashP(authstatement, "@SessionIndex", "missing", nil)
 
-	copyAttributes(sourceResponse, response, spmd, assertion)
+	copyAttributes(sourceResponse, response, spMd, assertion)
 	return
 }
 
-func copyAttributes(sourceResponse, response, spmd *goxml.Xp, assertion types.Node) {
-	base64encodedOut := spmd.Query1(nil, "/md:EntityDescriptor/md:Extensions/wayf:wayf/wayf:base64attributes") == "1"
+func copyAttributes(sourceResponse, response, spMd *goxml.Xp, assertion types.Node) {
+	base64encodedOut := spMd.Query1(nil, "/md:EntityDescriptor/md:Extensions/wayf:wayf/wayf:base64attributes") == "1"
 
 	sourceAttributes := sourceResponse.Query(nil, `//saml:AttributeStatement/saml:Attribute`)
 	attrcache := map[string]types.Element{}
@@ -1210,15 +1210,15 @@ func copyAttributes(sourceResponse, response, spmd *goxml.Xp, assertion types.No
 		}
 	}
 
-	requestedAttributes := spmd.Query(nil, `./md:SPSSODescriptor/md:AttributeConsumingService[1]/md:RequestedAttribute`)
+	requestedAttributes := spMd.Query(nil, `./md:SPSSODescriptor/md:AttributeConsumingService[1]/md:RequestedAttribute`)
 
 	destinationAttributes := response.QueryDashP(assertion, `saml:AttributeStatement`, "", nil) // only if there are actually some requested attributes
 	for _, requestedAttribute := range requestedAttributes {
 
-		name := spmd.Query1(requestedAttribute, "@Name")
+		name := spMd.Query1(requestedAttribute, "@Name")
 		attribute := attrcache[name]
 		if attribute == nil {
-			friendlyname := spmd.Query1(requestedAttribute, "@FriendlyName")
+			friendlyname := spMd.Query1(requestedAttribute, "@FriendlyName")
 			attribute = attrcache[friendlyname]
 			if attribute == nil {
 				continue
@@ -1227,7 +1227,7 @@ func copyAttributes(sourceResponse, response, spmd *goxml.Xp, assertion types.No
 
 		newAttribute := response.CopyNode(attribute, 2)
 		destinationAttributes.AddChild(newAttribute)
-		allowedValues := spmd.QueryMulti(requestedAttribute, `saml:AttributeValue`)
+		allowedValues := spMd.QueryMulti(requestedAttribute, `saml:AttributeValue`)
 		allowedValuesMap := make(map[string]bool)
 		for _, value := range allowedValues {
 			allowedValuesMap[value] = true
