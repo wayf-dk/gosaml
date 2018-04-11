@@ -72,7 +72,6 @@ type (
 		SamlSchema string
 		CertPath   string
 		LogPath    string
-		NameIDFormats []string
 	}
 
 	SLOInfo struct { // Single Logout information
@@ -102,7 +101,7 @@ func DumpFile(xp *goxml.Xp) (logtag string) { // For Logging
 	msgType := xp.QueryString(nil, "local-name(/*)")
 	//log.Println("stack", goxml.New().Stack(1))
 	if err := ioutil.WriteFile(fmt.Sprintf("log/%s-%s", logtag, msgType), []byte(fmt.Sprintf("%s\n###\n%s", xp.PP(), goxml.NewWerror("").Stack(1))), 0644); err != nil {
-		//log.Panic(err)
+		log.Panic(err)
 	}
 	return
 }
@@ -675,7 +674,7 @@ func checkDestinationAndACS(message, issuerMd, destinationMd *goxml.Xp, role int
 		// we now have a validated AssertionConsumerService - and Binding - let's put them into the request
 		message.QueryDashP(nil, "@AssertionConsumerServiceURL", acs, nil)
 		message.QueryDashP(nil, "@ProtocolBinding", POST, nil)
-		message.QueryDashP(nil, "@ACSIndex", checkedAcs, nil)
+		message.QueryDashP(nil, "@AssertionConsumerServiceIndex", checkedAcs, nil)
 
 		checkedDest = destinationMd.Query1(nil, `./md:IDPSSODescriptor/md:SingleSignOnService[@Binding="`+REDIRECT+`" and @Location=`+strconv.Quote(dest)+`]/@Location`)
 		if checkedDest == "" {
@@ -987,7 +986,7 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, providerID string) 
 	request.QueryDashP(nil, "./@ID", msgId, nil)
 	request.QueryDashP(nil, "./@IssueInstant", issueInstant, nil)
 	request.QueryDashP(nil, "./@Destination", idpMd.Query1(nil, `./md:IDPSSODescriptor/md:SingleSignOnService[@Binding="`+REDIRECT+`"]/@Location`), nil)
-	request.QueryDashP(nil, "./@AssertionConsumerServiceURL", spMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`"]/@Location`), nil)
+    request.QueryDashP(nil, "./@AssertionConsumerServiceURL", spMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`"]/@Location`), nil)
 	request.QueryDashP(nil, "./saml:Issuer", spMd.Query1(nil, `./@entityID`), nil)
 	if providerID != "" {
 		request.QueryDashP(nil, "./samlp:Scoping/samlp:IDPList/samlp:IDPEntry/@ProviderID", providerID, nil)
