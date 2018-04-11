@@ -72,6 +72,7 @@ type (
 		SamlSchema string
 		CertPath   string
 		LogPath    string
+		NameIDFormats []string
 	}
 
 	SLOInfo struct { // Single Logout information
@@ -101,7 +102,7 @@ func DumpFile(xp *goxml.Xp) (logtag string) { // For Logging
 	msgType := xp.QueryString(nil, "local-name(/*)")
 	//log.Println("stack", goxml.New().Stack(1))
 	if err := ioutil.WriteFile(fmt.Sprintf("log/%s-%s", logtag, msgType), []byte(fmt.Sprintf("%s\n###\n%s", xp.PP(), goxml.NewWerror("").Stack(1))), 0644); err != nil {
-		log.Panic(err)
+		//log.Panic(err)
 	}
 	return
 }

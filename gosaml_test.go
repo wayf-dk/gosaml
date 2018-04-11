@@ -195,13 +195,12 @@ func ExampleNewLogoutResponse() {
 
 func ExampleNewSLOInfo() {
 	sloInfo := NewSLOInfo(response, spmetadata)
-	//	q.Q(sloInfo)
 	fmt.Println(sloInfo)
 	// Output:
-	// &{https://wayf.wayf.dk WAYF-DK-c5bc7e16bb6d28cb5a20b6aad84d1cba2df5c48f -  https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth 1}
+	// &{https://wayf.wayf.dk WAYF-DK-c5bc7e16bb6d28cb5a20b6aad84d1cba2df5c48f -  https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth 2}
 }
 
-func xExampleNewLogoutRequest() {
+func xxExampleNewLogoutRequest() {
 	sloInfo := NewSLOInfo(response, spmetadata)
 	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
@@ -289,29 +288,16 @@ func ExampleAuthnRequest() {
 	// </samlp:AuthnRequest>
 }
 
-func ExampleResponse1() {
-	TestTime = fixedTestTime
-	request, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
-	//for i := range [1000]int{} {
-	//	for _ = range [1000]int{} {
-	_ = NewResponse(idpmetadata, spmetadata, request, response)
-	//_ = goxml.NewXpFromString(template)
-	//time.Sleep(1 * time.Millisecond)
-	//	}
-	//	log.Println(i)
-	//}
-	//time.Sleep(20 * time.Second)
-	// Output:
-	// abc
-}
-
 func ExampleResponse() {
 	TestTime = fixedTestTime
 	request, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
 	newResponse := NewResponse(idpmetadata, spmetadata, request, response)
+	assertion := newResponse.Query(nil, "saml:Assertion")[0]
+	authstatement := newResponse.Query(assertion, "saml:AuthnStatement")[0]
+	newResponse.QueryDashP(authstatement, "@SessionIndex", "1", nil)
 	fmt.Printf("%x\n", sha1.Sum([]byte(newResponse.PP())))
 	// Output:
-	// c49d7dba8890625585c272a774fc75769c49a3ee
+	// 3ee7aff55f11e6ebe01d038d63a963cb933590dc
 }
 
 func ExampleAttributeCanonicalDump() {
@@ -437,7 +423,6 @@ func ExampleReceiveAuthnRequest() {
 	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
-	//fmt.Println(request)
 	_, _, _, relayState, err := ReceiveAuthnRequest(request, external, external)
 	fmt.Println(relayState)
 	fmt.Println(err)
@@ -493,7 +478,7 @@ func ExampleNameIDPolicy() {
 	_, _, _, _, err := ReceiveAuthnRequest(request, external, external)
 	fmt.Println(err)
 	// Output:
-	// nameidpolicy format: anton-banton is not supported
+	// nameidpolicy format: 'anton-banton' is not supported
 }
 
 func ExampleReceiveAuthnRequestNoSubject() {
@@ -547,7 +532,6 @@ func xTestReceiveResponse(*testing.T) {
 func ExampleReceiveUnSignedResponse() {
 	response := goxml.NewXpFromFile("testdata/response.xml")
 	destination := response.Query1(nil, "@Destination")
-	//response.QueryDashP(nil, "./saml:Assertion[1]/saml:Issuer/ds:Signature", "_4099d6da09c9a1d9fad7f", nil)
 	TestTime, _ = time.Parse(XsDateTime, response.Query1(nil, "@IssueInstant"))
 	data := url.Values{}
 	data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
@@ -634,7 +618,6 @@ func ExampleInvalidSchema() {
 }
 
 func ExampleInvalidTime() {
-	//TestTime, _ = time.Parse("2006-Jan-02", "2013-Feb-03")
 	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
@@ -685,7 +668,10 @@ func ExampleEncryptAndDecrypt() {
 	TestTime = fixedTestTime
 	request, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
 	response := NewResponse(idpmetadata, spmetadata, request, response)
+	assertion := response.Query(nil, "saml:Assertion")[0]
+	authstatement := response.Query(assertion, "saml:AuthnStatement")[0]
+	response.QueryDashP(authstatement, "@SessionIndex", "1", nil)
 	fmt.Printf("%x\n", sha1.Sum([]byte(response.PP())))
 	// Output:
-	// 4f2a8bcacd25c263d4e302d46802d46783cd2a06
+	// ad3f8e7cfbfbff885bfca6616eac8c447d67ab70
 }
