@@ -458,7 +458,7 @@ func CheckSAMLMessage(r *http.Request, xp, issuerMd, destinationMd *goxml.Xp, ro
 			service:           "md:SingleLogoutService",
 			signatureElements: []string{"/samlp:LogoutRequest[1]/ds:Signature[1]/..", ""}},
 		"LogoutResponse": {
-			minSignatures:     1,
+			minSignatures:     0,
 			service:           "md:SingleLogoutService",
 			signatureElements: []string{"/samlp:LogoutResponse[1]/ds:Signature[1]/..", ""}},
 	}
