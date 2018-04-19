@@ -277,7 +277,7 @@ func AttributeCanonicalDump(w io.Writer, xp *goxml.Xp) {
   Returns metadata for the sender and the receiver
 */
 func ReceiveAuthnRequest(r *http.Request, issuerMdSet, destinationMdSet Md) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, err error) {
-	xp, issuerMd, destinationMd, relayState, err = DecodeSAMLMsg(r, issuerMdSet, destinationMdSet, IdPRole, []string{"AuthnRequest"}, true)
+	xp, issuerMd, destinationMd, relayState, err = DecodeSAMLMsg(r, issuerMdSet, destinationMdSet, IdPRole, []string{"AuthnRequest"}, "https://" + r.Host + r.URL.Path)
 	if err != nil {
 		return
 	}
@@ -307,8 +307,8 @@ func ReceiveAuthnRequest(r *http.Request, issuerMdSet, destinationMdSet Md) (xp,
   Receives the metadatasets for resp. the sender and the receiver
   Returns metadata for the sender and the receiver
 */
-func ReceiveSAMLResponse(r *http.Request, issuerMdSet, destinationMdSet Md) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, err error) {
-	return DecodeSAMLMsg(r, issuerMdSet, destinationMdSet, SPRole, []string{"Response"}, true)
+func ReceiveSAMLResponse(r *http.Request, issuerMdSet, destinationMdSet Md, location string) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, err error) {
+	return DecodeSAMLMsg(r, issuerMdSet, destinationMdSet, SPRole, []string{"Response"}, location)
 }
 
 /*
@@ -317,7 +317,7 @@ func ReceiveSAMLResponse(r *http.Request, issuerMdSet, destinationMdSet Md) (xp,
   Returns metadata for the sender and the receiver
 */
 func ReceiveLogoutMessage(r *http.Request, issuerMdSet, destinationMdSet Md, role int) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, err error) {
-	return DecodeSAMLMsg(r, issuerMdSet, destinationMdSet, role, []string{"LogoutRequest", "LogoutResponse"}, true)
+	return DecodeSAMLMsg(r, issuerMdSet, destinationMdSet, role, []string{"LogoutRequest", "LogoutResponse"}, "https://" + r.Host + r.URL.Path)
 }
 
 /*
@@ -327,7 +327,7 @@ func ReceiveLogoutMessage(r *http.Request, issuerMdSet, destinationMdSet Md, rol
   Receives the metadatasets for resp. the sender and the receiver
   Returns metadata for the sender and the receiver
 */
-func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, protocols []string, checkDestination bool) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, err error) {
+func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, protocols []string, location string) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, err error) {
 	defer r.Body.Close()
 	r.ParseForm()
 	method := r.Method
@@ -392,14 +392,10 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 		return
 	}
 
-	if checkDestination {
-		location := "https://" + r.Host + r.URL.Path
-
-		if destination != location {
-			err = fmt.Errorf("destination: %s is not here, here is %s", destination, location)
-			return
-		}
-	}
+    if location != "" && destination != location {
+        err = fmt.Errorf("destination: %s is not here, here is %s", destination, location)
+        return
+    }
 
 	/*
 	       if r.Host == "krib.wayf.dk" {
