@@ -88,7 +88,7 @@ var (
 	Roles                   = []string{"md:IDPSSODescriptor", "md:SPSSODescriptor"}
 	Config                  = Conf{}
 	ACSError                = errors.New("invalid AsssertionConsumerService or AsssertionConsumerServiceIndex")     // Error information
-	NameIDList              = []string{"", Transient, Persistent, X509, Email, Unspecified}                                      // Unspecified not accepted downstream
+	NameIDList              = []string{"", Transient, Persistent, X509, Email, Unspecified}                         // Unspecified not accepted downstream
 	NameIDMap               = map[string]int{"": 1, Transient: 1, Persistent: 2, X509: 3, Email: 4, Unspecified: 5} // Unspecified accepted but not sent upstream
 )
 
@@ -986,7 +986,7 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, providerID string) 
 	request.QueryDashP(nil, "./@ID", msgId, nil)
 	request.QueryDashP(nil, "./@IssueInstant", issueInstant, nil)
 	request.QueryDashP(nil, "./@Destination", idpMd.Query1(nil, `./md:IDPSSODescriptor/md:SingleSignOnService[@Binding="`+REDIRECT+`"]/@Location`), nil)
-    request.QueryDashP(nil, "./@AssertionConsumerServiceURL", spMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`"]/@Location`), nil)
+	request.QueryDashP(nil, "./@AssertionConsumerServiceURL", spMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`"]/@Location`), nil)
 	request.QueryDashP(nil, "./saml:Issuer", spMd.Query1(nil, `./@entityID`), nil)
 	if providerID != "" {
 		request.QueryDashP(nil, "./samlp:Scoping/samlp:IDPList/samlp:IDPEntry/@ProviderID", providerID, nil)
