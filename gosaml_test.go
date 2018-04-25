@@ -242,7 +242,7 @@ func ExampleSigningKeyNotFound() {
 	data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(encryptedAssertion.Doc.Dump(false))))
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
 	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	_, _, _, _, err := ReceiveSAMLResponse(request, external, external)
+	_, _, _, _, err := ReceiveSAMLResponse(request, external, external, "https://"+request.Host+request.URL.Path)
 	fmt.Println(err)
 	// Output:
 	// ["cause:open fd666194364791ef937224223c7387f6b26368af.key: no such file or directory"]
@@ -256,7 +256,7 @@ func ExampleUnsupportedEncryptionMethod() {
 	data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(encryptedAssertion.Doc.Dump(false))))
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
 	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	_, _, _, _, err := ReceiveSAMLResponse(request, external, external)
+	_, _, _, _, err := ReceiveSAMLResponse(request, external, external, "https://"+request.Host+request.URL.Path)
 	fmt.Println(err)
 	fmt.Println(err.(goxml.Werror).FullError())
 	// Output:
@@ -276,7 +276,7 @@ func ExampleInvalidDestination() {
 	//	for _ = range [1000]int{} {
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
 	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	_, _, _, _, err := ReceiveSAMLResponse(request, external, external)
+	_, _, _, _, err := ReceiveSAMLResponse(request, external, external, "https://"+request.Host+request.URL.Path)
 	//	}
 	//	log.Println(i)
 	//}
@@ -421,7 +421,7 @@ func ExampleNoAssertion() {
 	data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
 	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	_, _, _, _, err := ReceiveSAMLResponse(request, external, external)
+	_, _, _, _, err := ReceiveSAMLResponse(request, external, external, "https://"+request.Host+request.URL.Path)
 	//fmt.Println(xp.PP())
 	fmt.Println(err)
 	// Output:
@@ -531,7 +531,7 @@ func xTestReceiveResponse(*testing.T) {
 			data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
 			request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
 			request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-			_, _, _, _, _ = ReceiveSAMLResponse(request, external, external)
+			_, _, _, _, _ = ReceiveSAMLResponse(request, external, external, "https://"+request.Host+request.URL.Path)
 			i++
 		}
 		log.Println(i)
@@ -547,12 +547,12 @@ func ExampleReceiveUnSignedResponse() {
 	data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
 	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	xp, _, _, _, err := ReceiveSAMLResponse(request, external, external)
+	xp, _, _, _, err := ReceiveSAMLResponse(request, external, external, "https://"+request.Host+request.URL.Path)
 	data1 := url.Values{} // Checking for unsigned Response here //
 	data1.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(xp.Doc.Dump(false))))
 	request1 := httptest.NewRequest("POST", destination, strings.NewReader(data1.Encode()))
 	request1.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	_, _, _, _, err = ReceiveSAMLResponse(request1, external, external)
+	_, _, _, _, err = ReceiveSAMLResponse(request1, external, external, "https://"+request1.Host+request1.URL.Path)
 	fmt.Println(err)
 	fmt.Println(err.(goxml.Werror).FullError())
 	// Output:
@@ -569,7 +569,7 @@ func ExampleCheckDigest() {
 	data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
 	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	_, _, _, _, err := ReceiveSAMLResponse(request, external, external)
+	_, _, _, _, err := ReceiveSAMLResponse(request, external, external, "https://"+request.Host+request.URL.Path)
 	fmt.Println(err)
 	// Output:
 	// ["err:Metadata not found","key:https://www.example.com"]
@@ -581,7 +581,7 @@ func ExampleNoSAMLResponse() {
 	data.Set("SAMLResponse", "")
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
 	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	_, _, _, _, err := ReceiveSAMLResponse(request, external, external)
+	_, _, _, _, err := ReceiveSAMLResponse(request, external, external, "https://"+request.Host+request.URL.Path)
 	fmt.Println(err)
 	// Output:
 	// no SAMLRequest/SAMLResponse found
@@ -595,7 +595,7 @@ func ExampleNoIssuer() {
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
 	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
-	_, _, _, _, err := ReceiveSAMLResponse(request, external, external)
+	_, _, _, _, err := ReceiveSAMLResponse(request, external, external, "https://"+request.Host+request.URL.Path)
 	fmt.Println(err)
 	// Output:
 	// ["err:Metadata not found","key:abc"]
@@ -609,7 +609,7 @@ func ExampleNoDestination() {
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
 	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
-	_, _, _, _, err := ReceiveSAMLResponse(request, external, external)
+	_, _, _, _, err := ReceiveSAMLResponse(request, external, external, "https://"+request.Host+request.URL.Path)
 	fmt.Println(err)
 	// Output:
 	// ["err:Metadata not found","key:abc"]
