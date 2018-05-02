@@ -307,7 +307,7 @@ func ExampleResponse() {
 	newResponse.QueryDashP(authstatement, "@SessionIndex", "1", nil)
 	fmt.Printf("%x\n", sha1.Sum([]byte(newResponse.PP())))
 	// Output:
-	// 3ee7aff55f11e6ebe01d038d63a963cb933590dc
+	// c63d3f10d357c761a8451aec70538cc6a6d90d56
 }
 
 func ExampleAttributeCanonicalDump() {
