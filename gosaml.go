@@ -1008,14 +1008,10 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, providerID string) 
 	}
 
 	for _, nameIDFormat = range nameIDFormats {
-		if found = idpMd.Query1(nil, "./md:IDPSSODescriptor/md:NameIDFormat[.="+strconv.Quote(nameIDFormat)+"]") != ""; found {
+		if found = spMd.Query1(nil, "./md:SPSSODescriptor/md:NameIDFormat[.="+strconv.Quote(nameIDFormat)+"]") != ""; found {
+			request.QueryDashP(nil, "./samlp:NameIDPolicy/@Format", nameIDFormat, nil)
 			break
 		}
-	}
-	if !found {
-		// err = errors.New("no supported NameID format")
-		// return
-		nameIDFormat = Transient
 	}
 
 	request.QueryDashP(nil, "./samlp:NameIDPolicy/@Format", nameIDFormat, nil)
