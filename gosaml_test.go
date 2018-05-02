@@ -169,7 +169,7 @@ func ExampleParseQueryRaw() {
 	}
 	// Output:
 	// RelayState [anton-banton]
-	// SAMLRequest [pJJBj9owEIXv%2FArL98TZqK0qi7Cii1aNtO0iku2hN5MMm5EcO52ZAP33FQEqeuHSqz3zvvc0b%2F547L3aAzHGUOiHNNMKQhNbDO%2BFfqufk8%2F6cTGbs%2Bv9YJejdGEDv0ZgUcfeB7bTR6FHCjY6RrbB9cBWGlstv73YPM3sQFFiE72%2BWbm%2F4ZiBBGPQ6sfVWn6ytr5IfcFwdnhPZXseYvu1rtfJ%2BrWqtSpXhS5XWpXMI5SBxQUpdJ5ln5LsIcnyOs9t9sFmH39qtQIWDE4mfCcysDXGOUx8fI8h5QNK06VNZ7AdzEBxhx7MiZ6bDbRI0Iipqletltc4TzHw2ANVQHts4G3zciMsQrgdBZI9wgEodQ5vGUGAdtACTYYSARZTdbjdRg%2FSpczxwp6CXk5mp5y0%2BB8I%2F4XMza3mtRTfXQ%2Flah09Nr%2FVc6Teyf27nF6wTXbTqBVygRGCaLX0Ph6eCJxAoYVG0GYxO0P%2F7d5i9icAAP%2F%2F]
+	// SAMLRequest [pJJBj9owEIXv%2FArL98QhaqvKIqzoolUjbbuIZHvozTjDZiTHTj1j2P77agNU9FAue7Vn3vee5i3uXgcnDhAJg6%2FkPC%2BkAG9Dh%2F6lks%2FtQ%2FZZ3i1nCzKDG%2FUqce%2B38CsBsXgdnCc9fVQyRa%2BDISTtzQCk2epm9e1Rl3mhxxg42ODk1crtDUMEkTF4KX5crJVv1jZnqS%2FoTw5vqexOQ6S%2Ftu0m2zw1rRT1upL1WoqaKEHtiY3nSpZF8Skr5llRtmWpiw%2B6%2BPhTijUQozc84XvmkbRSxmDmwkvwOR2RbZ%2FbXmE3qjGGPTpQb%2FRSbaHDCJZV0zxJsbrEuQ%2Be0gCxgXhAC8%2Fbxyth5oi7xJAdEI4Qc2PwmuEZ4h46iJOhjIFYNT3udsEB9zlROLOnoOeT6SlnXL4HQn8hC3WteSnFdzNAvd4Eh%2Fa3eAhxMPz%2Fu8zz%2BfSCXbafRnXyNILFPUInxcq5cLyPYBgqyTGBVMvZCftv%2B5azPwEAAP%2F%2F]
 }
 
 func xExampleNewLogoutRequestProtocol() {
@@ -294,7 +294,7 @@ func ExampleAuthnRequest() {
 	// <?xml version="1.0" encoding="UTF-8"?>
 	// <samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" ID="ID" IssueInstant="2006-01-02T22:04:05Z" Destination="https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO" AssertionConsumerServiceURL="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
 	// <saml:Issuer>https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth</saml:Issuer>
-	// <samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" AllowCreate="true"/>
+	// <samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified" AllowCreate="true"/>
 	// </samlp:AuthnRequest>
 }
 
@@ -359,7 +359,7 @@ func ExampleSAMLRequest2Url() {
 	url, err := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	fmt.Println(url, err)
 	// Output:
-	// https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO?SAMLRequest=pJJBj9owEIXv%2FArL98TZqK0qi7Cii1aNtO0iku2hN5MMm5EcO52ZAP33FQEqeuHSqz3zvvc0b%2F547L3aAzHGUOiHNNMKQhNbDO%2BFfqufk8%2F6cTGbs%2Bv9YJejdGEDv0ZgUcfeB7bTR6FHCjY6RrbB9cBWGlstv73YPM3sQFFiE72%2BWbm%2F4ZiBBGPQ6sfVWn6ytr5IfcFwdnhPZXseYvu1rtfJ%2BrWqtSpXhS5XWpXMI5SBxQUpdJ5ln5LsIcnyOs9t9sFmH39qtQIWDE4mfCcysDXGOUx8fI8h5QNK06VNZ7AdzEBxhx7MiZ6bDbRI0Iipqletltc4TzHw2ANVQHts4G3zciMsQrgdBZI9wgEodQ5vGUGAdtACTYYSARZTdbjdRg%2FSpczxwp6CXk5mp5y0%2BB8I%2F4XMza3mtRTfXQ%2Flah09Nr%2FVc6Teyf27nF6wTXbTqBVygRGCaLX0Ph6eCJxAoYVG0GYxO0P%2F7d5i9icAAP%2F%2F&RelayState=anton-banton <nil>
+	// https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO?SAMLRequest=pJJBj9owEIXv%2FArL98QhaqvKIqzoolUjbbuIZHvozTjDZiTHTj1j2P77agNU9FAue7Vn3vee5i3uXgcnDhAJg6%2FkPC%2BkAG9Dh%2F6lks%2FtQ%2FZZ3i1nCzKDG%2FUqce%2B38CsBsXgdnCc9fVQyRa%2BDISTtzQCk2epm9e1Rl3mhxxg42ODk1crtDUMEkTF4KX5crJVv1jZnqS%2FoTw5vqexOQ6S%2Ftu0m2zw1rRT1upL1WoqaKEHtiY3nSpZF8Skr5llRtmWpiw%2B6%2BPhTijUQozc84XvmkbRSxmDmwkvwOR2RbZ%2FbXmE3qjGGPTpQb%2FRSbaHDCJZV0zxJsbrEuQ%2Be0gCxgXhAC8%2Fbxyth5oi7xJAdEI4Qc2PwmuEZ4h46iJOhjIFYNT3udsEB9zlROLOnoOeT6SlnXL4HQn8hC3WteSnFdzNAvd4Eh%2Fa3eAhxMPz%2Fu8zz%2BfSCXbafRnXyNILFPUInxcq5cLyPYBgqyTGBVMvZCftv%2B5azPwEAAP%2F%2F&RelayState=anton-banton <nil>
 }
 
 func ExampleUrl2SAMLRequest() {
@@ -380,7 +380,7 @@ func ExampleDeflate() {
 	req := base64.StdEncoding.EncodeToString(Deflate([]byte(newrequest.Doc.Dump(false))))
 	fmt.Println(req)
 	// Output:
-	// pJJBj9owEIXv/ArL98TZqK0qi7Cii1aNtO0iku2hN5MMm5EcO52ZAP33FQEqeuHSqz3zvvc0b/547L3aAzHGUOiHNNMKQhNbDO+Ffqufk8/6cTGbs+v9YJejdGEDv0ZgUcfeB7bTR6FHCjY6RrbB9cBWGlstv73YPM3sQFFiE72+Wbm/4ZiBBGPQ6sfVWn6ytr5IfcFwdnhPZXseYvu1rtfJ+rWqtSpXhS5XWpXMI5SBxQUpdJ5ln5LsIcnyOs9t9sFmH39qtQIWDE4mfCcysDXGOUx8fI8h5QNK06VNZ7AdzEBxhx7MiZ6bDbRI0Iipqletltc4TzHw2ANVQHts4G3zciMsQrgdBZI9wgEodQ5vGUGAdtACTYYSARZTdbjdRg/Spczxwp6CXk5mp5y0+B8I/4XMza3mtRTfXQ/lah09Nr/Vc6Teyf27nF6wTXbTqBVygRGCaLX0Ph6eCJxAoYVG0GYxO0P/7d5i9icAAP//
+	// pJJBj9owEIXv/ArL98QhaqvKIqzoolUjbbuIZHvozTjDZiTHTj1j2P77agNU9FAue7Vn3vee5i3uXgcnDhAJg6/kPC+kAG9Dh/6lks/tQ/ZZ3i1nCzKDG/Uqce+38CsBsXgdnCc9fVQyRa+DISTtzQCk2epm9e1Rl3mhxxg42ODk1crtDUMEkTF4KX5crJVv1jZnqS/oTw5vqexOQ6S/tu0m2zw1rRT1upL1WoqaKEHtiY3nSpZF8Skr5llRtmWpiw+6+PhTijUQozc84XvmkbRSxmDmwkvwOR2RbZ/bXmE3qjGGPTpQb/RSbaHDCJZV0zxJsbrEuQ+e0gCxgXhAC8/bxyth5oi7xJAdEI4Qc2PwmuEZ4h46iJOhjIFYNT3udsEB9zlROLOnoOeT6SlnXL4HQn8hC3WteSnFdzNAvd4Eh/a3eAhxMPz/u8zz+fSCXbafRnXyNILFPUInxcq5cLyPYBgqyTGBVMvZCftv+5azPwEAAP//
 }
 
 func ExampleInflate() {
@@ -393,8 +393,9 @@ func ExampleInflate() {
 	// <?xml version="1.0" encoding="UTF-8"?>
 	// <samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" ID="ID" IssueInstant="2006-01-02T22:04:05Z" Destination="https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO" AssertionConsumerServiceURL="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
 	// <saml:Issuer>https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth</saml:Issuer>
-	// <samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" AllowCreate="true"/>
+	// <samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified" AllowCreate="true"/>
 	// </samlp:AuthnRequest>
+
 }
 
 func ExampleReceiveAuthnRequestPOST() {
