@@ -967,7 +967,7 @@ func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp, signing
     - The Issuer is the entityID in the idpmetadata
     - The NameID defaults to transient
 */
-func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, providerID string) (request *goxml.Xp, err error) {
+func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, idPList []string) (request *goxml.Xp, err error) {
 	template := `<samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
                     xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
                     Version="2.0"
@@ -984,8 +984,10 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, providerID string) 
 	request.QueryDashP(nil, "./@Destination", idpMd.Query1(nil, `./md:IDPSSODescriptor/md:SingleSignOnService[@Binding="`+REDIRECT+`"]/@Location`), nil)
 	request.QueryDashP(nil, "./@AssertionConsumerServiceURL", spMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`"]/@Location`), nil)
 	request.QueryDashP(nil, "./saml:Issuer", spMd.Query1(nil, `./@entityID`), nil)
-	if providerID != "" {
-		request.QueryDashP(nil, "./samlp:Scoping/samlp:IDPList/samlp:IDPEntry/@ProviderID", providerID, nil)
+	for _, providerID := range idPList {
+		if providerID != "" {
+			request.QueryDashP(nil, "./samlp:Scoping/samlp:IDPList/samlp:IDPEntry[0]/@ProviderID", providerID, nil)
+		}
 	}
 	found := false
 	nameIDFormat := ""
@@ -1115,7 +1117,7 @@ func wsfedRequest2samlRequest(r *http.Request, issuerMdSet, destinationMdSet Md)
 		if err != nil {
 			return
 		}
-		samlrequest, _ := NewAuthnRequest(nil, issuerMd, destinationMd, "")
+		samlrequest, _ := NewAuthnRequest(nil, issuerMd, destinationMd, nil)
 		msg = base64.StdEncoding.EncodeToString(Deflate(samlrequest.Dump()))
 	}
 	return
