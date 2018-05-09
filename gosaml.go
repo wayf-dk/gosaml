@@ -277,7 +277,7 @@ func AttributeCanonicalDump(w io.Writer, xp *goxml.Xp) {
   Returns metadata for the sender and the receiver
 */
 func ReceiveAuthnRequest(r *http.Request, issuerMdSet, destinationMdSet Md) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, err error) {
-	xp, issuerMd, destinationMd, relayState, err = DecodeSAMLMsg(r, issuerMdSet, destinationMdSet, IdPRole, []string{"AuthnRequest"}, "https://" + r.Host + r.URL.Path)
+	xp, issuerMd, destinationMd, relayState, err = DecodeSAMLMsg(r, issuerMdSet, destinationMdSet, IdPRole, []string{"AuthnRequest"}, "https://"+r.Host+r.URL.Path)
 	if err != nil {
 		return
 	}
@@ -317,7 +317,7 @@ func ReceiveSAMLResponse(r *http.Request, issuerMdSet, destinationMdSet Md, loca
   Returns metadata for the sender and the receiver
 */
 func ReceiveLogoutMessage(r *http.Request, issuerMdSet, destinationMdSet Md, role int) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, err error) {
-	return DecodeSAMLMsg(r, issuerMdSet, destinationMdSet, role, []string{"LogoutRequest", "LogoutResponse"}, "https://" + r.Host + r.URL.Path)
+	return DecodeSAMLMsg(r, issuerMdSet, destinationMdSet, role, []string{"LogoutRequest", "LogoutResponse"}, "https://"+r.Host+r.URL.Path)
 }
 
 /*
@@ -392,10 +392,10 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 		return
 	}
 
-    if location != "" && destination != location {
-        err = fmt.Errorf("destination: %s is not here, here is %s", destination, location)
-        return
-    }
+	if location != "" && destination != location {
+		err = fmt.Errorf("destination: %s is not here, here is %s", destination, location)
+		return
+	}
 
 	/*
 	       if r.Host == "krib.wayf.dk" {
@@ -1094,9 +1094,9 @@ func NewResponse(idpMd, spMd, authnrequest, sourceResponse *goxml.Xp) (response 
 	response.QueryDashP(authstatement, "@SessionNotOnOrAfter", sessionNotOnOrAfter, nil)
 	//response.QueryDashP(authstatement, "@SessionIndex", "missing", nil)
 
-    for _, aa := range sourceResponse.QueryMulti(nil, "//saml:AuthnContext/saml:AuthenticatingAuthority") {
-	    response.QueryDashP(authstatement, "saml:AuthnContext/saml:AuthenticatingAuthority[0]", aa, nil)
-    }
+	for _, aa := range sourceResponse.QueryMulti(nil, "//saml:AuthnContext/saml:AuthenticatingAuthority") {
+		response.QueryDashP(authstatement, "saml:AuthnContext/saml:AuthenticatingAuthority[0]", aa, nil)
+	}
 	response.QueryDashP(authstatement, "saml:AuthnContext/saml:AuthenticatingAuthority[0]", sourceResponse.Query1(nil, "./saml:Issuer"), nil)
 	response.QueryDashP(authstatement, "saml:AuthnContext/saml:AuthnContextClassRef", sourceResponse.Query1(nil, "//saml:AuthnContextClassRef"), nil)
 
