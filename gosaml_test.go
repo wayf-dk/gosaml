@@ -50,13 +50,13 @@ var (
 	_ = log.Printf // For debugging; delete when done.
 	_ = q.Q
 
-	wg sync.WaitGroup
-
+	wg                                                                                                                         sync.WaitGroup
 	mdq                                                                                                                        = "https://phph.wayf.dk/MDQ/"
 	hub, external, internal                                                                                                    *simplemd // mddb
 	spmetadata, idpmetadata, hubmetadata, encryptedAssertion, response, attributestat, testidpmetadata, testidpviabirkmetadata *goxml.Xp
 	privatekey                                                                                                                 string
 	fixedTestTime                                                                                                              = time.Unix(1136239445, 0) // Mon Jan 2 15:04:05 MST 2006 // 01/02 03:04:05PM '06 -0700
+	idPList                                                                                                                    []string
 )
 
 func SimplePrepareMD(file string) *simplemd {
@@ -152,7 +152,7 @@ func ExampleGetPrivateKey() {
 }
 
 func ExampleParseQueryRaw() {
-	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, idPList)
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
 	rawValues := parseQueryRaw(request.URL.RawQuery)
@@ -174,7 +174,7 @@ func ExampleParseQueryRaw() {
 
 func xExampleNewLogoutRequestProtocol() {
 	sloInfo := NewSLOInfo(response, spmetadata)
-	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, idPList)
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request1 := httptest.NewRequest("GET", url.String(), nil)
 	request, _, _, _, err := ReceiveLogoutMessage(request1, external, external, 1)
@@ -188,7 +188,7 @@ func xExampleNewLogoutRequestProtocol() {
 }
 
 func ExampleNewErrorResponse() {
-	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, idPList)
 	response := NewErrorResponse(idpmetadata, spmetadata, newrequest, response)
 	fmt.Printf("%x\n", sha1.Sum([]byte(response.PP())))
 	// Output:
@@ -196,7 +196,7 @@ func ExampleNewErrorResponse() {
 }
 
 func ExampleNewLogoutResponse() {
-	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, idPList)
 	response := NewLogoutResponse(idpmetadata, spmetadata, newrequest, response)
 	fmt.Printf("%x\n", sha1.Sum([]byte(response.PP())))
 	// Output:
@@ -212,7 +212,7 @@ func ExampleNewSLOInfo() {
 
 func xxExampleNewLogoutRequest() {
 	sloInfo := NewSLOInfo(response, spmetadata)
-	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, idPList)
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request1 := httptest.NewRequest("GET", url.String(), nil)
 	//request1.Query(nil, "/samlp:AuthnRequest")[0].SetNodeName("LogoutRequest")
@@ -288,7 +288,7 @@ func ExampleInvalidDestination() {
 
 func ExampleAuthnRequest() {
 	TestTime = fixedTestTime
-	request, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+	request, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, idPList)
 	fmt.Print(request.Doc.Dump(false))
 	// Output:
 	// <?xml version="1.0" encoding="UTF-8"?>
@@ -300,7 +300,7 @@ func ExampleAuthnRequest() {
 
 func ExampleResponse() {
 	TestTime = fixedTestTime
-	request, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+	request, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, idPList)
 	newResponse := NewResponse(idpmetadata, spmetadata, request, response)
 	assertion := newResponse.Query(nil, "saml:Assertion")[0]
 	authstatement := newResponse.Query(assertion, "saml:AuthnStatement")[0]
@@ -355,7 +355,7 @@ func ExamplePublicKeyInfo() {
 
 func ExampleSAMLRequest2Url() {
 	TestTime = fixedTestTime
-	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, idPList)
 	url, err := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	fmt.Println(url, err)
 	// Output:
@@ -364,7 +364,7 @@ func ExampleSAMLRequest2Url() {
 
 func ExampleUrl2SAMLRequest() {
 	TestTime = fixedTestTime
-	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, idPList)
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	xp, relayState := Url2SAMLRequest(url, nil)
 	fmt.Printf("%t\n", newrequest.PP() == xp.PP())
@@ -376,7 +376,7 @@ func ExampleUrl2SAMLRequest() {
 
 func ExampleDeflate() {
 	TestTime = fixedTestTime
-	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, idPList)
 	req := base64.StdEncoding.EncodeToString(Deflate([]byte(newrequest.Doc.Dump(false))))
 	fmt.Println(req)
 	// Output:
@@ -385,7 +385,7 @@ func ExampleDeflate() {
 
 func ExampleInflate() {
 	TestTime = fixedTestTime
-	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, idPList)
 	req := Deflate([]byte(newrequest.Doc.Dump(false)))
 	res := Inflate(req)
 	fmt.Println(string(res))
@@ -400,7 +400,7 @@ func ExampleInflate() {
 
 func ExampleReceiveAuthnRequestPOST() {
 	TestTime = fixedTestTime
-	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, idPList)
 	destination := newrequest.Query1(nil, "@Destination")
 	//newrequest.QueryDashP(nil, "./saml:Issuer", "abc", nil)
 	data := url.Values{}
@@ -431,7 +431,7 @@ func ExampleNoAssertion() {
 
 func ExampleReceiveAuthnRequest() {
 	TestTime = fixedTestTime
-	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, idPList)
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
 	_, _, _, relayState, err := ReceiveAuthnRequest(request, external, external)
@@ -454,7 +454,7 @@ func TestReceiveAuthnRequest(*testing.T) {
 	for range [1]int{} {
 		for range [1]int{} {
 			//spmetadata, _ = external.MDQ("https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth")
-			newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+			newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, idPList)
 			url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 			request := httptest.NewRequest("GET", url.String(), nil)
 			_, _, _, _, _ = ReceiveAuthnRequest(request, external, external)
@@ -467,7 +467,7 @@ func TestReceiveAuthnRequest(*testing.T) {
 
 func ExampleLogoutMsgProtocolCheck() {
 	TestTime = fixedTestTime
-	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, idPList)
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
 	_, _, _, _, err := ReceiveLogoutMessage(request, external, external, 1)
@@ -478,7 +478,7 @@ func ExampleLogoutMsgProtocolCheck() {
 
 func ExampleNameIDPolicy() {
 	TestTime = fixedTestTime
-	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, idPList)
 
 	nameidpolicy := newrequest.Query(nil, "./samlp:NameIDPolicy")[0]
 	newrequest.QueryDashP(nameidpolicy, "@Format", "anton-banton", nil)
@@ -494,7 +494,7 @@ func ExampleNameIDPolicy() {
 
 func ExampleReceiveAuthnRequestNoSubject() {
 	TestTime = fixedTestTime
-	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, idPList)
 
 	nameidpolicy := newrequest.Query(nil, "./samlp:NameIDPolicy")[0]
 	subject := newrequest.QueryDashP(nil, "./saml:Subject/saml:NameID", "mehran", nameidpolicy)
@@ -511,7 +511,7 @@ func ExampleReceiveAuthnRequestNoSubject() {
 
 func ExampleProtocolCheck() {
 	TestTime = fixedTestTime
-	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, idPList)
 	newrequest.Query(nil, "/samlp:AuthnRequest")[0].SetNodeName("PutRequest")
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
@@ -618,7 +618,7 @@ func ExampleNoDestination() {
 
 func ExampleInvalidSchema() {
 	TestTime = fixedTestTime
-	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, idPList)
 	newrequest.Query(nil, "/samlp:AuthnRequest")[0].SetNodeName("PutRequest")
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
@@ -629,7 +629,7 @@ func ExampleInvalidSchema() {
 }
 
 func ExampleInvalidTime() {
-	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, idPList)
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
 	xp, _, _, _, _ := ReceiveAuthnRequest(request, external, external)
@@ -641,7 +641,7 @@ func ExampleInvalidTime() {
 }
 
 func ExampleOutOfRangeTime() {
-	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, idPList)
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
 
@@ -654,7 +654,7 @@ func ExampleOutOfRangeTime() {
 }
 
 func ExampleNoTime() {
-	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, idPList)
 	newrequest.QueryDashP(nil, "@IssueInstant", "2014-12-22", nil)
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
@@ -665,7 +665,7 @@ func ExampleNoTime() {
 }
 
 func ExampleNoTime2() {
-	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, idPList)
 	newrequest.QueryDashP(nil, "@IssueInstant", "2002-10-10T12:00:00-05:00", nil)
 	url, _ := SAMLRequest2Url(newrequest, "", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
@@ -677,7 +677,7 @@ func ExampleNoTime2() {
 
 func ExampleEncryptAndDecrypt() {
 	TestTime = fixedTestTime
-	request, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "")
+	request, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, idPList)
 	response := NewResponse(idpmetadata, spmetadata, request, response)
 	assertion := response.Query(nil, "saml:Assertion")[0]
 	authstatement := response.Query(assertion, "saml:AuthnStatement")[0]
