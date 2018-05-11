@@ -178,7 +178,6 @@ func xExampleNewLogoutRequestProtocol() {
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request1 := httptest.NewRequest("GET", url.String(), nil)
 	request, _, _, _, err := ReceiveLogoutMessage(request1, external, external, 1)
-	q.Q(request, err)
 	logoutRequest, err := NewLogoutRequest(spmetadata, idpmetadata, request, sloInfo, IdPRole)
 	fmt.Println(logoutRequest, err)
 	// Output:
