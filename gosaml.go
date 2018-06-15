@@ -409,6 +409,13 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 		return
 	}
 
+	if issuer == "https://eidasconnector.test.eid.digst.dk/idp" {
+        destinationMd, err = destinationMdSet.MDQ("https://saml.eidas.wayf.dk")
+        if err != nil {
+            return
+        }
+	}
+
 	xp, err = CheckSAMLMessage(r, tmpXp, issuerMd, destinationMd, role)
 	if err != nil {
 		err = goxml.Wrap(err)
