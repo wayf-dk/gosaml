@@ -92,16 +92,28 @@ var (
 	NameIDMap               = map[string]int{"": 1, Transient: 1, Persistent: 2, X509: 3, Email: 4, Unspecified: 5} // Unspecified accepted but not sent upstream
 )
 
-func DumpFile(xp *goxml.Xp) (logtag string) { // For Logging
-	now := TestTime
-	if now.IsZero() {
-		now = time.Now()
-	}
-	logtag = now.Format("2006-01-02T15:04:05.0000000") // local time with microseconds
-	msgType := xp.QueryString(nil, "local-name(/*)")
-	//log.Println("stack", goxml.New().Stack(1))
-	if err := ioutil.WriteFile(fmt.Sprintf("log/%s-%s", logtag, msgType), []byte(fmt.Sprintf("%s\n###\n%s", xp.PP(), goxml.NewWerror("").Stack(1))), 0644); err != nil {
-		log.Panic(err)
+
+func DebugSetting(r *http.Request, name string) string {
+	cookie, err := r.Cookie("debug")
+	if err == nil {
+        vals,_ := url.ParseQuery(cookie.Value)
+        return vals.Get(name)
+    }
+    return ""
+}
+
+func DumpFile(r *http.Request, xp *goxml.Xp) (logtag string) { // For Logging
+    if DebugSetting(r, "trace") == "1" {
+        now := TestTime
+        if now.IsZero() {
+            now = time.Now()
+        }
+        logtag = now.Format("2006-01-02T15:04:05.0000000") // local time with microseconds
+        msgType := xp.QueryString(nil, "local-name(/*)")
+        //log.Println("stack", goxml.New().Stack(1))
+        if err := ioutil.WriteFile(fmt.Sprintf("log/%s-%s", logtag, msgType), []byte(fmt.Sprintf("%s\n###\n%s", xp.PP(), goxml.NewWerror("").Stack(1))), 0644); err != nil {
+            log.Panic(err)
+        }
 	}
 	return
 }
@@ -205,7 +217,6 @@ func SAMLRequest2Url(samlrequest *goxml.Xp, relayState, privatekey, pw, algo str
 		paramName = "SAMLRequest="
 	}
 
-	DumpFile(samlrequest)
 	req := base64.StdEncoding.EncodeToString(Deflate(samlrequest.Dump()))
 
 	destination, _ = url.Parse(samlrequest.Query1(nil, "@Destination"))
@@ -356,7 +367,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 
 	tmpXp := goxml.NewXp(bmsg)
 
-	DumpFile(tmpXp)
+	DumpFile(r, tmpXp)
 	//log.Println("stack", goxml.New().Stack(1))
 	_, err = tmpXp.SchemaValidate(Config.SamlSchema)
 	if err != nil {
