@@ -172,20 +172,6 @@ func ExampleParseQueryRaw() {
 	// SAMLRequest [pJJBj9owEIXv%2FArL98QhaqvKIqzoolUjbbuIZHvozTjDZiTHTj1j2P77agNU9FAue7Vn3vee5i3uXgcnDhAJg6%2FkPC%2BkAG9Dh%2F6lks%2FtQ%2FZZ3i1nCzKDG%2FUqce%2B38CsBsXgdnCc9fVQyRa%2BDISTtzQCk2epm9e1Rl3mhxxg42ODk1crtDUMEkTF4KX5crJVv1jZnqS%2FoTw5vqexOQ6S%2Ftu0m2zw1rRT1upL1WoqaKEHtiY3nSpZF8Skr5llRtmWpiw%2B6%2BPhTijUQozc84XvmkbRSxmDmwkvwOR2RbZ%2FbXmE3qjGGPTpQb%2FRSbaHDCJZV0zxJsbrEuQ%2Be0gCxgXhAC8%2Fbxyth5oi7xJAdEI4Qc2PwmuEZ4h46iJOhjIFYNT3udsEB9zlROLOnoOeT6SlnXL4HQn8hC3WteSnFdzNAvd4Eh%2Fa3eAhxMPz%2Fu8zz%2BfSCXbafRnXyNILFPUInxcq5cLyPYBgqyTGBVMvZCftv%2B5azPwEAAP%2F%2F]
 }
 
-func xExampleNewLogoutRequestProtocol() {
-	sloInfo := NewSLOInfo(response, spmetadata)
-	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, idPList)
-	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
-	request1 := httptest.NewRequest("GET", url.String(), nil)
-	request, _, _, _, err := ReceiveLogoutMessage(request1, external, external, 1)
-	logoutRequest, err := NewLogoutRequest(spmetadata, idpmetadata, request, sloInfo, IdPRole)
-	fmt.Println(logoutRequest, err)
-	// Output:
-	// &{<?xml version="1.0" encoding="utf-8"?>
-	// <samlp:LogoutRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" IssueInstant="2006-01-02T22:04:05Z" ID="ID" Destination=""><saml:Issuer>https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth</saml:Issuer><saml:NameID Format="urn:oasis:names:tc:SAML:2.0:nameid-format:persistent" SPNameQualifier="https://wayfsp.wayf.dk">WAYF-DK-c5bc7e16bb6d28cb5a20b6aad84d1cba2df5c48f</saml:NameID></samlp:LogoutRequest>
-	//  0xc4202a6790 <nil> false} expected protocol(s) [LogoutRequest LogoutResponse] not found, got AuthnRequest
-}
-
 func ExampleNewErrorResponse() {
 	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, idPList)
 	response := NewErrorResponse(idpmetadata, spmetadata, newrequest, response)
@@ -547,7 +533,7 @@ func ExampleReceiveUnSignedResponse() {
 	data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
 	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	xp, _, _, _, err := ReceiveSAMLResponse(request, external, external, "https://"+request.Host+request.URL.Path)
+	xp, _, _, _, _ := ReceiveSAMLResponse(request, external, external, "https://"+request.Host+request.URL.Path)
 	data1 := url.Values{} // Checking for unsigned Response here //
 	data1.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(xp.Doc.Dump(false))))
 	request1 := httptest.NewRequest("POST", destination, strings.NewReader(data1.Encode()))
