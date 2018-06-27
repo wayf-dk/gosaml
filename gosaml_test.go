@@ -538,7 +538,7 @@ func ExampleReceiveUnSignedResponse() {
 	data1.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(xp.Doc.Dump(false))))
 	request1 := httptest.NewRequest("POST", destination, strings.NewReader(data1.Encode()))
 	request1.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	_, _, _, _, err = ReceiveSAMLResponse(request1, external, external, "https://"+request1.Host+request1.URL.Path)
+	_, _, _, _, err := ReceiveSAMLResponse(request1, external, external, "https://"+request1.Host+request1.URL.Path)
 	fmt.Println(err)
 	fmt.Println(err.(goxml.Werror).FullError())
 	// Output:
