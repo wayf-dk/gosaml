@@ -57,7 +57,7 @@ const (
 	SigningCertQuery = `/md:KeyDescriptor[@use="signing" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
 	// EncryptionCertQuery refers to encryption key
 	EncryptionCertQuery = `/md:KeyDescriptor[@use="encryption" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
-
+	// Transient refers to nameid format
 	Transient   = "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
 	Persistent  = "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
 	X509        = "urn:oasis:names:tc:SAML:1.1:nameid-format:X509SubjectName"
@@ -97,7 +97,8 @@ var (
 	// TestAssertionId for testing
 	TestAssertionId string
 	// Roles refers to defining roles for SPs and IDPs
-	Roles  = []string{"md:IDPSSODescriptor", "md:SPSSODescriptor"}
+	Roles = []string{"md:IDPSSODescriptor", "md:SPSSODescriptor"}
+	// Config initialisation
 	Config = Conf{}
 	// ACSError refers error information
 	ACSError   = errors.New("invalid AsssertionConsumerService or AsssertionConsumerServiceIndex")
@@ -745,7 +746,6 @@ func parseQueryRaw(query string) url.Values {
 	return m
 }
 
-// Function to verify Signature
 // VerifySign takes Certificate, signature and xp as an input
 func VerifySign(xp *goxml.Xp, certificates []string, signature types.Node) (err error) {
 	publicKeys := []*rsa.PublicKey{}
@@ -826,6 +826,7 @@ func VerifyTiming(xp *goxml.Xp) (verifiedXp *goxml.Xp, err error) {
 	return
 }
 
+// IdAndTiming
 func IdAndTiming() (issueInstant, id, assertionId, assertionNotOnOrAfter, sessionNotOnOrAfter string) {
 	now := TestTime
 	if now.IsZero() {
