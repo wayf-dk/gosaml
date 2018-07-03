@@ -39,18 +39,21 @@ var (
 const (
 	// IdPRole used to set the role as an IDP
 	IdPRole = iota
-	SPRole  = iota // For setting roles as SP
+	// SPRole used to set the role as an SP
+	SPRole = iota
 )
 
 const (
-	// SAMLSign for SAML signature
-	SAMLSign  = iota
-	WSFedSign = iota // For WSFed
+	// SAMLSign for SAML signing
+	SAMLSign = iota
+	// WSFed for WS-Fed signing
+	WSFedSign = iota
 )
 
 const (
 	// XsDateTime Setting the Date Time
-	XsDateTime          = "2006-01-02T15:04:05Z"
+	XsDateTime = "2006-01-02T15:04:05Z"
+	// SigningCertQuery refers to get the key from the metadata
 	SigningCertQuery    = `/md:KeyDescriptor[@use="signing" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
 	EncryptionCertQuery = `/md:KeyDescriptor[@use="encryption" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
 
@@ -87,16 +90,20 @@ type (
 
 var (
 	// TestTime refers to global testing time
-	TestTime        time.Time
-	TestId          string
+	TestTime time.Time
+	// TestId for testing
+	TestId string
+	// TestAssertionId for testing
 	TestAssertionId string
 	Roles           = []string{"md:IDPSSODescriptor", "md:SPSSODescriptor"}
 	Config          = Conf{}
-	ACSError        = errors.New("invalid AsssertionConsumerService or AsssertionConsumerServiceIndex")     // Error information
-	NameIDList      = []string{"", Transient, Persistent, X509, Email, Unspecified}                         // Unspecified not accepted downstream
-	NameIDMap       = map[string]int{"": 1, Transient: 1, Persistent: 2, X509: 3, Email: 4, Unspecified: 5} // Unspecified accepted but not sent upstream
+	// ACSError refers error information
+	ACSError   = errors.New("invalid AsssertionConsumerService or AsssertionConsumerServiceIndex")
+	NameIDList = []string{"", Transient, Persistent, X509, Email, Unspecified}                         // Unspecified not accepted downstream
+	NameIDMap  = map[string]int{"": 1, Transient: 1, Persistent: 2, X509: 3, Email: 4, Unspecified: 5} // Unspecified accepted but not sent upstream
 )
 
+// DebugSetting for debugging cookies
 func DebugSetting(r *http.Request, name string) string {
 	cookie, err := r.Cookie("debug")
 	if err == nil {
@@ -106,7 +113,8 @@ func DebugSetting(r *http.Request, name string) string {
 	return ""
 }
 
-func DumpFile(r *http.Request, xp *goxml.Xp) (logtag string) { // For Logging
+// DumpFile is for logging requests and responses
+func DumpFile(r *http.Request, xp *goxml.Xp) (logtag string) {
 	if DebugSetting(r, "trace") == "1" {
 		now := TestTime
 		if now.IsZero() {
@@ -122,10 +130,8 @@ func DumpFile(r *http.Request, xp *goxml.Xp) (logtag string) { // For Logging
 	return
 }
 
-/*
-  PublicKeyInfo extracts the keyname, publickey and cert (base64 DER - no PEM) from the given certificate.
-  The keyname is computed from the public key corresponding to running this command: openssl x509 -modulus -noout -in <cert> | openssl sha1.
-*/
+// PublicKeyInfo extracts the keyname, publickey and cert (base64 DER - no PEM) from the given certificate.
+// The keyname is computed from the public key corresponding to running this command: openssl x509 -modulus -noout -in <cert> | openssl sha1.
 func PublicKeyInfo(cert string) (keyname string, publickey *rsa.PublicKey, err error) {
 	// no pem so no pem.Decode
 	key, err := base64.StdEncoding.DecodeString(regexp.MustCompile("\\s").ReplaceAllString(cert, ""))
@@ -138,9 +144,7 @@ func PublicKeyInfo(cert string) (keyname string, publickey *rsa.PublicKey, err e
 	return
 }
 
-/*
-  GetPrivateKey extract the key from Metadata and builds a name and reads the key
-*/
+// GetPrivateKey extract the key from Metadata and builds a name and reads the key
 func GetPrivateKey(md *goxml.Xp) (privatekey []byte, err error) {
 	cert := md.Query1(nil, "./"+SigningCertQuery) // actual signing key is always first
 	keyname, _, err := PublicKeyInfo(cert)
@@ -155,18 +159,14 @@ func GetPrivateKey(md *goxml.Xp) (privatekey []byte, err error) {
 	return
 }
 
-/*
-  Make a random id
-*/
+// Id makes a random id
 func Id() (id string) {
 	b := make([]byte, 21) // 168 bits - just over the 160 bit recomendation without base64 padding
 	rand.Read(b)
 	return "_" + hex.EncodeToString(b)
 }
 
-/*
-  Deflate utility that compresses a string using the flate algo
-*/
+// Deflate utility that compresses a string using the flate algo
 func Deflate(inflated []byte) []byte {
 	var b bytes.Buffer
 	w, _ := flate.NewWriter(&b, -1)
@@ -175,9 +175,7 @@ func Deflate(inflated []byte) []byte {
 	return b.Bytes()
 }
 
-/*
-  Inflate utility that decompresses a string using the flate algo
-*/
+// Inflate utility that decompresses a string using the flate algo
 func Inflate(deflated []byte) []byte {
 	var b bytes.Buffer
 	r := flate.NewReader(bytes.NewReader(deflated))
@@ -186,9 +184,7 @@ func Inflate(deflated []byte) []byte {
 	return b.Bytes()
 }
 
-/*
-  Html2SAMLResponse extracts the SAMLResponse from a html document
-*/
+// Html2SAMLResponse extracts the SAMLResponse from a html document
 func Html2SAMLResponse(html []byte) (samlresponse *goxml.Xp, relayState string) {
 	response := goxml.NewHtmlXp(html)
 	samlbase64 := response.Query1(nil, `//input[@name="SAMLResponse"]/@value`)
@@ -198,9 +194,7 @@ func Html2SAMLResponse(html []byte) (samlresponse *goxml.Xp, relayState string) 
 	return
 }
 
-/*
-  Url2SAMLRequest extracts the SAMLRequest from an URL
-*/
+// Url2SAMLRequest extracts the SAMLRequest from an URL
 func Url2SAMLRequest(url *url.URL, err error) (samlrequest *goxml.Xp, relayState string) {
 	query := url.Query()
 	req, _ := base64.StdEncoding.DecodeString(query.Get("SAMLRequest"))
@@ -209,9 +203,7 @@ func Url2SAMLRequest(url *url.URL, err error) (samlrequest *goxml.Xp, relayState
 	return
 }
 
-/*
-  SAMLRequest2Url creates a redirect URL from a saml request
-*/
+// SAMLRequest2Url creates a redirect URL from a saml request
 func SAMLRequest2Url(samlrequest *goxml.Xp, relayState, privatekey, pw, algo string) (destination *url.URL, err error) {
 	var paramName string
 	switch samlrequest.QueryString(nil, "local-name(/*)") {
@@ -247,9 +239,7 @@ func SAMLRequest2Url(samlrequest *goxml.Xp, relayState, privatekey, pw, algo str
 	return
 }
 
-/*
-  AttributeCanonicalDump
-*/
+// AttributeCanonicalDump
 func AttributeCanonicalDump(w io.Writer, xp *goxml.Xp) {
 	attrsmap := map[string][]string{}
 	keys := []string{}
