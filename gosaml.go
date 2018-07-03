@@ -58,14 +58,21 @@ const (
 	// EncryptionCertQuery refers to encryption key
 	EncryptionCertQuery = `/md:KeyDescriptor[@use="encryption" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
 	// Transient refers to nameid format
-	Transient   = "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
-	Persistent  = "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
-	X509        = "urn:oasis:names:tc:SAML:1.1:nameid-format:X509SubjectName"
-	Email       = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
+	Transient = "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
+	// Persistent refers to nameid format
+	Persistent = "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
+	// X509 refers to nameid format
+	X509 = "urn:oasis:names:tc:SAML:1.1:nameid-format:X509SubjectName"
+	// Email refers to nameid format
+	Email = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
+	// Unspecified refers to unspecified nameid format
 	Unspecified = "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified"
 
-	REDIRECT   = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
-	POST       = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+	// REDIRECT refers to HTTP-Redirect
+	REDIRECT = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+	// POST refers to HTTP-POST
+	POST = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+	// SIMPLESIGN refers to HTTP-POST-SimpleSign
 	SIMPLESIGN = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST-SimpleSign"
 )
 
@@ -101,9 +108,11 @@ var (
 	// Config initialisation
 	Config = Conf{}
 	// ACSError refers error information
-	ACSError   = errors.New("invalid AsssertionConsumerService or AsssertionConsumerServiceIndex")
-	NameIDList = []string{"", Transient, Persistent, X509, Email, Unspecified}                         // Unspecified not accepted downstream
-	NameIDMap  = map[string]int{"": 1, Transient: 1, Persistent: 2, X509: 3, Email: 4, Unspecified: 5} // Unspecified accepted but not sent upstream
+	ACSError = errors.New("invalid AsssertionConsumerService or AsssertionConsumerServiceIndex")
+	// NameIDList list of supported nameid formats
+	NameIDList = []string{"", Transient, Persistent, X509, Email, Unspecified}
+	// 	NameIDMap refers to mapping the nameid formats
+	NameIDMap = map[string]int{"": 1, Transient: 1, Persistent: 2, X509: 3, Email: 4, Unspecified: 5} // Unspecified accepted but not sent upstream
 )
 
 // DebugSetting for debugging cookies
