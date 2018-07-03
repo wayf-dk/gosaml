@@ -37,17 +37,20 @@ var (
 )
 
 const (
-	IdPRole = iota // For setting roles as IDP
+	// IdPRole used to set the role as an IDP
+	IdPRole = iota
 	SPRole  = iota // For setting roles as SP
 )
 
 const (
-	SAMLSign  = iota // For SAML
+	// SAMLSign for SAML signature
+	SAMLSign  = iota
 	WSFedSign = iota // For WSFed
 )
 
 const (
-	XsDateTime          = "2006-01-02T15:04:05Z" // Setting the Date Time
+	// XsDateTime Setting the Date Time
+	XsDateTime          = "2006-01-02T15:04:05Z"
 	SigningCertQuery    = `/md:KeyDescriptor[@use="signing" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
 	EncryptionCertQuery = `/md:KeyDescriptor[@use="encryption" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
 
@@ -67,14 +70,14 @@ type (
 	Md interface {
 		MDQ(key string) (xp *goxml.Xp, err error)
 	}
-
-	Conf struct { // Configuration values for Schema and Certificates
+	// Conf refers to Configuration values for Schema and Certificates
+	Conf struct {
 		SamlSchema string
 		CertPath   string
 		LogPath    string
 	}
-
-	SLOInfo struct { // Single Logout information
+	// SLOInfo refers to Single Logout information
+	SLOInfo struct {
 		//		IssuerID, NameID, SPNameQualifier, SessionIndex, DestinationID string
 		Is, Na, Sp, Si, De string
 		//		Format int
@@ -83,13 +86,15 @@ type (
 )
 
 var (
-	TestTime                time.Time // Global Time
-	TestId, TestAssertionId string    // For test
-	Roles                   = []string{"md:IDPSSODescriptor", "md:SPSSODescriptor"}
-	Config                  = Conf{}
-	ACSError                = errors.New("invalid AsssertionConsumerService or AsssertionConsumerServiceIndex")     // Error information
-	NameIDList              = []string{"", Transient, Persistent, X509, Email, Unspecified}                         // Unspecified not accepted downstream
-	NameIDMap               = map[string]int{"": 1, Transient: 1, Persistent: 2, X509: 3, Email: 4, Unspecified: 5} // Unspecified accepted but not sent upstream
+	// TestTime refers to global testing time
+	TestTime        time.Time
+	TestId          string
+	TestAssertionId string
+	Roles           = []string{"md:IDPSSODescriptor", "md:SPSSODescriptor"}
+	Config          = Conf{}
+	ACSError        = errors.New("invalid AsssertionConsumerService or AsssertionConsumerServiceIndex")     // Error information
+	NameIDList      = []string{"", Transient, Persistent, X509, Email, Unspecified}                         // Unspecified not accepted downstream
+	NameIDMap       = map[string]int{"": 1, Transient: 1, Persistent: 2, X509: 3, Email: 4, Unspecified: 5} // Unspecified accepted but not sent upstream
 )
 
 func DebugSetting(r *http.Request, name string) string {
