@@ -129,20 +129,21 @@ func DebugSetting(r *http.Request, name string) string {
 func DumpFile(r *http.Request, xp *goxml.Xp) (logtag string) {
 	if DebugSetting(r, "trace") == "1" {
 		msgType := xp.QueryString(nil, "local-name(/*)")
-		dump(msgType, fmt.Sprintf("%s\n###\n%s", xp.PP(), goxml.NewWerror("").Stack(1)))
+		logtag = dump(msgType, []byte(fmt.Sprintf("%s\n###\n%s", xp.PP(), goxml.NewWerror("").Stack(1))))
 	}
 	return
 }
 
-func dump(msgType, blob string) {
+func dump(msgType string, blob []byte) (logtag string)  {
     now := TestTime
     if now.IsZero() {
         now = time.Now()
     }
     logtag = now.Format("2006-01-02T15:04:05.0000000") // local time with microseconds
-    if err := ioutil.WriteFile(fmt.Sprintf("log/%s-%s", logtag, msgType), []byte(blob)); err != nil {
+    if err := ioutil.WriteFile(fmt.Sprintf("log/%s-%s", logtag, msgType), blob, 0644); err != nil {
         log.Panic(err)
     }
+	return
 }
 
 // PublicKeyInfo extracts the keyname, publickey and cert (base64 DER - no PEM) from the given certificate.
