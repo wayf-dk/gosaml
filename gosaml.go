@@ -51,43 +51,43 @@ const (
 )
 
 const (
-	// XsDateTime Setting the Date Time
+// XsDateTime Setting the Date Time
 	XsDateTime          = "2006-01-02T15:04:05Z"
-	// SigningCertQuery refers to get the key from the metadata
+// SigningCertQuery refers to get the key from the metadata
 	SigningCertQuery    = `/md:KeyDescriptor[@use="signing" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
-	// EncryptionCertQuery refers to encryption key
+// EncryptionCertQuery refers to encryption key
 	EncryptionCertQuery = `/md:KeyDescriptor[@use="encryption" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
-	// Transient refers to nameid format
+// Transient refers to nameid format
 	Transient   = "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
-	// Persistent refers to nameid format
+// Persistent refers to nameid format
 	Persistent  = "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
-	// X509 refers to nameid format
+// X509 refers to nameid format
 	X509        = "urn:oasis:names:tc:SAML:1.1:nameid-format:X509SubjectName"
-	// Email refers to nameid format
+// Email refers to nameid format
 	Email       = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
-	// Unspecified refers to unspecified nameid format
+// Unspecified refers to unspecified nameid format
 	Unspecified = "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified"
 
-	// REDIRECT refers to HTTP-Redirect
+// REDIRECT refers to HTTP-Redirect
 	REDIRECT   = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
-	// POST refers to HTTP-POST
+// POST refers to HTTP-POST
 	POST       = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
-	// SIMPLESIGN refers to HTTP-POST-SimpleSign
+// SIMPLESIGN refers to HTTP-POST-SimpleSign
 	SIMPLESIGN = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST-SimpleSign"
 )
 
 type (
-	// Md Interface for metadata provider
+// Md Interface for metadata provider
 	Md interface {
 		MDQ(key string) (xp *goxml.Xp, err error)
 	}
-	// Conf refers to Configuration values for Schema and Certificates
+// Conf refers to Configuration values for Schema and Certificates
 	Conf struct {
 		SamlSchema string
 		CertPath   string
 		LogPath    string
 	}
-	// SLOInfo refers to Single Logout information
+// SLOInfo refers to Single Logout information
 	SLOInfo struct {
 		//		IssuerID, NameID, SPNameQualifier, SessionIndex, DestinationID string
 		Is, Na, Sp, Si, De string
@@ -97,21 +97,21 @@ type (
 )
 
 var (
-	// TestTime refers to global testing time
+// TestTime refers to global testing time
 	TestTime                time.Time
-	// TestId for testing
+// TestId for testing
 	TestId  				string
-	// TestAssertionId for testing
+// TestAssertionId for testing
 	TestAssertionId 		string
-	// Roles refers to defining roles for SPs and IDPs
+// Roles refers to defining roles for SPs and IDPs
 	Roles                   = []string{"md:IDPSSODescriptor", "md:SPSSODescriptor"}
-	// Config initialisation
+// Config initialisation
 	Config                  = Conf{}
-	// ACSError refers error information
+// ACSError refers error information
 	ACSError                = errors.New("invalid AsssertionConsumerService or AsssertionConsumerServiceIndex")
-	// NameIDList list of supported nameid formats
+// NameIDList list of supported nameid formats
 	NameIDList              = []string{"", Transient, Persistent, X509, Email, Unspecified}
-	// NameIDMap refers to mapping the nameid formats
+// NameIDMap refers to mapping the nameid formats
 	NameIDMap               = map[string]int{"": 1, Transient: 1, Persistent: 2, X509: 3, Email: 4, Unspecified: 5} // Unspecified accepted but not sent upstream
 )
 
