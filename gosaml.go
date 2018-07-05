@@ -37,41 +37,41 @@ var (
 )
 
 const (
-	// IdPRole used to set the role as an IDP
+// IdPRole used to set the role as an IDP
 	IdPRole = iota
-	// SPRole used to set the role as an SP
-	SPRole = iota
+// SPRole used to set the role as an SP
+	SPRole  = iota
 )
 
 const (
-	// SAMLSign for SAML signing
-	SAMLSign = iota
-	// WSFedSign for WS-Fed signing
+// SAMLSign for SAML signing
+	SAMLSign  = iota
+// WSFedSign for WS-Fed signing
 	WSFedSign = iota
 )
 
 const (
 	// XsDateTime Setting the Date Time
-	XsDateTime = "2006-01-02T15:04:05Z"
+	XsDateTime          = "2006-01-02T15:04:05Z"
 	// SigningCertQuery refers to get the key from the metadata
-	SigningCertQuery = `/md:KeyDescriptor[@use="signing" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
+	SigningCertQuery    = `/md:KeyDescriptor[@use="signing" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
 	// EncryptionCertQuery refers to encryption key
 	EncryptionCertQuery = `/md:KeyDescriptor[@use="encryption" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
 	// Transient refers to nameid format
-	Transient = "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
+	Transient   = "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
 	// Persistent refers to nameid format
-	Persistent = "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
+	Persistent  = "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
 	// X509 refers to nameid format
-	X509 = "urn:oasis:names:tc:SAML:1.1:nameid-format:X509SubjectName"
+	X509        = "urn:oasis:names:tc:SAML:1.1:nameid-format:X509SubjectName"
 	// Email refers to nameid format
-	Email = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
+	Email       = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
 	// Unspecified refers to unspecified nameid format
 	Unspecified = "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified"
 
 	// REDIRECT refers to HTTP-Redirect
-	REDIRECT = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+	REDIRECT   = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
 	// POST refers to HTTP-POST
-	POST = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+	POST       = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
 	// SIMPLESIGN refers to HTTP-POST-SimpleSign
 	SIMPLESIGN = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST-SimpleSign"
 )
@@ -98,21 +98,21 @@ type (
 
 var (
 	// TestTime refers to global testing time
-	TestTime time.Time
+	TestTime                time.Time
 	// TestId for testing
-	TestId string
+	TestId  				string
 	// TestAssertionId for testing
-	TestAssertionId string
+	TestAssertionId 		string
 	// Roles refers to defining roles for SPs and IDPs
-	Roles = []string{"md:IDPSSODescriptor", "md:SPSSODescriptor"}
+	Roles                   = []string{"md:IDPSSODescriptor", "md:SPSSODescriptor"}
 	// Config initialisation
-	Config = Conf{}
+	Config                  = Conf{}
 	// ACSError refers error information
-	ACSError = errors.New("invalid AsssertionConsumerService or AsssertionConsumerServiceIndex")
+	ACSError                = errors.New("invalid AsssertionConsumerService or AsssertionConsumerServiceIndex")
 	// NameIDList list of supported nameid formats
-	NameIDList = []string{"", Transient, Persistent, X509, Email, Unspecified}
-	// 	NameIDMap refers to mapping the nameid formats
-	NameIDMap = map[string]int{"": 1, Transient: 1, Persistent: 2, X509: 3, Email: 4, Unspecified: 5} // Unspecified accepted but not sent upstream
+	NameIDList              = []string{"", Transient, Persistent, X509, Email, Unspecified}
+	// NameIDMap refers to mapping the nameid formats
+	NameIDMap               = map[string]int{"": 1, Transient: 1, Persistent: 2, X509: 3, Email: 4, Unspecified: 5} // Unspecified accepted but not sent upstream
 )
 
 // DebugSetting for debugging cookies
@@ -155,6 +155,7 @@ func PublicKeyInfo(cert string) (keyname string, publickey *rsa.PublicKey, err e
 	keyname = fmt.Sprintf("%x", sha1.Sum([]byte(fmt.Sprintf("Modulus=%X\n", publickey.N))))
 	return
 }
+
 
 // GetPrivateKey extract the key from Metadata and builds a name and reads the key
 func GetPrivateKey(md *goxml.Xp) (privatekey []byte, err error) {
@@ -214,6 +215,7 @@ func Url2SAMLRequest(url *url.URL, err error) (samlrequest *goxml.Xp, relayState
 	samlrequest = goxml.NewXp(Inflate(req))
 	return
 }
+
 
 // SAMLRequest2Url creates a redirect URL from a saml request
 func SAMLRequest2Url(samlrequest *goxml.Xp, relayState, privatekey, pw, algo string) (destination *url.URL, err error) {
@@ -286,6 +288,7 @@ func AttributeCanonicalDump(w io.Writer, xp *goxml.Xp) {
 		}
 	}
 }
+
 
 // ReceiveAuthnRequest receives the authentication request
 // Checks for Subject and  NameidPolicy(Persistent or Transient)
