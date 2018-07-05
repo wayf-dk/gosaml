@@ -128,17 +128,21 @@ func DebugSetting(r *http.Request, name string) string {
 // DumpFile is for logging requests and responses
 func DumpFile(r *http.Request, xp *goxml.Xp) (logtag string) {
 	if DebugSetting(r, "trace") == "1" {
-		now := TestTime
-		if now.IsZero() {
-			now = time.Now()
-		}
-		logtag = now.Format("2006-01-02T15:04:05.0000000") // local time with microseconds
 		msgType := xp.QueryString(nil, "local-name(/*)")
-		//log.Println("stack", goxml.New().Stack(1))
-		if err := ioutil.WriteFile(fmt.Sprintf("log/%s-%s", logtag, msgType), []byte(fmt.Sprintf("%s\n###\n%s", xp.PP(), goxml.NewWerror("").Stack(1))), 0644); err != nil {
-			log.Panic(err)
-		}
+		logtag = dump(msgType, []byte(fmt.Sprintf("%s\n###\n%s", xp.PP(), goxml.NewWerror("").Stack(1))))
 	}
+	return
+}
+
+func dump(msgType string, blob []byte) (logtag string)  {
+    now := TestTime
+    if now.IsZero() {
+        now = time.Now()
+    }
+    logtag = now.Format("2006-01-02T15:04:05.0000000") // local time with microseconds
+    if err := ioutil.WriteFile(fmt.Sprintf("log/%s-%s", logtag, msgType), blob, 0644); err != nil {
+        log.Panic(err)
+    }
 	return
 }
 
@@ -372,6 +376,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 	//log.Println("stack", goxml.New().Stack(1))
 	_, err = tmpXp.SchemaValidate(Config.SamlSchema)
 	if err != nil {
+	    dump("raw", bmsg)
 		err = goxml.Wrap(err)
 		return
 	}
