@@ -107,8 +107,8 @@ var (
 	Roles = []string{"md:IDPSSODescriptor", "md:SPSSODescriptor"}
 	// Config initialisation
 	Config = Conf{}
-	// ErrAcs refers error information
-	ErrAcs = errors.New("invalid AsssertionConsumerService or AsssertionConsumerServiceIndex")
+	// ACSError refers error information
+	ACSError = errors.New("invalid AsssertionConsumerService or AsssertionConsumerServiceIndex")
 	// NameIDList list of supported nameid formats
 	NameIDList = []string{"", Transient, Persistent, X509, Email, Unspecified}
 	// NameIDMap refers to mapping the nameid formats
@@ -681,7 +681,7 @@ func checkDestinationAndACS(message, issuerMd, destinationMd *goxml.Xp, role int
 
 		checkedAcs := issuerMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`" and @Location=`+strconv.Quote(acs)+`]/@index`)
 		if checkedAcs == "" {
-			return nil, goxml.Wrap(ErrAcs, "acs:"+acs, "acsindex:"+acsIndex)
+			return nil, goxml.Wrap(ACSError, "acs:"+acs, "acsindex:"+acsIndex)
 		}
 
 		// we now have a validated AssertionConsumerService - and Binding - let's put them into the request
