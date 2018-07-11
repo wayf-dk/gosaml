@@ -113,6 +113,7 @@ var (
 	NameIDList = []string{"", Transient, Persistent, X509, Email, Unspecified}
 	// NameIDMap refers to mapping the nameid formats
 	NameIDMap = map[string]int{"": 1, Transient: 1, Persistent: 2, X509: 3, Email: 4, Unspecified: 5} // Unspecified accepted but not sent upstream
+	whitespace = regexp.MustCompile("\\s")
 )
 
 // DebugSetting for debugging cookies
@@ -150,7 +151,7 @@ func dump(msgType string, blob []byte) (logtag string) {
 // The keyname is computed from the public key corresponding to running this command: openssl x509 -modulus -noout -in <cert> | openssl sha1.
 func PublicKeyInfo(cert string) (keyname string, publickey *rsa.PublicKey, err error) {
 	// no pem so no pem.Decode
-	key, err := base64.StdEncoding.DecodeString(regexp.MustCompile("\\s").ReplaceAllString(cert, ""))
+	key, err := base64.StdEncoding.DecodeString(whitespace.ReplaceAllString(cert, ""))
 	pk, err := x509.ParseCertificate(key)
 	if err != nil {
 		return
