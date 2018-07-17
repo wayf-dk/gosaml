@@ -895,7 +895,7 @@ func NewLogoutRequest(issuer, destination, sourceLogoutRequest *goxml.Xp, sloinf
 		request.QueryDashP(nil, "./saml:NameID/@SPNameQualifier", sloinfo.De, nil)
 	}
 	if sloinfo.Si != "" {
-		//		request.QueryDashP(nil, "./samlp:SessionIndex", sloinfo.Si, nil)
+		request.QueryDashP(nil, "./samlp:SessionIndex", sloinfo.Si, nil)
 	}
 	request.QueryDashP(nil, "./saml:NameID", sloinfo.Na, nil)
 	return
