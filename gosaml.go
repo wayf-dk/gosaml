@@ -606,8 +606,7 @@ findbinding:
 				decryptedAssertionElement = xp.CopyNode(decryptedAssertionElement, 1)
 				_ = encryptedAssertion.AddPrevSibling(decryptedAssertionElement)
 				parent, _ := encryptedAssertion.ParentNode()
-				parent.RemoveChild(encryptedAssertion)
-				encryptedAssertion.Free()
+				goxml.RemoveChild(parent, encryptedAssertion)
 
 				// repeat schemacheck
 				_, err = xp.SchemaValidate(Config.SamlSchema)
