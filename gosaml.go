@@ -607,6 +607,7 @@ findbinding:
 				_ = encryptedAssertion.AddPrevSibling(decryptedAssertionElement)
 				parent, _ := encryptedAssertion.ParentNode()
 				parent.RemoveChild(encryptedAssertion)
+				encryptedAssertion.Free()
 
 				// repeat schemacheck
 				_, err = xp.SchemaValidate(Config.SamlSchema)
