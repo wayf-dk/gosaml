@@ -128,9 +128,14 @@ func DebugSetting(r *http.Request, name string) string {
 
 // DumpFile is for logging requests and responses
 func DumpFile(r *http.Request, xp *goxml.Xp) (logtag string) {
+	msgType := xp.QueryString(nil, "local-name(/*)")
+	logtag = dump(msgType, []byte(fmt.Sprintf("%s\n###\n%s", xp.PP(), goxml.NewWerror("").Stack(1))))
+	return
+}
+
+func DumpFileIfTracing(r *http.Request, xp *goxml.Xp) (logtag string) {
 	if DebugSetting(r, "trace") == "1" {
-		msgType := xp.QueryString(nil, "local-name(/*)")
-		logtag = dump(msgType, []byte(fmt.Sprintf("%s\n###\n%s", xp.PP(), goxml.NewWerror("").Stack(1))))
+	    logtag = DumpFile(r, xp)
 	}
 	return
 }
@@ -370,7 +375,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 
 	tmpXp := goxml.NewXp(bmsg)
 
-	DumpFile(r, tmpXp)
+	DumpFileIfTracing(r, tmpXp)
 	//log.Println("stack", goxml.New().Stack(1))
 	_, err = tmpXp.SchemaValidate(Config.SamlSchema)
 	if err != nil {
