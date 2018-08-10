@@ -351,6 +351,11 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 	r.ParseForm()
 	method := r.Method
 
+	if ok := method == "GET" || method == "POST"; !ok {
+    	err = fmt.Errorf("unsupported http method used '%s'", method)
+		return
+	}
+
 	relayState = r.Form.Get("RelayState")
 
 	msg := r.Form.Get("SAMLRequest")
