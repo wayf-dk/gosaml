@@ -1,4 +1,4 @@
-// Gosaml is a library for doing SAML stuff in Go.
+ // Gosaml is a library for doing SAML stuff in Go.
 
 package gosaml
 
@@ -1125,6 +1125,9 @@ func wsfedRequest2samlRequest(r *http.Request, issuerMdSet, destinationMdSet Md)
 			return
 		}
 		samlrequest, _ := NewAuthnRequest(nil, issuerMd, destinationMd, nil)
+		if wreply := r.Form.Get("wreply"), wreplay != "" {
+            samlrequest.QueryDashP(nil, "./@AssertionConsumerServiceURL", wreply, nil)
+		}
 		msg = base64.StdEncoding.EncodeToString(Deflate(samlrequest.Dump()))
 	}
 	return
