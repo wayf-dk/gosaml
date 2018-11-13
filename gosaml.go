@@ -1105,8 +1105,6 @@ func NewResponse(idpMd, spMd, authnrequest, sourceResponse *goxml.Xp) (response 
 	}
 	response.QueryDashP(authstatement, "saml:AuthnContext/saml:AuthenticatingAuthority[0]", sourceResponse.Query1(nil, "./saml:Issuer"), nil)
 	response.QueryDashP(authstatement, "saml:AuthnContext/saml:AuthnContextClassRef", sourceResponse.Query1(nil, "//saml:AuthnContextClassRef"), nil)
-
-	copyAttributes(sourceResponse, response, spMd, assertion)
 	return
 }
 
@@ -1125,9 +1123,11 @@ func wsfedRequest2samlRequest(r *http.Request, issuerMdSet, destinationMdSet Md)
 			return
 		}
 		samlrequest, _ := NewAuthnRequest(nil, issuerMd, destinationMd, nil)
-		if wreply := r.Form.Get("wreply"), wreplay != "" {
+		if wreply := r.Form.Get("wreply"); wreply != "" {
             samlrequest.QueryDashP(nil, "./@AssertionConsumerServiceURL", wreply, nil)
 		}
+
+        DumpFileIfTracing(r, samlrequest)
 		msg = base64.StdEncoding.EncodeToString(Deflate(samlrequest.Dump()))
 	}
 	return
@@ -1198,59 +1198,5 @@ func NewWsFedResponse(idpMd, spMd, sourceResponse *goxml.Xp) (response *goxml.Xp
 	response.QueryDashP(authstatement, "@AuthenticationInstant", assertionIssueInstant, nil)
 	//response.QueryDashP(authstatement, "@SessionNotOnOrAfter", sessionNotOnOrAfter, nil)
 	//response.QueryDashP(authstatement, "@SessionIndex", "missing", nil)
-
-	copyAttributes(sourceResponse, response, spMd, assertion)
-	return
-}
-
-// copyAttributes copies the attributes
-func copyAttributes(sourceResponse, response, spMd *goxml.Xp, assertion types.Node) {
-	base64encodedOut := spMd.Query1(nil, "/md:EntityDescriptor/md:Extensions/wayf:wayf/wayf:base64attributes") == "1"
-
-	sourceAttributes := sourceResponse.Query(nil, `//saml:AttributeStatement/saml:Attribute`)
-	attrcache := map[string]types.Element{}
-	for _, attr := range sourceAttributes {
-		name := sourceResponse.Query1(attr, "@Name")
-		friendlyname := sourceResponse.Query1(attr, "@FriendlyName")
-		attrcache[name] = attr.(types.Element)
-		if friendlyname != "" {
-			attrcache[friendlyname] = attr.(types.Element)
-		}
-	}
-
-	requestedAttributes := spMd.Query(nil, `./md:SPSSODescriptor/md:AttributeConsumingService[1]/md:RequestedAttribute`)
-
-	destinationAttributes := response.QueryDashP(assertion, `saml:AttributeStatement`, "", nil) // only if there are actually some requested attributes
-	for _, requestedAttribute := range requestedAttributes {
-
-		name := spMd.Query1(requestedAttribute, "@Name")
-		attribute := attrcache[name]
-		if attribute == nil {
-			friendlyname := spMd.Query1(requestedAttribute, "@FriendlyName")
-			attribute = attrcache[friendlyname]
-			if attribute == nil {
-				continue
-			}
-		}
-
-		newAttribute := response.CopyNode(attribute, 2)
-		destinationAttributes.AddChild(newAttribute)
-		allowedValues := spMd.QueryMulti(requestedAttribute, `saml:AttributeValue`)
-		allowedValuesMap := make(map[string]bool)
-		for _, value := range allowedValues {
-			allowedValuesMap[value] = true
-		}
-		i := 1
-		for _, value := range sourceResponse.QueryMulti(attribute, `saml:AttributeValue`) {
-			if base64encodedOut {
-				v := base64.StdEncoding.EncodeToString([]byte(value))
-				value = string(v)
-			}
-			if len(allowedValues) == 0 || allowedValuesMap[value] {
-				response.QueryDashP(newAttribute, "saml:AttributeValue["+strconv.Itoa(i)+"]", value, nil)
-				i += 1
-			}
-		}
-	}
 	return
 }
