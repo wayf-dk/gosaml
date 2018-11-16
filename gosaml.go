@@ -311,11 +311,21 @@ func ReceiveAuthnRequest(r *http.Request, issuerMdSet, destinationMdSet Md) (xp,
 		err = fmt.Errorf("subject not allowed in SAMLRequest")
 		return
 	}
-	nameIdPolicy := xp.Query1(nil, "./samlp:NameIDPolicy/@Format")
-	if NameIDMap[nameIdPolicy] == 0 {
-		err = fmt.Errorf("nameidpolicy format: '%s' is not supported", nameIdPolicy)
+	nameIDFormat := xp.Query1(nil, "./samlp:NameIDPolicy/@Format")
+	if NameIDMap[nameIDFormat] == 0 {
+		err = fmt.Errorf("nameidpolicy format: '%s' is not supported", nameIDFormat)
 		return
 	}
+
+	if nameIDFormat == Transient {
+	} else if nameIDFormat == Unspecified || nameIDFormat == "" {
+		nameIDFormat = issuerMd.Query1(nil, "./md:SPSSODescriptor/md:NameIDFormat") // none ends up being Transient
+	} else if inArray(nameIDFormat, issuerMd.QueryMulti(nil, "./md:SPSSODescriptor/md:NameIDFormat")) {
+	} else {
+		nameIDFormat = Transient
+	}
+	xp.QueryDashP(nil, "./samlp:NameIDPolicy/@Format", nameIDFormat, nil)
+
 	/*
 		allowcreate := xp.Query1(nil, "./samlp:NameIDPolicy/@AllowCreate")
 		if allowcreate != "true" && allowcreate != "1" {
@@ -324,6 +334,15 @@ func ReceiveAuthnRequest(r *http.Request, issuerMdSet, destinationMdSet Md) (xp,
 		}
 	*/
 	return
+}
+
+func inArray(item string, array []string) bool {
+	for _, i := range array {
+		if i == item {
+			return true
+		}
+	}
+	return false
 }
 
 // ReceiveSAMLResponse handles the SAML minutiae when receiving a SAMLResponse
@@ -412,12 +431,12 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 	}
 
 	destination := tmpXp.Query1(nil, "./@Destination")
-	if destination == "" {
+	if destination == "" && protocols[0] != "AuthnRequest" {
 		err = fmt.Errorf("no destination found in SAMLRequest/SAMLResponse")
 		return
 	}
 
-	if location != "" && destination != location {
+	if destination != "" && destination != location {
 		err = fmt.Errorf("destination: %s is not here, here is %s", destination, location)
 		return
 	}
@@ -429,7 +448,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 	   q.Q(r.URL.Path, destination)
 	*/
 
-	destinationMd, err = destinationMdSet.MDQ(destination)
+	destinationMd, err = destinationMdSet.MDQ(location)
 	if err != nil {
 		return
 	}
@@ -441,13 +460,13 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 		}
 	}
 
-	xp, err = CheckSAMLMessage(r, tmpXp, issuerMd, destinationMd, role)
+	xp, err = CheckSAMLMessage(r, tmpXp, issuerMd, destinationMd, role, location)
 	if err != nil {
 		err = goxml.Wrap(err)
 		return
 	}
 
-	xp, err = checkDestinationAndACS(xp, issuerMd, destinationMd, role)
+	xp, err = checkDestinationAndACS(xp, issuerMd, destinationMd, role, location)
 	if err != nil {
 		return
 	}
@@ -461,7 +480,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 
 // CheckSAMLMessage checks for Authentication Requests, Reponses and Logout Requests
 // Checks for invalid Bindings. Check for Certificates. Verify Signatures
-func CheckSAMLMessage(r *http.Request, xp, issuerMd, destinationMd *goxml.Xp, role int) (validatedMessage *goxml.Xp, err error) {
+func CheckSAMLMessage(r *http.Request, xp, issuerMd, destinationMd *goxml.Xp, role int, location string) (validatedMessage *goxml.Xp, err error) {
 	type protoCheckInfoStruct struct {
 		minSignatures     int
 		service           string
@@ -497,12 +516,11 @@ func CheckSAMLMessage(r *http.Request, xp, issuerMd, destinationMd *goxml.Xp, ro
 	}
 
 	var usedBinding string
-	destination := xp.Query1(nil, "./@Destination")
 	validBinding := false
 
 findbinding:
 	for _, usedBinding = range bindings[r.Method] {
-		for _, v := range destinationMd.QueryMulti(nil, `./`+Roles[role]+`/`+protoChecks[protocol].service+`[@Location=`+strconv.Quote(destination)+`]/@Binding`) {
+		for _, v := range destinationMd.QueryMulti(nil, `./`+Roles[role]+`/`+protoChecks[protocol].service+`[@Location=`+strconv.Quote(location)+`]/@Binding`) {
 			validBinding = v == usedBinding
 			if validBinding {
 				break findbinding
@@ -672,10 +690,9 @@ findbinding:
 
 // checkDestinationAndACS checks for valid destination
 // Returns Error Otherwise
-func checkDestinationAndACS(message, issuerMd, destinationMd *goxml.Xp, role int) (checkedMessage *goxml.Xp, err error) {
+func checkDestinationAndACS(message, issuerMd, destinationMd *goxml.Xp, role int, location string) (checkedMessage *goxml.Xp, err error) {
 	var checkedDest string
 	var acsIndex string
-	dest := message.Query1(nil, "./@Destination")
 	mdRole := "./" + Roles[role]
 	protocol := message.QueryString(nil, "local-name(/*)")
 	switch protocol {
@@ -699,15 +716,13 @@ func checkDestinationAndACS(message, issuerMd, destinationMd *goxml.Xp, role int
 		message.QueryDashP(nil, "@ProtocolBinding", POST, nil)
 		message.QueryDashP(nil, "@AssertionConsumerServiceIndex", checkedAcs, nil)
 
-		checkedDest = destinationMd.Query1(nil, `./md:IDPSSODescriptor/md:SingleSignOnService[@Binding="`+REDIRECT+`" and @Location=`+strconv.Quote(dest)+`]/@Location`)
+		checkedDest = destinationMd.Query1(nil, `./md:IDPSSODescriptor/md:SingleSignOnService[@Binding="`+REDIRECT+`" and @Location=`+strconv.Quote(location)+`]/@Location`)
 		if checkedDest == "" {
-			checkedDest = destinationMd.Query1(nil, `./md:IDPSSODescriptor/md:SingleSignOnService[@Binding="`+POST+`" and @Location=`+strconv.Quote(dest)+`]/@Location`)
+			checkedDest = destinationMd.Query1(nil, `./md:IDPSSODescriptor/md:SingleSignOnService[@Binding="`+POST+`" and @Location=`+strconv.Quote(location)+`]/@Location`)
 		}
 	case "LogoutRequest", "LogoutResponse":
-		checkedDest = destinationMd.Query1(nil, mdRole+`/md:SingleLogoutService[@Binding="`+REDIRECT+`" and @Location=`+strconv.Quote(dest)+`]/@Location`)
+		checkedDest = destinationMd.Query1(nil, mdRole+`/md:SingleLogoutService[@Binding="`+REDIRECT+`" and @Location=`+strconv.Quote(location)+`]/@Location`)
 	case "Response":
-		destination := message.Query1(nil, "./@Destination") // already checked
-
 		recipient := message.Query1(nil, "./saml:Assertion/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@Recipient")
 
 		if recipient == "" {
@@ -715,7 +730,7 @@ func checkDestinationAndACS(message, issuerMd, destinationMd *goxml.Xp, role int
 			return
 		}
 
-		if recipient != destination {
+		if recipient != location {
 			err = fmt.Errorf("response.Destination != SubjectConfirmationData.Recipient")
 			return
 		}
@@ -739,10 +754,10 @@ func checkDestinationAndACS(message, issuerMd, destinationMd *goxml.Xp, role int
 		if rInResponseTo != aInResponseTo {
 			return nil, goxml.NewWerror("cause:InResponseTo not the same in Response and Assertion")
 		}
-		checkedDest = destinationMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`" and @Location=`+strconv.Quote(dest)+`]/@Location`)
+		checkedDest = destinationMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`" and @Location=`+strconv.Quote(location)+`]/@Location`)
 	}
 	if checkedDest == "" {
-		return nil, goxml.NewWerror("Destination is not valid", "destination:"+dest)
+		return nil, goxml.NewWerror("Destination is not valid", "destination:"+location)
 	}
 	checkedMessage = message
 	return
@@ -1201,17 +1216,17 @@ func NewWsFedResponse(idpMd, spMd, sourceResponse *goxml.Xp) (response *goxml.Xp
 	//response.QueryDashP(authstatement, "@SessionIndex", "missing", nil)
 
     nameIdentifierElement := sourceResponse.Query(nil, "./saml:Assertion/saml:Subject/saml:NameID")[0]
-    nameIdentifier := sourceResponse.Query1(nameidElement, ".")
-    nameIdFormat := sourceResponse.Query1(nameidElement, "./@Format")
+    nameIdentifier := sourceResponse.Query1(nameIdentifierElement, ".")
+    nameIdFormat := sourceResponse.Query1(nameIdentifierElement, "./@Format")
 
 	response.QueryDashP(authstatement, "saml:Subject/saml:NameIdentifier", nameIdentifier, nil)
-	response.QueryDashP(authstatement, "saml:Subject/saml:NameIdentifier/@format", nameIdFormat, nil)
+	response.QueryDashP(authstatement, "saml:Subject/saml:NameIdentifier/@Format", nameIdFormat, nil)
 
 	authenticationStatement := response.Query(assertion, "saml:AuthenticationStatement")[0]
 	response.QueryDashP(authenticationStatement, "saml:Subject/saml:NameIdentifier", nameIdentifier, nil)
-	response.QueryDashP(authenticationStatement, "saml:Subject/saml:NameIdentifier/@format", nameIdFormat, nil)
+	response.QueryDashP(authenticationStatement, "saml:Subject/saml:NameIdentifier/@Format", nameIdFormat, nil)
 
-	authContext = sourceResponse.Query1(nil, "./saml:Assertion/saml:AuthnStatement/saml:AuthnContext/saml:AuthnContextClassRef")
+	authContext := sourceResponse.Query1(nil, "./saml:Assertion/saml:AuthnStatement/saml:AuthnContext/saml:AuthnContextClassRef")
     response.QueryDashP(authenticationStatement, "./@AuthenticationMethod", authContext, nil)
 
 	return
