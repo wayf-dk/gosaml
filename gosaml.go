@@ -1,4 +1,4 @@
- // Gosaml is a library for doing SAML stuff in Go.
+// Gosaml is a library for doing SAML stuff in Go.
 
 package gosaml
 
@@ -1215,7 +1215,7 @@ func NewWsFedResponse(idpMd, spMd, sourceResponse *goxml.Xp) (response *goxml.Xp
 	//response.QueryDashP(authstatement, "@SessionNotOnOrAfter", sessionNotOnOrAfter, nil)
 	//response.QueryDashP(authstatement, "@SessionIndex", "missing", nil)
 
-    nameIdentifierElement := sourceResponse.Query(nil, "./saml1:Assertion/saml1:Subject/saml1:NameID")[0]
+    nameIdentifierElement := sourceResponse.Query(nil, "./saml:Assertion/saml:Subject/saml:NameID")[0]
     nameIdentifier := sourceResponse.Query1(nameIdentifierElement, ".")
     nameIdFormat := sourceResponse.Query1(nameIdentifierElement, "./@Format")
 
@@ -1226,7 +1226,7 @@ func NewWsFedResponse(idpMd, spMd, sourceResponse *goxml.Xp) (response *goxml.Xp
 	response.QueryDashP(authenticationStatement, "saml1:Subject/saml1:NameIdentifier", nameIdentifier, nil)
 	response.QueryDashP(authenticationStatement, "saml1:Subject/saml1:NameIdentifier/@Format", nameIdFormat, nil)
 
-	authContext := sourceResponse.Query1(nil, "./saml1:Assertion/saml1:AuthnStatement/saml1:AuthnContext/saml1:AuthnContextClassRef")
+	authContext := sourceResponse.Query1(nil, "./saml:Assertion/saml:AuthnStatement/saml:AuthnContext/saml:AuthnContextClassRef")
     response.QueryDashP(authenticationStatement, "./@AuthenticationMethod", authContext, nil)
 
 	return
