@@ -1209,21 +1209,21 @@ func NewWsFedResponse(idpMd, spMd, sourceResponse *goxml.Xp) (response *goxml.Xp
 	response.QueryDashP(conditions, "@NotOnOrAfter", assertionNotOnOrAfter, nil)
 	response.QueryDashP(conditions, "saml1:AudienceRestrictionCondition/saml1:Audience", spEntityID, nil)
 
-	//authstatement := response.Query(assertion, "saml1:AuthenticationStatement")[0]
-	//response.QueryDashP(authstatement, "@AuthenticationInstant", assertionIssueInstant, nil)
-	//response.QueryDashP(authstatement, "@SessionNotOnOrAfter", sessionNotOnOrAfter, nil)
-	//response.QueryDashP(authstatement, "@SessionIndex", "missing", nil)
-	//response.QueryDashP(authstatement, "saml1:Subject/saml1:NameIdentifier", nameIdentifier, nil)
-	//response.QueryDashP(authstatement, "saml1:Subject/saml1:NameIdentifier/@Format", nameIdFormat, nil)
+	authstatement := response.Query(assertion, "saml1:AuthenticationStatement")[0]
+	response.QueryDashP(authstatement, "@AuthenticationInstant", assertionIssueInstant, nil)
+	response.QueryDashP(authstatement, "@SessionNotOnOrAfter", sessionNotOnOrAfter, nil)
+	response.QueryDashP(authstatement, "@SessionIndex", "missing", nil)
+	response.QueryDashP(authstatement, "saml1:Subject/saml1:NameIdentifier", nameIdentifier, nil)
+	response.QueryDashP(authstatement, "saml1:Subject/saml1:NameIdentifier/@Format", nameIdFormat, nil)
 
-    //nameIdentifierElement := sourceResponse.Query(nil, "./saml:Assertion/saml:Subject/saml:NameID")[0]
-    //nameIdentifier := sourceResponse.Query1(nameIdentifierElement, ".")
-    //nameIdFormat := sourceResponse.Query1(nameIdentifierElement, "./@Format")
+    nameIdentifierElement := sourceResponse.Query(nil, "./saml:Assertion/saml:Subject/saml:NameID")[0]
+    nameIdentifier := sourceResponse.Query1(nameIdentifierElement, ".")
+    nameIdFormat := sourceResponse.Query1(nameIdentifierElement, "./@Format")
 
 	authenticationStatement := response.Query(assertion, "saml1:AuthenticationStatement")[0]
 	response.QueryDashP(authenticationStatement, "@AuthenticationInstant", assertionIssueInstant, nil)
-	//response.QueryDashP(authenticationStatement, "saml1:Subject/saml1:NameIdentifier", nameIdentifier, nil)
-	//response.QueryDashP(authenticationStatement, "saml1:Subject/saml1:NameIdentifier/@Format", nameIdFormat, nil)
+	response.QueryDashP(authenticationStatement, "saml1:Subject/saml1:NameIdentifier", nameIdentifier, nil)
+	response.QueryDashP(authenticationStatement, "saml1:Subject/saml1:NameIdentifier/@Format", nameIdFormat, nil)
 
 	authContext := sourceResponse.Query1(nil, "./saml:Assertion/saml:AuthnStatement/saml:AuthnContext/saml:AuthnContextClassRef")
     response.QueryDashP(authenticationStatement, "./@AuthenticationMethod", authContext, nil)
