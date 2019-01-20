@@ -1142,6 +1142,8 @@ func wsfedRequest2samlRequest(r *http.Request, issuerMdSet, destinationMdSet Md)
             samlrequest.QueryDashP(nil, "./@AssertionConsumerServiceURL", wreply, nil)
 		}
 
+        samlrequest.QueryDashP(nil, "./samlp:NameIDPolicy/@Format", issuerMd.Query1(nil, "/md:EntityDescriptor/md:SPSSODescriptor/md:NameIDFormat"), nil)
+
         DumpFileIfTracing(r, samlrequest)
 		msg = base64.StdEncoding.EncodeToString(Deflate(samlrequest.Dump()))
 	}
@@ -1163,22 +1165,10 @@ func NewWsFedResponse(idpMd, spMd, sourceResponse *goxml.Xp) (response *goxml.Xp
 				<saml1:AudienceRestrictionCondition><saml1:Audience></saml1:Audience></saml1:AudienceRestrictionCondition>
 			</saml1:Conditions>
 			<saml1:AttributeStatement>
-				<saml1:Subject>
-					<saml1:SubjectConfirmation>
-						<saml1:ConfirmationMethod>
-							urn:oasis:names:tc:saml1:1.0:cm:bearer
-						</saml1:ConfirmationMethod>
-					</saml1:SubjectConfirmation>
-				</saml1:Subject>
+			    <saml1:Subject></saml1:Subject>
 			</saml1:AttributeStatement>
 			<saml1:AuthenticationStatement>
-				<saml1:Subject>
-					<saml1:SubjectConfirmation>
-						<saml1:ConfirmationMethod>
-							urn:oasis:names:tc:SAML:1.0:cm:bearer
-						</saml1:ConfirmationMethod>
-					</saml1:SubjectConfirmation>
-				</saml1:Subject>
+			    <saml1:Subject></saml1:Subject>
 			</saml1:AuthenticationStatement>
 		</saml1:Assertion>
 	</t:RequestedSecurityToken>
@@ -1213,15 +1203,17 @@ func NewWsFedResponse(idpMd, spMd, sourceResponse *goxml.Xp) (response *goxml.Xp
     nameIdentifier := sourceResponse.Query1(nameIdentifierElement, ".")
     nameIdFormat := sourceResponse.Query1(nameIdentifierElement, "./@Format")
 
-	authstatement := response.Query(assertion, "saml1:AuthenticationStatement")[0]
-	response.QueryDashP(authstatement, "@AuthenticationInstant", assertionIssueInstant, nil)
-	//response.QueryDashP(authstatement, "@SessionNotOnOrAfter", sessionNotOnOrAfter, nil)
-	//response.QueryDashP(authstatement, "@SessionIndex", "missing", nil)
-	response.QueryDashP(authstatement, "saml1:Subject/saml1:NameIdentifier", nameIdentifier, nil)
-	response.QueryDashP(authstatement, "saml1:Subject/saml1:NameIdentifier/@Format", nameIdFormat, nil)
+    authStmt := response.Query(assertion, "saml1:AuthenticationStatement")[0]
+    response.QueryDashP(authStmt, "@AuthenticationInstant", assertionIssueInstant, nil)
+
+	for _, stmt := range response.Query(assertion, ".//saml1:Subject") {
+        response.QueryDashP(stmt, "saml1:NameIdentifier", nameIdentifier, nil)
+        response.QueryDashP(stmt, "saml1:NameIdentifier/@Format", nameIdFormat, nil)
+        response.QueryDashP(stmt, "saml1:SubjectConfirmation/saml1:ConfirmationMethod", "urn:oasis:names:tc:SAML:1.0:cm:bearer", nil)
+	}
 
 	authContext := sourceResponse.Query1(nil, "./saml:Assertion/saml:AuthnStatement/saml:AuthnContext/saml:AuthnContextClassRef")
-    response.QueryDashP(authstatement, "./@AuthenticationMethod", authContext, nil)
+    response.QueryDashP(authStmt, "./@AuthenticationMethod", authContext, nil)
 
 	return
 }
