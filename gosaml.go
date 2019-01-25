@@ -1179,14 +1179,14 @@ func NewWsFedResponse(idpMd, spMd, sourceResponse *goxml.Xp) (response *goxml.Xp
 `
 	response = goxml.NewXpFromString(template)
 
-	issueInstant, _, assertionId, assertionNotOnOrAfter, _ := IdAndTiming()
+	issueInstant, _, assertionId, _, sessionNotOnOrAfter := IdAndTiming()
 	assertionIssueInstant := issueInstant
 
 	spEntityID := spMd.Query1(nil, `/md:EntityDescriptor/@entityID`)
 	idpEntityID := idpMd.Query1(nil, `/md:EntityDescriptor/@entityID`)
 
 	response.QueryDashP(nil, "./t:Lifetime/wsu:Created", issueInstant, nil)
-	response.QueryDashP(nil, "./t:Lifetime/wsu:Expires", assertionNotOnOrAfter, nil)
+	response.QueryDashP(nil, "./t:Lifetime/wsu:Expires", sessionNotOnOrAfter, nil)
 	response.QueryDashP(nil, "./wsp:AppliesTo/wsa:EndpointReference/wsa:Address", spEntityID, nil)
 
 	assertion := response.Query(nil, "t:RequestedSecurityToken/saml1:Assertion")[0]
@@ -1196,7 +1196,7 @@ func NewWsFedResponse(idpMd, spMd, sourceResponse *goxml.Xp) (response *goxml.Xp
 
 	conditions := response.Query(assertion, "saml1:Conditions")[0]
 	response.QueryDashP(conditions, "@NotBefore", assertionIssueInstant, nil)
-	response.QueryDashP(conditions, "@NotOnOrAfter", assertionNotOnOrAfter, nil)
+	response.QueryDashP(conditions, "@NotOnOrAfter", sessionNotOnOrAfter, nil)
 	response.QueryDashP(conditions, "saml1:AudienceRestrictionCondition/saml1:Audience", spEntityID, nil)
 
     nameIdentifierElement := sourceResponse.Query(nil, "./saml:Assertion/saml:Subject/saml:NameID")[0]
