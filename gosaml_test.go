@@ -292,7 +292,7 @@ func ExampleResponse() {
 	newResponse.QueryDashP(authstatement, "@SessionIndex", "1", nil)
 	fmt.Printf("%x\n", sha1.Sum([]byte(newResponse.PP())))
 	// Output:
-	// c63d3f10d357c761a8451aec70538cc6a6d90d56
+	// 384160bc3b455052ad7db2f0a700a13142466c37
 }
 
 func ExampleAttributeCanonicalDump() {
@@ -669,5 +669,5 @@ func ExampleEncryptAndDecrypt() {
 	response.QueryDashP(authstatement, "@SessionIndex", "1", nil)
 	fmt.Printf("%x\n", sha1.Sum([]byte(response.PP())))
 	// Output:
-	// ad3f8e7cfbfbff885bfca6616eac8c447d67ab70
+	// 74b0fcedd0d455cf105e7ff574b81dac096e92df
 }
