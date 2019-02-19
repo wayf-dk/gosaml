@@ -112,7 +112,7 @@ var (
 	// NameIDList list of supported nameid formats
 	NameIDList = []string{"", Transient, Persistent, X509, Email, Unspecified}
 	// NameIDMap refers to mapping the nameid formats
-	NameIDMap = map[string]int{"": 1, Transient: 1, Persistent: 2, X509: 3, Email: 4, Unspecified: 5} // Unspecified accepted but not sent upstream
+	NameIDMap  = map[string]int{"": 1, Transient: 1, Persistent: 2, X509: 3, Email: 4, Unspecified: 5} // Unspecified accepted but not sent upstream
 	whitespace = regexp.MustCompile("\\s")
 )
 
@@ -135,7 +135,7 @@ func DumpFile(r *http.Request, xp *goxml.Xp) (logtag string) {
 
 func DumpFileIfTracing(r *http.Request, xp *goxml.Xp) (logtag string) {
 	if DebugSetting(r, "trace") == "1" {
-	    logtag = DumpFile(r, xp)
+		logtag = DumpFile(r, xp)
 	}
 	return
 }
@@ -371,7 +371,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 	method := r.Method
 
 	if ok := method == "GET" || method == "POST"; !ok {
-    	err = fmt.Errorf("unsupported http method used '%s'", method)
+		err = fmt.Errorf("unsupported http method used '%s'", method)
 		return
 	}
 
@@ -1139,12 +1139,12 @@ func wsfedRequest2samlRequest(r *http.Request, issuerMdSet, destinationMdSet Md)
 		}
 		samlrequest, _ := NewAuthnRequest(nil, issuerMd, destinationMd, nil)
 		if wreply := r.Form.Get("wreply"); wreply != "" {
-            samlrequest.QueryDashP(nil, "./@AssertionConsumerServiceURL", wreply, nil)
+			samlrequest.QueryDashP(nil, "./@AssertionConsumerServiceURL", wreply, nil)
 		}
 
-        samlrequest.QueryDashP(nil, "./samlp:NameIDPolicy/@Format", issuerMd.Query1(nil, "/md:EntityDescriptor/md:SPSSODescriptor/md:NameIDFormat"), nil)
+		samlrequest.QueryDashP(nil, "./samlp:NameIDPolicy/@Format", issuerMd.Query1(nil, "/md:EntityDescriptor/md:SPSSODescriptor/md:NameIDFormat"), nil)
 
-        DumpFileIfTracing(r, samlrequest)
+		DumpFileIfTracing(r, samlrequest)
 		msg = base64.StdEncoding.EncodeToString(Deflate(samlrequest.Dump()))
 	}
 	return
@@ -1199,21 +1199,21 @@ func NewWsFedResponse(idpMd, spMd, sourceResponse *goxml.Xp) (response *goxml.Xp
 	response.QueryDashP(conditions, "@NotOnOrAfter", sessionNotOnOrAfter, nil)
 	response.QueryDashP(conditions, "saml1:AudienceRestrictionCondition/saml1:Audience", spEntityID, nil)
 
-    nameIdentifierElement := sourceResponse.Query(nil, "./saml:Assertion/saml:Subject/saml:NameID")[0]
-    nameIdentifier := sourceResponse.Query1(nameIdentifierElement, ".")
-    nameIdFormat := sourceResponse.Query1(nameIdentifierElement, "./@Format")
+	nameIdentifierElement := sourceResponse.Query(nil, "./saml:Assertion/saml:Subject/saml:NameID")[0]
+	nameIdentifier := sourceResponse.Query1(nameIdentifierElement, ".")
+	nameIdFormat := sourceResponse.Query1(nameIdentifierElement, "./@Format")
 
-    authStmt := response.Query(assertion, "saml1:AuthenticationStatement")[0]
-    response.QueryDashP(authStmt, "@AuthenticationInstant", assertionIssueInstant, nil)
+	authStmt := response.Query(assertion, "saml1:AuthenticationStatement")[0]
+	response.QueryDashP(authStmt, "@AuthenticationInstant", assertionIssueInstant, nil)
 
 	for _, stmt := range response.Query(assertion, ".//saml1:Subject") {
-        response.QueryDashP(stmt, "saml1:NameIdentifier", nameIdentifier, nil)
-        response.QueryDashP(stmt, "saml1:NameIdentifier/@Format", nameIdFormat, nil)
-        response.QueryDashP(stmt, "saml1:SubjectConfirmation/saml1:ConfirmationMethod", "urn:oasis:names:tc:SAML:1.0:cm:bearer", nil)
+		response.QueryDashP(stmt, "saml1:NameIdentifier", nameIdentifier, nil)
+		response.QueryDashP(stmt, "saml1:NameIdentifier/@Format", nameIdFormat, nil)
+		response.QueryDashP(stmt, "saml1:SubjectConfirmation/saml1:ConfirmationMethod", "urn:oasis:names:tc:SAML:1.0:cm:bearer", nil)
 	}
 
 	authContext := sourceResponse.Query1(nil, "./saml:Assertion/saml:AuthnStatement/saml:AuthnContext/saml:AuthnContextClassRef")
-    response.QueryDashP(authStmt, "./@AuthenticationMethod", authContext, nil)
+	response.QueryDashP(authStmt, "./@AuthenticationMethod", authContext, nil)
 
 	return
 }
