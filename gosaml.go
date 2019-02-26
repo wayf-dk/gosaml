@@ -1051,7 +1051,7 @@ func NewResponse(idpMd, spMd, authnrequest, sourceResponse *goxml.Xp) (response 
 	<samlp:Status>
 		<samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success" />
 	</samlp:Status>
-	<saml:Assertion Version="2.0">
+	<saml:Assertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0">
 		<saml:Issuer></saml:Issuer>
 		<saml:Subject>
 			<saml:NameID></saml:NameID>
