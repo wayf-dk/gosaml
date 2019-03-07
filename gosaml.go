@@ -81,6 +81,9 @@ type (
 	Md interface {
 		MDQ(key string) (xp *goxml.Xp, err error)
 	}
+
+	MdSets []Md
+
 	// Conf refers to Configuration values for Schema and Certificates
 	Conf struct {
 		SamlSchema string
@@ -301,8 +304,8 @@ func AttributeCanonicalDump(w io.Writer, xp *goxml.Xp) {
 // Checks for Subject and  NameidPolicy(Persistent or Transient)
 // Receives the metadatasets for resp. the sender and the receiver
 // Returns metadata for the sender and the receiver
-func ReceiveAuthnRequest(r *http.Request, issuerMdSet, destinationMdSet Md) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, err error) {
-	xp, issuerMd, destinationMd, relayState, err = DecodeSAMLMsg(r, issuerMdSet, destinationMdSet, IdPRole, []string{"AuthnRequest"}, "https://"+r.Host+r.URL.Path)
+func ReceiveAuthnRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, issuerIndex, destinationIndex int, err error) {
+	xp, issuerMd, destinationMd, relayState, issuerIndex, destinationIndex, err = DecodeSAMLMsg(r, issuerMdSets, destinationMdSets, IdPRole, []string{"AuthnRequest"}, "https://"+r.Host+r.URL.Path)
 	if err != nil {
 		return
 	}
@@ -345,19 +348,30 @@ func inArray(item string, array []string) bool {
 	return false
 }
 
+func findInMetadataSets(metadataSets MdSets, key string) (md *goxml.Xp, index int, err error) {
+    for index, _ = range metadataSets {
+        md, err = metadataSets[index].MDQ(key)
+        if err == nil { // if we don't get md not found the last error is as good as the first
+            return
+        }
+	}
+	return
+}
+
+
 // ReceiveSAMLResponse handles the SAML minutiae when receiving a SAMLResponse
 // Currently the only supported binding is POST
 // Receives the metadatasets for resp. the sender and the receiver
 // Returns metadata for the sender and the receiver
-func ReceiveSAMLResponse(r *http.Request, issuerMdSet, destinationMdSet Md, location string) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, err error) {
-	return DecodeSAMLMsg(r, issuerMdSet, destinationMdSet, SPRole, []string{"Response"}, location)
+func ReceiveSAMLResponse(r *http.Request, issuerMdSets, destinationMdSets MdSets, location string) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, issuerIndex, destinationIndex int, err error) {
+	return DecodeSAMLMsg(r, issuerMdSets, destinationMdSets, SPRole, []string{"Response"}, location)
 }
 
 // ReceiveLogoutMessage receives the Logout Message
 // Receives the metadatasets for resp. the sender and the receiver
 // Returns metadata for the sender and the receiver
-func ReceiveLogoutMessage(r *http.Request, issuerMdSet, destinationMdSet Md, role int) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, err error) {
-	return DecodeSAMLMsg(r, issuerMdSet, destinationMdSet, role, []string{"LogoutRequest", "LogoutResponse"}, "https://"+r.Host+r.URL.Path)
+func ReceiveLogoutMessage(r *http.Request, issuerMdSets, destinationMdSets MdSets, role int) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, issuerIndex, destinationIndex int, err error) {
+	return DecodeSAMLMsg(r, issuerMdSets, destinationMdSets, role, []string{"LogoutRequest", "LogoutResponse"}, "https://"+r.Host+r.URL.Path)
 }
 
 // DecodeSAMLMsg decodes the Request. Extracts Issuer, Destination
@@ -365,7 +379,7 @@ func ReceiveLogoutMessage(r *http.Request, issuerMdSet, destinationMdSet Md, rol
 // Validates the schema
 // Receives the metadatasets for resp. the sender and the receiver
 // Returns metadata for the sender and the receiver
-func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, protocols []string, location string) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, err error) {
+func DecodeSAMLMsg(r *http.Request, issuerMdSets, destinationMdSets MdSets, role int, protocols []string, location string) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, issuerIndex, destinationIndex int, err error) {
 	defer r.Body.Close()
 	r.ParseForm()
 	method := r.Method
@@ -381,7 +395,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 	if msg == "" {
 		msg = r.Form.Get("SAMLResponse")
 		if msg == "" {
-			msg, relayState = wsfedRequest2samlRequest(r, issuerMdSet, destinationMdSet)
+			msg, relayState = wsfedRequest2samlRequest(r, issuerMdSets, destinationMdSets)
 			if msg == "" {
 				err = fmt.Errorf("no SAMLRequest/SAMLResponse found")
 				return
@@ -425,9 +439,9 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 		return
 	}
 
-	issuerMd, err = issuerMdSet.MDQ(issuer)
+    issuerMd, issuerIndex, err = findInMetadataSets(issuerMdSets, issuer)
 	if err != nil {
-		return
+	    return
 	}
 
 	destination := tmpXp.Query1(nil, "./@Destination")
@@ -448,13 +462,13 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSet, destinationMdSet Md, role int, 
 	   q.Q(r.URL.Path, destination)
 	*/
 
-	destinationMd, err = destinationMdSet.MDQ(location)
+    destinationMd, destinationIndex, err = findInMetadataSets(destinationMdSets, location)
 	if err != nil {
 		return
 	}
 
-	if issuer == "https://eidasconnector.test.eid.digst.dk/idp" {
-		destinationMd, err = destinationMdSet.MDQ("https://saml.eidas.wayf.dk")
+	if issuer == "https://eidasconnector.test.eid.digst.dk/idp" { // what is this doing here ???
+		destinationMd, err = destinationMdSets[destinationIndex].MDQ("https://saml.eidas.wayf.dk") // always same as as destination
 		if err != nil {
 			return
 		}
@@ -1124,19 +1138,23 @@ func NewResponse(idpMd, spMd, authnrequest, sourceResponse *goxml.Xp) (response 
 }
 
 // wsfedRequest2samlRequest does the protocol translation from ws-fed to saml
-func wsfedRequest2samlRequest(r *http.Request, issuerMdSet, destinationMdSet Md) (msg, relayState string) {
+func wsfedRequest2samlRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets) (msg, relayState string) {
 	if r.Form.Get("wa") == "wsignin1.0" {
 		relayState = r.Form.Get("wctx")
 		issuer := r.Form.Get("wtrealm")
 		location := "https://" + r.Host + r.URL.Path
-		destinationMd, err := destinationMdSet.MDQ(location)
-		if err != nil {
-			return
-		}
-		issuerMd, err := issuerMdSet.MDQ(issuer)
-		if err != nil {
-			return
-		}
+
+        destinationMd, _, err := findInMetadataSets(destinationMdSets, location)
+        if err != nil {
+            return
+        }
+
+        issuerMd, _, err := findInMetadataSets(issuerMdSets, issuer)
+
+        if err != nil {
+            return
+        }
+
 		samlrequest, _ := NewAuthnRequest(nil, issuerMd, destinationMd, nil)
 		if wreply := r.Form.Get("wreply"); wreply != "" {
 			samlrequest.QueryDashP(nil, "./@AssertionConsumerServiceURL", wreply, nil)
