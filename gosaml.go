@@ -1030,17 +1030,14 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, idPList []string) (
 	nameIDFormat := ""
 	nameIDFormats := NameIDList
 
-	if originalRequest != nil { // already checked for supported nameidformat
-		switch originalRequest.Query1(nil, "./@ForceAuthn") {
-		case "1", "true":
+	if originalRequest != nil { // already checked for supported nameidformat map[bool]string{true: "true", false: "false"}
+		if originalRequest.QueryXMLBool(nil, "./@ForceAuthn") {
 			request.QueryDashP(nil, "./@ForceAuthn", "true", nil)
 		}
-		switch originalRequest.Query1(nil, "./@IsPassive") {
-		case "1", "true":
+		if originalRequest.QueryXMLBool(nil, "./@IsPassive") {
 			request.QueryDashP(nil, "./@IsPassive", "true", nil)
 		}
-		//requesterID := originalRequest.Query1(nil, "./saml:Issuer")
-		//request.QueryDashP(nil, "./samlp:Scoping/samlp:RequesterID", requesterID, nil)
+
 		if nameIDPolicy := originalRequest.Query1(nil, "./samlp:NameIDPolicy/@Format"); nameIDPolicy != "" {
 			nameIDFormats = append([]string{nameIDPolicy}, nameIDFormats...) // prioritize what the SP asked for
 		}
