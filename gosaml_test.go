@@ -201,7 +201,7 @@ func xxExampleNewLogoutRequest() {
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request1 := httptest.NewRequest("GET", url.String(), nil)
 	//request1.Query(nil, "/samlp:AuthnRequest")[0].SetNodeName("LogoutRequest")
-	request, _, _, _, _ := ReceiveLogoutMessage(request1, external, external, 1)
+	request, _, _, _, _, _, _ := ReceiveLogoutMessage(request1, MdSets{external}, MdSets{external}, 1)
 	request.Query(nil, "/samlp:AuthnRequest")[0].SetNodeName("LogoutRequest")
 	res, err := NewLogoutRequest(spmetadata, idpmetadata, request, sloInfo, IdPRole)
 	fmt.Println(res, err)
@@ -227,7 +227,7 @@ func ExampleSigningKeyNotFound() {
 	data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(encryptedAssertion.Doc.Dump(false))))
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
 	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	_, _, _, _, err := ReceiveSAMLResponse(request, external, external, "https://"+request.Host+request.URL.Path)
+	_, _, _, _, _, _, err := ReceiveSAMLResponse(request, MdSets{external}, MdSets{external}, "https://"+request.Host+request.URL.Path)
 	fmt.Println(err)
 	// Output:
 	// ["cause:open fd666194364791ef937224223c7387f6b26368af.key: no such file or directory"]
@@ -241,7 +241,7 @@ func ExampleUnsupportedEncryptionMethod() {
 	data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(encryptedAssertion.Doc.Dump(false))))
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
 	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	_, _, _, _, err := ReceiveSAMLResponse(request, external, external, "https://"+request.Host+request.URL.Path)
+	_, _, _, _, _, _, err := ReceiveSAMLResponse(request, MdSets{external}, MdSets{external}, "https://"+request.Host+request.URL.Path)
 	fmt.Println(err)
 	fmt.Println(err.(goxml.Werror).FullError())
 	// Output:
@@ -261,7 +261,7 @@ func ExampleInvalidDestination() {
 	//	for _ = range [1000]int{} {
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
 	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	_, _, _, _, err := ReceiveSAMLResponse(request, external, external, "https://"+request.Host+request.URL.Path)
+	_, _, _, _, _, _, err := ReceiveSAMLResponse(request, MdSets{external}, MdSets{external}, "https://"+request.Host+request.URL.Path)
 	//	}
 	//	log.Println(i)
 	//}
@@ -393,7 +393,7 @@ func ExampleReceiveAuthnRequestPOST() {
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
 	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
-	_, _, _, _, err := ReceiveAuthnRequest(request, external, external)
+	_, _, _, _, _, _, err := ReceiveAuthnRequest(request, MdSets{external}, MdSets{external})
 	fmt.Println(err)
 	// Output:
 	// ["cause:No valid binding found in metadata"]
@@ -407,7 +407,7 @@ func ExampleNoAssertion() {
 	data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
 	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	_, _, _, _, err := ReceiveSAMLResponse(request, external, external, "https://"+request.Host+request.URL.Path)
+	_, _, _, _, _, _, err := ReceiveSAMLResponse(request, MdSets{external}, MdSets{external}, "https://"+request.Host+request.URL.Path)
 	//fmt.Println(xp.PP())
 	fmt.Println(err)
 	// Output:
@@ -419,7 +419,7 @@ func ExampleReceiveAuthnRequest() {
 	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, idPList)
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
-	_, _, _, relayState, err := ReceiveAuthnRequest(request, external, external)
+	_, _, _, relayState, _, _, err := ReceiveAuthnRequest(request, MdSets{external}, MdSets{external})
 	fmt.Println(relayState)
 	fmt.Println(err)
 	// Output:
@@ -442,7 +442,7 @@ func TestReceiveAuthnRequest(*testing.T) {
 			newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, idPList)
 			url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 			request := httptest.NewRequest("GET", url.String(), nil)
-			_, _, _, _, _ = ReceiveAuthnRequest(request, external, external)
+			_, _, _, _, _, _, _ = ReceiveAuthnRequest(request, MdSets{external}, MdSets{external})
 			i++
 		}
 		log.Println(i)
@@ -455,7 +455,7 @@ func ExampleLogoutMsgProtocolCheck() {
 	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, idPList)
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
-	_, _, _, _, err := ReceiveLogoutMessage(request, external, external, 1)
+	_, _, _, _, _, _, err := ReceiveLogoutMessage(request, MdSets{external}, MdSets{external}, 1)
 	fmt.Println(err)
 	// Output:
 	// expected protocol(s) [LogoutRequest LogoutResponse] not found, got AuthnRequest
@@ -471,7 +471,7 @@ func ExampleNameIDPolicy() {
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
 
-	_, _, _, _, err := ReceiveAuthnRequest(request, external, external)
+	_, _, _, _, _, _, err := ReceiveAuthnRequest(request, MdSets{external}, MdSets{external})
 	fmt.Println(err)
 	// Output:
 	// nameidpolicy format: 'anton-banton' is not supported
@@ -488,7 +488,7 @@ func ExampleReceiveAuthnRequestNoSubject() {
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
 
-	_, _, _, _, err := ReceiveAuthnRequest(request, external, external)
+	_, _, _, _, _, _, err := ReceiveAuthnRequest(request, MdSets{external}, MdSets{external})
 	fmt.Println(err)
 	// Output:
 	// subject not allowed in SAMLRequest
@@ -500,7 +500,7 @@ func ExampleProtocolCheck() {
 	newrequest.Query(nil, "/samlp:AuthnRequest")[0].SetNodeName("PutRequest")
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
-	_, _, _, _, err := ReceiveAuthnRequest(request, external, external)
+	_, _, _, _, _, _, err := ReceiveAuthnRequest(request, MdSets{external}, MdSets{external})
 	fmt.Println(err)
 	// Output:
 	// ["cause:schema validation failed"]
@@ -517,7 +517,7 @@ func xTestReceiveResponse(*testing.T) {
 			data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
 			request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
 			request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-			_, _, _, _, _ = ReceiveSAMLResponse(request, external, external, "https://"+request.Host+request.URL.Path)
+			_, _, _, _, _, _, _ = ReceiveSAMLResponse(request, MdSets{external}, MdSets{external}, "https://"+request.Host+request.URL.Path)
 			i++
 		}
 		log.Println(i)
@@ -533,12 +533,12 @@ func ExampleReceiveUnSignedResponse() {
 	data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
 	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	xp, _, _, _, _ := ReceiveSAMLResponse(request, external, external, "https://"+request.Host+request.URL.Path)
+	xp, _, _, _, _, _, _ := ReceiveSAMLResponse(request, MdSets{external}, MdSets{external}, "https://"+request.Host+request.URL.Path)
 	data1 := url.Values{} // Checking for unsigned Response here //
 	data1.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(xp.Doc.Dump(false))))
 	request1 := httptest.NewRequest("POST", destination, strings.NewReader(data1.Encode()))
 	request1.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	_, _, _, _, err := ReceiveSAMLResponse(request1, external, external, "https://"+request1.Host+request1.URL.Path)
+	_, _, _, _, _, _, err := ReceiveSAMLResponse(request1, MdSets{external}, MdSets{external}, "https://"+request1.Host+request1.URL.Path)
 	fmt.Println(err)
 	fmt.Println(err.(goxml.Werror).FullError())
 	// Output:
@@ -555,7 +555,7 @@ func ExampleCheckDigest() {
 	data.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte(response.Doc.Dump(false))))
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
 	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	_, _, _, _, err := ReceiveSAMLResponse(request, external, external, "https://"+request.Host+request.URL.Path)
+	_, _, _, _, _, _, err := ReceiveSAMLResponse(request, MdSets{external}, MdSets{external}, "https://"+request.Host+request.URL.Path)
 	fmt.Println(err)
 	// Output:
 	// ["err:Metadata not found","key:https://www.example.com"]
@@ -567,7 +567,7 @@ func ExampleNoSAMLResponse() {
 	data.Set("SAMLResponse", "")
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
 	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	_, _, _, _, err := ReceiveSAMLResponse(request, external, external, "https://"+request.Host+request.URL.Path)
+	_, _, _, _, _, _, err := ReceiveSAMLResponse(request, MdSets{external}, MdSets{external}, "https://"+request.Host+request.URL.Path)
 	fmt.Println(err)
 	// Output:
 	// no SAMLRequest/SAMLResponse found
@@ -581,7 +581,7 @@ func ExampleNoIssuer() {
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
 	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
-	_, _, _, _, err := ReceiveSAMLResponse(request, external, external, "https://"+request.Host+request.URL.Path)
+	_, _, _, _, _, _, err := ReceiveSAMLResponse(request, MdSets{external}, MdSets{external}, "https://"+request.Host+request.URL.Path)
 	fmt.Println(err)
 	// Output:
 	// ["err:Metadata not found","key:abc"]
@@ -595,7 +595,7 @@ func ExampleNoDestination() {
 	request := httptest.NewRequest("POST", destination, strings.NewReader(data.Encode()))
 	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
-	_, _, _, _, err := ReceiveSAMLResponse(request, external, external, "https://"+request.Host+request.URL.Path)
+	_, _, _, _, _, _, err := ReceiveSAMLResponse(request, MdSets{external}, MdSets{external}, "https://"+request.Host+request.URL.Path)
 	fmt.Println(err)
 	// Output:
 	// ["err:Metadata not found","key:abc"]
@@ -607,7 +607,7 @@ func ExampleInvalidSchema() {
 	newrequest.Query(nil, "/samlp:AuthnRequest")[0].SetNodeName("PutRequest")
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
-	_, _, _, _, err := ReceiveAuthnRequest(request, external, external)
+	_, _, _, _, _, _, err := ReceiveAuthnRequest(request, MdSets{external}, MdSets{external})
 	fmt.Println(err)
 	// Output:
 	// ["cause:schema validation failed"]
@@ -617,7 +617,7 @@ func ExampleInvalidTime() {
 	newrequest, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, idPList)
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
-	xp, _, _, _, _ := ReceiveAuthnRequest(request, external, external)
+	xp, _, _, _, _, _, _ := ReceiveAuthnRequest(request, MdSets{external}, MdSets{external})
 	xp.QueryDashP(nil, "@IssueInstant", "abc", nil)
 	req, err := VerifyTiming(xp)
 	fmt.Println(req, err)
@@ -630,7 +630,7 @@ func ExampleOutOfRangeTime() {
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
 
-	xp, _, _, _, _ := ReceiveAuthnRequest(request, external, external)
+	xp, _, _, _, _, _, _ := ReceiveAuthnRequest(request, MdSets{external}, MdSets{external})
 	xp.QueryDashP(nil, "@IssueInstant", "2014-13-22", nil)
 	req, err := VerifyTiming(xp)
 	fmt.Println(req, err)
@@ -643,7 +643,7 @@ func ExampleNoTime() {
 	newrequest.QueryDashP(nil, "@IssueInstant", "2014-12-22", nil)
 	url, _ := SAMLRequest2Url(newrequest, "anton-banton", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
-	req, _, _, _, err := ReceiveAuthnRequest(request, external, external)
+	req, _, _, _, _, _, err := ReceiveAuthnRequest(request, MdSets{external}, MdSets{external})
 	fmt.Println(req, err)
 	// Output:
 	// <nil> ["cause:schema validation failed"]
@@ -654,7 +654,7 @@ func ExampleNoTime2() {
 	newrequest.QueryDashP(nil, "@IssueInstant", "2002-10-10T12:00:00-05:00", nil)
 	url, _ := SAMLRequest2Url(newrequest, "", "", "", "")
 	request := httptest.NewRequest("GET", url.String(), nil)
-	req, _, _, _, err := ReceiveAuthnRequest(request, external, external)
+	req, _, _, _, _, _, err := ReceiveAuthnRequest(request, MdSets{external}, MdSets{external})
 	fmt.Println(req, err)
 	// Output:
 	// <nil> parsing time "2002-10-10T12:00:00-05:00" as "2006-01-02T15:04:05Z": cannot parse "-05:00" as "Z"
