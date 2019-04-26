@@ -348,7 +348,7 @@ func inArray(item string, array []string) bool {
 	return false
 }
 
-func findInMetadataSets(metadataSets MdSets, key string) (md *goxml.Xp, index int, err error) {
+func FindInMetadataSets(metadataSets MdSets, key string) (md *goxml.Xp, index int, err error) {
 	for index, _ = range metadataSets {
 		md, err = metadataSets[index].MDQ(key)
 		if err == nil { // if we don't get md not found the last error is as good as the first
@@ -438,7 +438,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSets, destinationMdSets MdSets, role
 		return
 	}
 
-	issuerMd, issuerIndex, err = findInMetadataSets(issuerMdSets, issuer)
+	issuerMd, issuerIndex, err = FindInMetadataSets(issuerMdSets, issuer)
 	if err != nil {
 		return
 	}
@@ -1132,12 +1132,12 @@ func wsfedRequest2samlRequest(r *http.Request, issuerMdSets, destinationMdSets M
 		issuer := r.Form.Get("wtrealm")
 		location := "https://" + r.Host + r.URL.Path
 
-		destinationMd, _, err := findInMetadataSets(destinationMdSets, location)
+		destinationMd, _, err := FindInMetadataSets(destinationMdSets, location)
 		if err != nil {
 			return
 		}
 
-		issuerMd, _, err := findInMetadataSets(issuerMdSets, issuer)
+		issuerMd, _, err := FindInMetadataSets(issuerMdSets, issuer)
 
 		if err != nil {
 			return
