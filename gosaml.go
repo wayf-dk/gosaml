@@ -479,7 +479,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSets, destinationMdSets MdSets, role
 
 // CheckSAMLMessage checks for Authentication Requests, Reponses and Logout Requests
 // Checks for invalid Bindings. Check for Certificates. Verify Signatures
-func CheckSAMLMessage(r *http.Request, xp, issuerMd, destinationMd *goxml.Xp, role int, location string) (validatedMessage *goxml.Xp, err error) {
+func CheckSAMLMessage(r *http.Request, xp, issuerMd, destinationMd *goxml.Xp, role int, location string, xtraCerts []string) (validatedMessage *goxml.Xp, err error) {
 	type protoCheckInfoStruct struct {
 		minSignatures     int
 		service           string
