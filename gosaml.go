@@ -362,15 +362,15 @@ func findInMetadataSets(metadataSets MdSets, key string) (md *goxml.Xp, index in
 // Currently the only supported binding is POST
 // Receives the metadatasets for resp. the sender and the receiver
 // Returns metadata for the sender and the receiver
-func ReceiveSAMLResponse(r *http.Request, issuerMdSets, destinationMdSets MdSets, location string) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, issuerIndex, destinationIndex int, err error) {
-	return DecodeSAMLMsg(r, issuerMdSets, destinationMdSets, SPRole, []string{"Response"}, location)
+func ReceiveSAMLResponse(r *http.Request, issuerMdSets, destinationMdSets MdSets, location string, xtraCerts []string) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, issuerIndex, destinationIndex int, err error) {
+	return DecodeSAMLMsg(r, issuerMdSets, destinationMdSets, SPRole, []string{"Response"}, location, xtraCerts)
 }
 
 // ReceiveLogoutMessage receives the Logout Message
 // Receives the metadatasets for resp. the sender and the receiver
 // Returns metadata for the sender and the receiver
 func ReceiveLogoutMessage(r *http.Request, issuerMdSets, destinationMdSets MdSets, role int) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, issuerIndex, destinationIndex int, err error) {
-	return DecodeSAMLMsg(r, issuerMdSets, destinationMdSets, role, []string{"LogoutRequest", "LogoutResponse"}, "https://"+r.Host+r.URL.Path)
+	return DecodeSAMLMsg(r, issuerMdSets, destinationMdSets, role, []string{"LogoutRequest", "LogoutResponse"}, "https://"+r.Host+r.URL.Path, nil)
 }
 
 // DecodeSAMLMsg decodes the Request. Extracts Issuer, Destination
@@ -378,7 +378,7 @@ func ReceiveLogoutMessage(r *http.Request, issuerMdSets, destinationMdSets MdSet
 // Validates the schema
 // Receives the metadatasets for resp. the sender and the receiver
 // Returns metadata for the sender and the receiver
-func DecodeSAMLMsg(r *http.Request, issuerMdSets, destinationMdSets MdSets, role int, protocols []string, location string) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, issuerIndex, destinationIndex int, err error) {
+func DecodeSAMLMsg(r *http.Request, issuerMdSets, destinationMdSets MdSets, role int, protocols []string, location string, xtraCerts []string) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, issuerIndex, destinationIndex int, err error) {
 	defer r.Body.Close()
 	r.ParseForm()
 	method := r.Method
@@ -454,26 +454,12 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSets, destinationMdSets MdSets, role
 		return
 	}
 
-	/*
-	       if r.Host == "krib.wayf.dk" {
-	           destination = "{sha1}"+strings.Split(r.URL.Path, "/")[1]
-	       }
-	   q.Q(r.URL.Path, destination)
-	*/
-
-	destinationMd, destinationIndex, err = findInMetadataSets(destinationMdSets, location)
+	destinationMd, destinationIndex, err = FindInMetadataSets(destinationMdSets, location)
 	if err != nil {
 		return
 	}
 
-	if issuer == "https://eidasconnector.test.eid.digst.dk/idp" { // what is this doing here ???
-		destinationMd, err = destinationMdSets[destinationIndex].MDQ("https://saml.eidas.wayf.dk") // always same as as destination
-		if err != nil {
-			return
-		}
-	}
-
-	xp, err = CheckSAMLMessage(r, tmpXp, issuerMd, destinationMd, role, location)
+	xp, err = CheckSAMLMessage(r, tmpXp, issuerMd, destinationMd, role, location, xtraCerts)
 	if err != nil {
 		err = goxml.Wrap(err)
 		return
@@ -551,6 +537,7 @@ findbinding:
 	}
 
 	certificates := issuerMd.QueryMulti(nil, `./`+Roles[(role+1)%2]+SigningCertQuery) // the issuer's role
+	certificates = append(certificates, xtraCerts...)
 
 	if len(certificates) == 0 {
 		err = errors.New("no certificates found in metadata")
