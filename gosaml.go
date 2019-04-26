@@ -304,8 +304,8 @@ func AttributeCanonicalDump(w io.Writer, xp *goxml.Xp) {
 // Checks for Subject and  NameidPolicy(Persistent or Transient)
 // Receives the metadatasets for resp. the sender and the receiver
 // Returns metadata for the sender and the receiver
-func ReceiveAuthnRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, issuerIndex, destinationIndex int, err error) {
-	xp, issuerMd, destinationMd, relayState, issuerIndex, destinationIndex, err = DecodeSAMLMsg(r, issuerMdSets, destinationMdSets, IdPRole, []string{"AuthnRequest"}, "https://"+r.Host+r.URL.Path)
+func ReceiveAuthnRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets, location string) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, issuerIndex, destinationIndex int, err error) {
+	xp, issuerMd, destinationMd, relayState, issuerIndex, destinationIndex, err = DecodeSAMLMsg(r, issuerMdSets, destinationMdSets, IdPRole, []string{"AuthnRequest"}, location, nil)
 	if err != nil {
 		return
 	}
