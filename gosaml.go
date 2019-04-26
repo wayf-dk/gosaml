@@ -1093,8 +1093,8 @@ func NewResponse(idpMd, spMd, authnrequest, sourceResponse *goxml.Xp) (response 
 
 	nameid := response.Query(assertion, "saml:Subject/saml:NameID")[0]
 	response.QueryDashP(nameid, "@SPNameQualifier", spEntityID, nil)
-	response.QueryDashP(nameid, "@Format", sourceResponse.Query1(nil, "//saml:NameID/@Format"), nil)
-	response.QueryDashP(nameid, ".", sourceResponse.Query1(nil, "//saml:NameID"), nil)
+	response.QueryDashP(nameid, "@Format", Transient, nil)
+	response.QueryDashP(nameid, ".", Id(), nil)
 
 	subjectconfirmationdata := response.Query(assertion, "saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData")[0]
 	response.QueryDashP(subjectconfirmationdata, "@NotOnOrAfter", assertionNotOnOrAfter, nil)
