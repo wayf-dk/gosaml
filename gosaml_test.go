@@ -292,7 +292,7 @@ func ExampleResponse() {
 	newResponse.QueryDashP(authstatement, "@SessionIndex", "1", nil)
 	fmt.Printf("%x\n", sha1.Sum([]byte(newResponse.PP())))
 	// Output:
-	// 24d103a06a45abca5c1e1039a19536d943107621
+	// 4877093c1237d2475123fdb8ee821798530829a4
 }
 
 func ExampleAttributeCanonicalDump() {
@@ -667,8 +667,7 @@ func ExampleEncryptAndDecrypt() {
 	assertion := response.Query(nil, "saml:Assertion")[0]
 	authstatement := response.Query(assertion, "saml:AuthnStatement")[0]
 	response.QueryDashP(authstatement, "@SessionIndex", "1", nil)
-	log.Println(response.PP())
 	fmt.Printf("%x\n", sha1.Sum([]byte(response.PP())))
 	// Output:
-	// 46a7c98e16532d09585c3a3273367be1dfae0ec9
+	// 18edbefa322b3a64ba5aa8957e3b52df3bce17b8
 }

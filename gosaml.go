@@ -866,7 +866,7 @@ func VerifyTiming(xp *goxml.Xp) (verifiedXp *goxml.Xp, err error) {
 }
 
 // IdAndTiming for checking the validity
-func IdAndTiming() (issueInstant, id, assertionId, assertionNotOnOrAfter, sessionNotOnOrAfter string) {
+func IdAndTiming() (issueInstant, id, assertionId, transientId, assertionNotOnOrAfter, sessionNotOnOrAfter string) {
 	now := TestTime
 	if now.IsZero() {
 		now = time.Now()
@@ -878,9 +878,13 @@ func IdAndTiming() (issueInstant, id, assertionId, assertionNotOnOrAfter, sessio
 	if id == "" {
 		id = Id()
 	}
-	assertionId = TestAssertionId
+	assertionId = TestId
 	if assertionId == "" {
 		assertionId = Id()
+	}
+	transientId = TestId
+	if transientId == "" {
+		transientId = Id()
 	}
 	return
 }
@@ -900,7 +904,7 @@ func NewErrorResponse(idpMd, spMd, authnrequest, sourceResponse *goxml.Xp) (resp
 func NewLogoutRequest(issuer, destination, sourceLogoutRequest *goxml.Xp, sloinfo *SLOInfo, role int) (request *goxml.Xp, err error) {
 	template := `<samlp:LogoutRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0"></samlp:LogoutRequest>`
 	request = goxml.NewXpFromString(template)
-	issueInstant, _, _, _, _ := IdAndTiming()
+	issueInstant, _, _, _, _, _ := IdAndTiming()
 
 	slo := destination.Query1(nil, `./`+Roles[role]+`/md:SingleLogoutService[@Binding="`+REDIRECT+`"]/@Location`)
 	if slo == "" {
@@ -1000,7 +1004,7 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, idPList []string) (
 <saml:Issuer>Issuer</saml:Issuer>
 <samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" AllowCreate="true" />
 </samlp:AuthnRequest>`
-	issueInstant, msgId, _, _, _ := IdAndTiming()
+	issueInstant, msgId, _, _, _, _ := IdAndTiming()
 
 	request = goxml.NewXpFromString(template)
 	request.QueryDashP(nil, "./@ID", msgId, nil)
@@ -1074,7 +1078,7 @@ func NewResponse(idpMd, spMd, authnrequest, sourceResponse *goxml.Xp) (response 
 `
 	response = goxml.NewXpFromString(template)
 
-	issueInstant, msgId, assertionId, assertionNotOnOrAfter, sessionNotOnOrAfter := IdAndTiming()
+	issueInstant, msgId, assertionId, transientId, assertionNotOnOrAfter, sessionNotOnOrAfter := IdAndTiming()
 	assertionIssueInstant := issueInstant
 
 	spEntityID := spMd.Query1(nil, `/md:EntityDescriptor/@entityID`)
@@ -1095,7 +1099,7 @@ func NewResponse(idpMd, spMd, authnrequest, sourceResponse *goxml.Xp) (response 
 	nameid := response.Query(assertion, "saml:Subject/saml:NameID")[0]
 	response.QueryDashP(nameid, "@SPNameQualifier", spEntityID, nil)
 	response.QueryDashP(nameid, "@Format", Transient, nil)
-	response.QueryDashP(nameid, ".", Id(), nil)
+	response.QueryDashP(nameid, ".", transientId, nil)
 
 	subjectconfirmationdata := response.Query(assertion, "saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData")[0]
 	response.QueryDashP(subjectconfirmationdata, "@NotOnOrAfter", assertionNotOnOrAfter, nil)
@@ -1186,7 +1190,7 @@ func NewWsFedResponse(idpMd, spMd, sourceResponse *goxml.Xp) (response *goxml.Xp
 `
 	response = goxml.NewXpFromString(template)
 
-	issueInstant, _, assertionId, _, sessionNotOnOrAfter := IdAndTiming()
+	issueInstant, _, assertionId, _, _, sessionNotOnOrAfter := IdAndTiming()
 	assertionIssueInstant := issueInstant
 
 	spEntityID := spMd.Query1(nil, `/md:EntityDescriptor/@entityID`)
