@@ -292,63 +292,63 @@ func ExampleResponse() {
 	newResponse.QueryDashP(authstatement, "@SessionIndex", "1", nil)
 	fmt.Println(newResponse.PP())
 	// Output:
-    // <samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
-    //                 xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
-    //                 xmlns:xs="http://www.w3.org/2001/XMLSchema"
-    //                 Version="2.0"
-    //                 ID="ID"
-    //                 IssueInstant="2006-01-02T22:04:05Z"
-    //                 InResponseTo="ID"
-    //                 Destination="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
-    //     <saml:Issuer>
-    //      https://aai-logon.switch.ch/idp/shibboleth
-    //     </saml:Issuer>
-    //     <samlp:Status>
-    //         <samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
-    //     </samlp:Status>
-    //     <saml:Assertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
-    //                     Version="2.0"
-    //                     ID="ID"
-    //                     IssueInstant="2006-01-02T22:04:05Z">
-    //         <saml:Issuer>
-    //           https://aai-logon.switch.ch/idp/shibboleth
-    //         </saml:Issuer>
-    //         <saml:Subject>
-    //             <saml:NameID SPNameQualifier="https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth"
-    //                          Format="urn:oasis:names:tc:SAML:2.0:nameid-format:persistent">
-    //                WAYF-DK-c5bc7e16bb6d28cb5a20b6aad84d1cba2df5c48f
-    //             </saml:NameID>
-    //             <saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
-    //                 <saml:SubjectConfirmationData NotOnOrAfter="2006-01-02T22:08:05Z"
-    //                                               Recipient="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST"
-    //                                               InResponseTo="ID"/>
-    //             </saml:SubjectConfirmation>
-    //         </saml:Subject>
-    //         <saml:Conditions NotBefore="2006-01-02T22:04:05Z"
-    //                          NotOnOrAfter="2006-01-02T22:08:05Z">
-    //             <saml:AudienceRestriction>
-    //                 <saml:Audience>
-    //                     https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth
-    //                 </saml:Audience>
-    //             </saml:AudienceRestriction>
-    //         </saml:Conditions>
-    //         <saml:AuthnStatement AuthnInstant="2006-01-02T22:04:05Z"
-    //                              SessionIndex="1"
-    //                              SessionNotOnOrAfter="2006-01-03T02:04:05Z">
-    //             <saml:AuthnContext>
-    //                 <saml:AuthnContextClassRef>
-    //                     urn:oasis:names:tc:SAML:2.0:ac:classes:Password
-    //                 </saml:AuthnContextClassRef>
-    //                 <saml:AuthenticatingAuthority>
-    //                     https://orphanage.wayf.dk
-    //                 </saml:AuthenticatingAuthority>
-    //                 <saml:AuthenticatingAuthority>
-    //                     https://wayf.wayf.dk
-    //                 </saml:AuthenticatingAuthority>
-    //             </saml:AuthnContext>
-    //         </saml:AuthnStatement>
-    //     </saml:Assertion>
-    // </samlp:Response>
+	// <samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
+	//                 xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
+	//                 xmlns:xs="http://www.w3.org/2001/XMLSchema"
+	//                 Version="2.0"
+	//                 ID="ID"
+	//                 IssueInstant="2006-01-02T22:04:05Z"
+	//                 InResponseTo="ID"
+	//                 Destination="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
+	//     <saml:Issuer>
+	//      https://aai-logon.switch.ch/idp/shibboleth
+	//     </saml:Issuer>
+	//     <samlp:Status>
+	//         <samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
+	//     </samlp:Status>
+	//     <saml:Assertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
+	//                     Version="2.0"
+	//                     ID="ID"
+	//                     IssueInstant="2006-01-02T22:04:05Z">
+	//         <saml:Issuer>
+	//           https://aai-logon.switch.ch/idp/shibboleth
+	//         </saml:Issuer>
+	//         <saml:Subject>
+	//             <saml:NameID SPNameQualifier="https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth"
+	//                          Format="urn:oasis:names:tc:SAML:2.0:nameid-format:persistent">
+	//                WAYF-DK-c5bc7e16bb6d28cb5a20b6aad84d1cba2df5c48f
+	//             </saml:NameID>
+	//             <saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
+	//                 <saml:SubjectConfirmationData NotOnOrAfter="2006-01-02T22:08:05Z"
+	//                                               Recipient="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST"
+	//                                               InResponseTo="ID"/>
+	//             </saml:SubjectConfirmation>
+	//         </saml:Subject>
+	//         <saml:Conditions NotBefore="2006-01-02T22:04:05Z"
+	//                          NotOnOrAfter="2006-01-02T22:08:05Z">
+	//             <saml:AudienceRestriction>
+	//                 <saml:Audience>
+	//                     https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth
+	//                 </saml:Audience>
+	//             </saml:AudienceRestriction>
+	//         </saml:Conditions>
+	//         <saml:AuthnStatement AuthnInstant="2006-01-02T22:04:05Z"
+	//                              SessionIndex="1"
+	//                              SessionNotOnOrAfter="2006-01-03T02:04:05Z">
+	//             <saml:AuthnContext>
+	//                 <saml:AuthnContextClassRef>
+	//                     urn:oasis:names:tc:SAML:2.0:ac:classes:Password
+	//                 </saml:AuthnContextClassRef>
+	//                 <saml:AuthenticatingAuthority>
+	//                     https://orphanage.wayf.dk
+	//                 </saml:AuthenticatingAuthority>
+	//                 <saml:AuthenticatingAuthority>
+	//                     https://wayf.wayf.dk
+	//                 </saml:AuthenticatingAuthority>
+	//             </saml:AuthnContext>
+	//         </saml:AuthnStatement>
+	//     </saml:Assertion>
+	// </samlp:Response>
 }
 
 func ExampleAttributeCanonicalDump() {
@@ -729,58 +729,58 @@ func ExampleEncryptAndDecrypt() {
 	response.QueryDashP(authstatement, "@SessionIndex", "1", nil)
 	fmt.Println(response.PP())
 	// Output:
-    // <samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
-    //                 xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
-    //                 xmlns:xs="http://www.w3.org/2001/XMLSchema"
-    //                 Version="2.0"
-    //                 ID="ID"
-    //                 IssueInstant="2006-01-02T22:04:05Z"
-    //                 InResponseTo="ID"
-    //                 Destination="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
-    //     <saml:Issuer>
-    //      https://aai-logon.switch.ch/idp/shibboleth
-    //     </saml:Issuer>
-    //     <samlp:Status>
-    //         <samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
-    //     </samlp:Status>
-    //     <saml:Assertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
-    //                     Version="2.0"
-    //                     ID="ID"
-    //                     IssueInstant="2006-01-02T22:04:05Z">
-    //         <saml:Issuer>
-    //           https://aai-logon.switch.ch/idp/shibboleth
-    //         </saml:Issuer>
-    //         <saml:Subject>
-    //             <saml:NameID SPNameQualifier="https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth"
-    //                          Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient">
-    //                ID
-    //             </saml:NameID>
-    //             <saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
-    //                 <saml:SubjectConfirmationData NotOnOrAfter="2006-01-02T22:08:05Z"
-    //                                               Recipient="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST"
-    //                                               InResponseTo="ID"/>
-    //             </saml:SubjectConfirmation>
-    //         </saml:Subject>
-    //         <saml:Conditions NotBefore="2006-01-02T22:04:05Z"
-    //                          NotOnOrAfter="2006-01-02T22:08:05Z">
-    //             <saml:AudienceRestriction>
-    //                 <saml:Audience>
-    //                     https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth
-    //                 </saml:Audience>
-    //             </saml:AudienceRestriction>
-    //         </saml:Conditions>
-    //         <saml:AuthnStatement AuthnInstant="2006-01-02T22:04:05Z"
-    //                              SessionIndex="1"
-    //                              SessionNotOnOrAfter="2006-01-03T02:04:05Z">
-    //             <saml:AuthnContext>
-    //                 <saml:AuthnContextClassRef>
-    //                     urn:oasis:names:tc:SAML:2.0:ac:classes:Password
-    //                 </saml:AuthnContextClassRef>
-    //                 <saml:AuthenticatingAuthority>
-    //                     abc
-    //                 </saml:AuthenticatingAuthority>
-    //             </saml:AuthnContext>
-    //         </saml:AuthnStatement>
-    //     </saml:Assertion>
-    // </samlp:Response>
+	// <samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
+	//                 xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
+	//                 xmlns:xs="http://www.w3.org/2001/XMLSchema"
+	//                 Version="2.0"
+	//                 ID="ID"
+	//                 IssueInstant="2006-01-02T22:04:05Z"
+	//                 InResponseTo="ID"
+	//                 Destination="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST">
+	//     <saml:Issuer>
+	//      https://aai-logon.switch.ch/idp/shibboleth
+	//     </saml:Issuer>
+	//     <samlp:Status>
+	//         <samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
+	//     </samlp:Status>
+	//     <saml:Assertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
+	//                     Version="2.0"
+	//                     ID="ID"
+	//                     IssueInstant="2006-01-02T22:04:05Z">
+	//         <saml:Issuer>
+	//           https://aai-logon.switch.ch/idp/shibboleth
+	//         </saml:Issuer>
+	//         <saml:Subject>
+	//             <saml:NameID SPNameQualifier="https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth"
+	//                          Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient">
+	//                ID
+	//             </saml:NameID>
+	//             <saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
+	//                 <saml:SubjectConfirmationData NotOnOrAfter="2006-01-02T22:08:05Z"
+	//                                               Recipient="https://attribute-viewer.aai.switch.ch/interfederation-test/Shibboleth.sso/SAML2/POST"
+	//                                               InResponseTo="ID"/>
+	//             </saml:SubjectConfirmation>
+	//         </saml:Subject>
+	//         <saml:Conditions NotBefore="2006-01-02T22:04:05Z"
+	//                          NotOnOrAfter="2006-01-02T22:08:05Z">
+	//             <saml:AudienceRestriction>
+	//                 <saml:Audience>
+	//                     https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth
+	//                 </saml:Audience>
+	//             </saml:AudienceRestriction>
+	//         </saml:Conditions>
+	//         <saml:AuthnStatement AuthnInstant="2006-01-02T22:04:05Z"
+	//                              SessionIndex="1"
+	//                              SessionNotOnOrAfter="2006-01-03T02:04:05Z">
+	//             <saml:AuthnContext>
+	//                 <saml:AuthnContextClassRef>
+	//                     urn:oasis:names:tc:SAML:2.0:ac:classes:Password
+	//                 </saml:AuthnContextClassRef>
+	//                 <saml:AuthenticatingAuthority>
+	//                     abc
+	//                 </saml:AuthenticatingAuthority>
+	//             </saml:AuthnContext>
+	//         </saml:AuthnStatement>
+	//     </saml:Assertion>
+	// </samlp:Response>
 }
