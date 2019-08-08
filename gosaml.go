@@ -5,13 +5,16 @@ package gosaml
 import (
 	"bytes"
 	"compress/flate"
-	//"crypto"
+	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha1"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
+	"encoding/pem"
 	"encoding/xml"
 	"errors"
 	"fmt"
@@ -19,6 +22,7 @@ import (
 	"github.com/wayf-dk/go-libxml2/types"
 	"github.com/wayf-dk/goxml"
 	"github.com/y0ssar1an/q"
+	"html/template"
 	"io"
 	"io/ioutil"
 	"log"
@@ -97,6 +101,18 @@ type (
 		//		Format int
 		Fo int
 	}
+
+	Formdata struct {
+		Acs                       string
+		Samlresponse, Samlrequest string
+		RelayState                string
+		WsFed                     bool
+		Ard                       template.JS
+	}
+
+	xmapElement struct {
+		key, xpath string
+	}
 )
 
 var (
@@ -117,6 +133,7 @@ var (
 	// NameIDMap refers to mapping the nameid formats
 	NameIDMap  = map[string]int{"": 1, Transient: 1, Persistent: 2, X509: 3, Email: 4, Unspecified: 5} // Unspecified accepted but not sent upstream
 	whitespace = regexp.MustCompile("\\s")
+	PostForm   *template.Template
 )
 
 // DebugSetting for debugging cookies
