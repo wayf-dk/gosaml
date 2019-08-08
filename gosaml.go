@@ -1230,3 +1230,285 @@ func NewWsFedResponse(idpMd, spMd, sourceResponse *goxml.Xp) (response *goxml.Xp
 
 	return
 }
+
+func samlTime2JwtTime(xmlTime string) int64 {
+	samlTime, _ := time.Parse(XsDateTime, xmlTime)
+	return samlTime.Unix()
+}
+
+func Jwt2saml(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExternalIdP, mdExternalSP Md, requestHandler func (*goxml.Xp, *goxml.Xp, *goxml.Xp) (map[string][]string, error), signerMd *goxml.Xp) (err error) {
+	defer r.Body.Close()
+	r.ParseForm()
+
+    request, spMd, idpMd, _, _, _, err := ReceiveAuthnRequest(r, MdSets{mdHub, mdExternalSP}, MdSets{mdInternal, mdExternalIdP}, r.Form.Get("sso"))
+    if err != nil {
+        return
+    }
+
+    req, err := requestHandler(request, idpMd, spMd)
+    if err != nil {
+        return
+    }
+
+    checksign := signerMd != nil // if we are running locally we don't need to check
+    if signerMd == nil {
+        signerMd = idpMd
+    }
+
+    jwt := r.Form.Get("jwt")
+	if jwt == "" {
+        json, err := json.MarshalIndent(&req, "  ", "  ")
+        if err != nil {
+            return err
+        }
+
+		w.Header().Set("Content-Type", "application/json")
+        w.Header().Set("Content-Length", strconv.Itoa(len(json)))
+        w.Write(json)
+        return err
+	} else {
+	    payload := []byte(jwt)
+	    var headerPayloadSignature []string
+	    if checksign {
+    		headerPayloadSignature := strings.SplitN(jwt, ".", 3)
+	    	payload, _ = base64.RawURLEncoding.DecodeString(headerPayloadSignature[1])
+        }
+
+		var attrs map[string][]string
+		err = json.Unmarshal(payload, &attrs)
+		if err != nil {
+			return err
+		}
+
+        if checksign {
+            certificates := idpMd.QueryMulti(nil, "./md:IDPSSODescriptor"+SigningCertQuery)
+            err = verify(certificates, strings.Join(headerPayloadSignature[:2], "."), headerPayloadSignature[2])
+            if err != nil {
+                return
+            }
+        }
+
+		response := NewResponse(idpMd, spMd, request, nil)
+
+		destinationAttributes := response.QueryDashP(nil, `/saml:Assertion/saml:AttributeStatement[1]`, "", nil)
+		for name, vals := range attrs {
+			attr := response.QueryDashP(destinationAttributes, `saml:Attribute[@Name=`+strconv.Quote(name)+`]`, "", nil)
+			response.QueryDashP(attr, `@NameFormat`, "urn:oasis:names:tc:SAML:2.0:attrname-format:basic", nil)
+			for _, value := range vals {
+				response.QueryDashP(attr, "saml:AttributeValue[0]", value, nil)
+			}
+		}
+
+		err = SignResponse(response, "/samlp:Response/saml:Assertion", signerMd, "sha256", SAMLSign)
+		if err != nil {
+			return err
+		}
+		if spMd.QueryXMLBool(nil, "/md:EntityDescriptor/md:Extensions/wayf:wayf/wayf:assertion.encryption") {
+			cert := spMd.Query1(nil, "./md:SPSSODescriptor"+EncryptionCertQuery) // actual encryption key is always first
+			fmt.Println("cert", cert)
+			_, publicKey, _ := PublicKeyInfo(cert)
+			ea := goxml.NewXpFromString(`<saml:EncryptedAssertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"></saml:EncryptedAssertion>`)
+			assertion := response.Query(nil, "saml:Assertion[1]")[0]
+			err = response.Encrypt(assertion, publicKey, ea)
+			fmt.Println("err", err)
+		}
+
+		data := Formdata{Acs: response.Query1(nil, "./@Destination"), Samlresponse: base64.StdEncoding.EncodeToString(response.Dump()), RelayState: r.Form.Get("RelayState")}
+		PostForm.Execute(w, data)
+	}
+	return
+}
+
+// saml2jwt handles saml2jwt request
+func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExternalIdP, mdExternalSP Md, requestHandler func (*goxml.Xp, *goxml.Xp, *goxml.Xp) (map[string][]string, error), defaultIdpentityid string, sign bool) (err error) {
+	defer r.Body.Close()
+	r.ParseForm()
+
+	// backward compatible - use either or
+    entityID := r.Header.Get("X-Issuer") + r.Form.Get("issuer")
+
+	spMd, _, err := FindInMetadataSets(MdSets{mdInternal, mdExternalSP}, entityID)
+	if err != nil {
+		return
+	}
+
+	idpentityid := r.Form.Get("idpentityid")
+	if idpentityid == "" {
+		idpentityid = defaultIdpentityid
+	}
+
+	//app := r.Header.Get("X-App") + r.Form.Get("app")
+	acs := r.Header.Get("X-Acs") + r.Form.Get("acs")
+
+	if _, ok := r.Form["SAMLResponse"]; ok {
+		response, idpMd, _, _, _, _, err := DecodeSAMLMsg(r, MdSets{mdHub, mdExternalIdP}, MdSets{mdInternal, mdExternalSP}, SPRole, []string{"Response", "LogoutResponse"}, acs, nil)
+		if err != nil {
+			return err
+		}
+		switch response.QueryString(nil, "local-name(/*)") {
+		case "Response":
+            if _, err = requestHandler(response, idpMd, spMd); err != nil {
+                return err
+            }
+			attrs := map[string]interface{}{}
+
+			assertion := response.Query(nil, "/samlp:Response/saml:Assertion")[0]
+			names := response.QueryMulti(assertion, "saml:AttributeStatement/saml:Attribute/@Name")
+			for _, name := range names {
+				attrs[name] = response.QueryMulti(assertion, "saml:AttributeStatement/saml:Attribute[@Name="+strconv.Quote(name)+"]/saml:AttributeValue")
+			}
+
+			attrs["iss"] = response.Query1(assertion, "./saml:Issuer")
+			attrs["aud"] = response.Query1(assertion, "./saml:Conditions/saml:AudienceRestriction/saml:Audience")
+			attrs["nbf"] = samlTime2JwtTime(response.Query1(assertion, "./saml:Conditions/@NotBefore"))
+			attrs["exp"] = samlTime2JwtTime(response.Query1(assertion, "./saml:Conditions/@NotOnOrAfter"))
+			attrs["iat"] = samlTime2JwtTime(response.Query1(assertion, "@IssueInstant"))
+			//sloinfoJson, _ := json.Marshal(NewSLOInfo(response, spMd.Query1(nil, "@entityID")))
+			//attrs["sloinfo"] = sloinfoJson
+
+			json, err := json.Marshal(&attrs)
+			if err != nil {
+				return err
+			}
+
+			payload := string(json)
+
+            if sign {
+			    payload = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9."+strings.TrimRight(base64.URLEncoding.EncodeToString(json), "=")
+                privatekey, err := GetPrivateKey(idpMd)
+                if err != nil {
+                    return err
+                }
+
+                digest := goxml.Hash(goxml.Algos["sha256"].Algo, payload)
+                signature, err := goxml.Sign([]byte(digest), privatekey, []byte(""), "sha256")
+                if err != nil {
+                    return err
+                }
+
+                payload += "." + strings.TrimRight(base64.URLEncoding.EncodeToString(signature), "=")
+    			w.Header().Set("Authorization", "Bearer "+payload)
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(payload))
+			return err
+		case "LogoutResponse":
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`abc.` + base64.URLEncoding.EncodeToString([]byte(`{"abc":"Logout OK"}`)) + `.def`))
+			return nil
+		}
+	} else if _, ok := r.Form["SAMLRequest"]; ok {
+		request, idpMd, _, _, _, _, err := DecodeSAMLMsg(r, MdSets{mdHub, mdExternalIdP}, MdSets{mdInternal, mdExternalSP}, SPRole, []string{"LogoutRequest"}, acs, nil)
+		if err != nil {
+			return err
+		}
+		SloResponse(w, r, request, spMd, idpMd, "")
+		return nil
+	} else if sloinfoJson := r.Form.Get("sloinfo"); sloinfoJson != "" {
+		relayState := ""
+		sloinfoTxt, _ := base64.StdEncoding.DecodeString(sloinfoJson)
+		sloinfo := &SLOInfo{}
+		err = json.Unmarshal([]byte(sloinfoTxt), &sloinfo)
+		if err != nil {
+			return err
+		}
+		sloinfo.Is, sloinfo.De = sloinfo.De, sloinfo.Is
+		idpMd, _, err := FindInMetadataSets(MdSets{mdHub, mdExternalIdP}, sloinfo.De)
+		if err != nil {
+			return err
+		}
+		request, _, err := NewLogoutRequest(idpMd, sloinfo, IdPRole)
+		if err != nil {
+			return err
+		}
+		u, err := SAMLRequest2Url(request, relayState, "", "", "")
+		if err != nil {
+			return err
+		}
+
+		http.Redirect(w, r, u.String(), http.StatusFound)
+		return err
+	} else if idpentityid != "" {
+		idpMd, _, err := FindInMetadataSets(MdSets{mdHub, mdExternalIdP}, idpentityid)
+		if err != nil {
+			return err
+		}
+
+		/*
+			relayState, err := authnRequestCookie.Encode("app", []byte(app))
+			if err != nil {
+				return err
+			}
+		*/
+		relayState := ""
+
+		request, err := NewAuthnRequest(nil, spMd, idpMd, strings.Split(r.Form.Get("idplist"), ","), acs)
+		if err != nil {
+			return err
+		}
+
+		u, err := SAMLRequest2Url(request, relayState, "", "", "")
+		if err != nil {
+			return err
+		}
+
+		http.Redirect(w, r, u.String(), http.StatusFound)
+		return err
+	} else {
+		discoveryURLTemplate := `https://wayf.wayf.dk/ds/?returnIDParam=idpentityid&entityID={{.EntityID}}&return={{.ACS}}`
+		discoveryURL := template.Must(template.New("discoveryURL").Parse(discoveryURLTemplate))
+		buf := new(bytes.Buffer)
+		discoveryURL.Execute(buf, struct{ EntityID, ACS string }{entityID, acs})
+		http.Redirect(w, r, buf.String(), http.StatusFound)
+		return
+	}
+	return
+}
+
+func verify(certificates []string, payload, signature string) (err error) {
+    if len(certificates) == 0 {
+        return errors.New("No Certs found")
+    }
+
+	digest := sha256.Sum256([]byte(payload))
+	sign, _ := base64.RawURLEncoding.DecodeString(signature)
+
+    var pub *rsa.PublicKey
+    for _, certificate := range certificates {
+        _, pub, err = PublicKeyInfo(certificate)
+        if err != nil {
+            return err
+        }
+        err = rsa.VerifyPKCS1v15(pub, goxml.Algos["sha256"].Algo, digest[:], sign)
+        if err == nil {
+            break
+        }
+    }
+    return
+}
+
+func sign(plaintext, privatekeypem, pw []byte) (signature []byte, err error) {
+	digest := sha256.Sum256(plaintext)
+
+	var privateKey *rsa.PrivateKey
+
+	block, _ := pem.Decode(privatekeypem) // not used rest
+	derbytes := block.Bytes
+	if string(pw) != "" {
+		if derbytes, err = x509.DecryptPEMBlock(block, pw); err != nil {
+			return nil, err
+		}
+	}
+	if privateKey, err = x509.ParsePKCS1PrivateKey(derbytes); err != nil {
+		var pk interface{}
+		if pk, err = x509.ParsePKCS8PrivateKey(derbytes); err != nil {
+			return nil, err
+		}
+		privateKey = pk.(*rsa.PrivateKey)
+	}
+
+	signature, err = rsa.SignPKCS1v15(rand.Reader, privateKey, crypto.SHA256, digest[:])
+	return
+}
+
