@@ -462,28 +462,28 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSets, destinationMdSets MdSets, role
 	}
 
 	destination := tmpXp.Query1(nil, "./@Destination")
-	if destination == "" && protocols[0] != "AuthnRequest" {
+	if destination == "" {
 		err = fmt.Errorf("no destination found in SAMLRequest/SAMLResponse")
 		return
 	}
 
-	if destination != "" && destination != location {
-		err = fmt.Errorf("destination: %s is not here, here is %s", destination, location)
+	if destination != location && !strings.HasPrefix(destination, location+"?") { // ignore params ...
+		err = fmt.Errorf("destinationx: %s is not here, here is %s", destination, location)
 		return
 	}
 
-	destinationMd, destinationIndex, err = FindInMetadataSets(destinationMdSets, location)
+	destinationMd, destinationIndex, err = FindInMetadataSets(destinationMdSets, destination)
 	if err != nil {
 		return
 	}
 
-	xp, err = CheckSAMLMessage(r, tmpXp, issuerMd, destinationMd, role, location, xtraCerts)
+	xp, err = CheckSAMLMessage(r, tmpXp, issuerMd, destinationMd, role, destination, xtraCerts)
 	if err != nil {
 		err = goxml.Wrap(err)
 		return
 	}
 
-	xp, err = checkDestinationAndACS(xp, issuerMd, destinationMd, role, location)
+	xp, err = checkDestinationAndACS(xp, issuerMd, destinationMd, role, destination)
 	if err != nil {
 		return
 	}
