@@ -982,7 +982,6 @@ func SloRequest(w http.ResponseWriter, r *http.Request, response, spMd, IdpMd *g
 	sloinfo := NewSLOInfo(response, spMd.Query1(nil, "@entityID"))
 	sloinfo.Is = spMd.Query1(nil, "@entityID")
 	request, binding, err := NewLogoutRequest(IdpMd, sloinfo, IdPRole)
-	fmt.Println(sloinfo, request.PP(), binding, err)
 	switch binding {
 	case REDIRECT:
 		u, _ := SAMLRequest2Url(request, "", pk, "-", "")
@@ -1189,7 +1188,11 @@ func NewResponse(idpMd, spMd, authnrequest, sourceResponse *goxml.Xp) (response 
 	//response.QueryDashP(authstatement, "@SessionIndex", "missing", nil)
 
 	if sourceResponse != nil {
-		response.QueryDashP(authstatement, "saml:AuthnContext/saml:AuthnContextClassRef", sourceResponse.Query1(nil, `//saml:AttributeStatement/saml:Attribute[@Name="AuthnContextClassRef"]/saml:AttributeValue`), nil)
+	    ac := sourceResponse.Query1(nil, `//saml:AttributeStatement/saml:Attribute[@Name="AuthnContextClassRef"]/saml:AttributeValue`)
+	    if ac == "" {
+	        ac = "urn:oasis:names:tc:SAML:2.0:ac:classes:unspecified"
+	    }
+		response.QueryDashP(authstatement, "saml:AuthnContext/saml:AuthnContextClassRef", ac, nil)
 		for _, aa := range sourceResponse.QueryMulti(nil, "//saml:AuthnContext/saml:AuthenticatingAuthority") {
 			response.QueryDashP(authstatement, "saml:AuthnContext/saml:AuthenticatingAuthority[0]", aa, nil)
 		}
@@ -1336,7 +1339,7 @@ func Jwt2saml(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 	    payload := []byte(jwt)
 	    var headerPayloadSignature []string
 	    if checksign {
-    		headerPayloadSignature := strings.SplitN(jwt, ".", 3)
+    		headerPayloadSignature = strings.SplitN(jwt, ".", 3)
 	    	payload, _ = base64.RawURLEncoding.DecodeString(headerPayloadSignature[1])
         }
 
@@ -1371,7 +1374,6 @@ func Jwt2saml(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 		}
 		if spMd.QueryXMLBool(nil, "/md:EntityDescriptor/md:Extensions/wayf:wayf/wayf:assertion.encryption") {
 			cert := spMd.Query1(nil, "./md:SPSSODescriptor"+EncryptionCertQuery) // actual encryption key is always first
-			fmt.Println("cert", cert)
 			_, publicKey, _ := PublicKeyInfo(cert)
 			ea := goxml.NewXpFromString(`<saml:EncryptedAssertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"></saml:EncryptedAssertion>`)
 			assertion := response.Query(nil, "saml:Assertion[1]")[0]
@@ -1456,6 +1458,7 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
     			w.Header().Set("Authorization", "Bearer "+payload)
 			}
 
+            w.Header().Set("X-Accel-Redirect", r.Header.Get("X-App"))
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(payload))
 			return err
@@ -1501,20 +1504,12 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 			return err
 		}
 
-		/*
-			relayState, err := authnRequestCookie.Encode("app", []byte(app))
-			if err != nil {
-				return err
-			}
-		*/
-		relayState := ""
-
 		request, err := NewAuthnRequest(nil, spMd, idpMd, strings.Split(r.Form.Get("idplist"), ","), acs)
 		if err != nil {
 			return err
 		}
 
-		u, err := SAMLRequest2Url(request, relayState, "", "", "")
+		u, err := SAMLRequest2Url(request, "", "", "", "")
 		if err != nil {
 			return err
 		}
