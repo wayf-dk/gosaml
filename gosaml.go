@@ -981,7 +981,7 @@ func NewLogoutResponse(issuer, destination, request *goxml.Xp, role int) (respon
 func SloRequest(w http.ResponseWriter, r *http.Request, response, spMd, IdpMd *goxml.Xp, pk string) {
 	sloinfo := NewSLOInfo(response, spMd.Query1(nil, "@entityID"))
 	sloinfo.Is = spMd.Query1(nil, "@entityID")
-	request, binding, err := NewLogoutRequest(IdpMd, sloinfo, IdPRole)
+	request, binding, _ := NewLogoutRequest(IdpMd, sloinfo, IdPRole)
 	switch binding {
 	case REDIRECT:
 		u, _ := SAMLRequest2Url(request, "", pk, "-", "")
