@@ -1573,3 +1573,30 @@ func sign(plaintext, privatekeypem, pw []byte) (signature []byte, err error) {
 	return
 }
 
+func CheckDigestAndSignatureAlgorithms(response *goxml.Xp, allowedDigestAndSignatureAlgorithms, xtraAlgos []string) (err error) {
+    contexts := []string{"/samlp:Response/ds:Signature/ds:SignedInfo/", "/samlp:Response/saml:Assertion/ds:Signature/ds:SignedInfo/"}
+    paths := []string{"ds:SignatureMethod/@Algorithm", "ds:Reference/ds:DigestMethod/@Algorithm" }
+    seen := 0
+    allowedAlgosMap := map[string]bool{}
+    for _,algo := range allowedDigestAndSignatureAlgorithms {
+        allowedAlgosMap[algo] = true
+    }
+    for _, algo := range xtraAlgos {
+        allowedAlgosMap[goxml.Algos[algo].Short] = true
+    }
+    for _, context := range contexts {
+        for _, path := range paths {
+            algo := response.Query1(nil, context+path)
+            if algo != "" {
+                if !allowedAlgosMap[goxml.Algos[algo].Short] {
+                    return fmt.Errorf("Unsupported Digest/Signing algorithm: %s", algo)
+                }
+                seen++
+            }
+        }
+    }
+    if seen < 2 {
+        return fmt.Errorf("No or to few Digest/Signing algoritms found")
+    }
+    return
+}
