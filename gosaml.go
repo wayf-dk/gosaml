@@ -1388,7 +1388,7 @@ func Jwt2saml(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 }
 
 // saml2jwt handles saml2jwt request
-func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExternalIdP, mdExternalSP Md, requestHandler func (*goxml.Xp, *goxml.Xp, *goxml.Xp) (map[string][]string, error), defaultIdpentityid string, sign bool) (err error) {
+func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExternalIdP, mdExternalSP Md, requestHandler func (*goxml.Xp, *goxml.Xp, *goxml.Xp) (map[string][]string, error), defaultIdpentityid string, sign bool, allowedDigestAndSignatureAlgorithms []string, signingMethodPath string) (err error) {
 	defer r.Body.Close()
 	r.ParseForm()
 
@@ -1415,6 +1415,10 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 		}
 		switch response.QueryString(nil, "local-name(/*)") {
 		case "Response":
+
+	        if err = CheckDigestAndSignatureAlgorithms(response, allowedDigestAndSignatureAlgorithms, idpMd.QueryMulti(nil, signingMethodPath)); err != nil {
+	            return err
+	        }
             if _, err = requestHandler(response, idpMd, spMd); err != nil {
                 return err
             }
