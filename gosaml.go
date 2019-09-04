@@ -468,7 +468,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSets, destinationMdSets MdSets, role
 	}
 
 	if destination != location && !strings.HasPrefix(destination, location+"?") { // ignore params ...
-		err = fmt.Errorf("destinationx: %s is not here, here is %s", destination, location)
+		err = fmt.Errorf("destination: %s is not here, here is %s", destination, location)
 		return
 	}
 
