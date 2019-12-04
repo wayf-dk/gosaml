@@ -18,6 +18,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"github.com/gorilla/securecookie"
 	//"github.com/wayf-dk/go-libxml2/clib"
 	"github.com/wayf-dk/go-libxml2/types"
 	"github.com/wayf-dk/goxml"
@@ -134,6 +135,7 @@ var (
 	NameIDMap  = map[string]int{"": 1, Transient: 1, Persistent: 2, X509: 3, Email: 4, Unspecified: 5} // Unspecified accepted but not sent upstream
 	whitespace = regexp.MustCompile("\\s")
 	PostForm   *template.Template
+	AuthnRequestCookie *securecookie.SecureCookie
 )
 
 // DebugSetting for debugging cookies
@@ -468,7 +470,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSets, destinationMdSets MdSets, role
 	}
 
 	if destination != location && !strings.HasPrefix(destination, location+"?") { // ignore params ...
-		err = fmt.Errorf("destination: %s is not here, here is %s", destination, location)
+		err = fmt.Errorf("destinationx: %s is not here, here is %s", destination, location)
 		return
 	}
 
@@ -1405,11 +1407,11 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 		idpentityid = defaultIdpentityid
 	}
 
-	//app := r.Header.Get("X-App") + r.Form.Get("app")
+	app := r.Header.Get("X-App") + r.Form.Get("app")
 	acs := r.Header.Get("X-Acs") + r.Form.Get("acs")
 
 	if _, ok := r.Form["SAMLResponse"]; ok {
-		response, idpMd, _, _, _, _, err := DecodeSAMLMsg(r, MdSets{mdHub, mdExternalIdP}, MdSets{mdInternal, mdExternalSP}, SPRole, []string{"Response", "LogoutResponse"}, acs, nil)
+		response, idpMd, _, relayState, _, _, err := DecodeSAMLMsg(r, MdSets{mdHub, mdExternalIdP}, MdSets{mdInternal, mdExternalSP}, SPRole, []string{"Response", "LogoutResponse"}, acs, nil)
 		if err != nil {
 			return err
 		}
@@ -1462,7 +1464,13 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
     			w.Header().Set("Authorization", "Bearer "+payload)
 			}
 
-            w.Header().Set("X-Accel-Redirect", r.Header.Get("X-App"))
+			var app []byte
+			err = AuthnRequestCookie.Decode("app", relayState, &app)
+			if err != nil {
+				return err
+			}
+
+			w.Header().Set("X-Accel-Redirect", string(app))
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(payload))
 			return err
@@ -1508,12 +1516,17 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 			return err
 		}
 
+        relayState, err := AuthnRequestCookie.Encode("app", []byte(app))
+        if err != nil {
+            return err
+        }
+
 		request, err := NewAuthnRequest(nil, spMd, idpMd, strings.Split(r.Form.Get("idplist"), ","), acs)
 		if err != nil {
 			return err
 		}
 
-		u, err := SAMLRequest2Url(request, "", "", "", "")
+        u, err := SAMLRequest2Url(request, relayState, "", "", "")
 		if err != nil {
 			return err
 		}
