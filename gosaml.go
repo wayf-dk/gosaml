@@ -10,11 +10,11 @@ import (
 	"crypto/rsa"
 	"crypto/sha1"
 	"crypto/sha256"
+	"crypto/sha512"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"encoding/pem"
 	"encoding/xml"
 	"errors"
 	"fmt"
@@ -27,6 +27,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"math"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -79,6 +80,8 @@ const (
 	POST = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
 	// SIMPLESIGN refers to HTTP-POST-SimpleSign
 	SIMPLESIGN = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST-SimpleSign"
+	// Allowed slack for timingchecks
+	timeskew = 90
 )
 
 type (
@@ -132,9 +135,9 @@ var (
 	// NameIDList list of supported nameid formats
 	NameIDList = []string{"", Transient, Persistent, X509, Email, Unspecified}
 	// NameIDMap refers to mapping the nameid formats
-	NameIDMap  = map[string]int{"": 1, Transient: 1, Persistent: 2, X509: 3, Email: 4, Unspecified: 5} // Unspecified accepted but not sent upstream
-	whitespace = regexp.MustCompile("\\s")
-	PostForm   *template.Template
+	NameIDMap          = map[string]int{"": 1, Transient: 1, Persistent: 2, X509: 3, Email: 4, Unspecified: 5} // Unspecified accepted but not sent upstream
+	whitespace         = regexp.MustCompile("\\s")
+	PostForm           *template.Template
 	AuthnRequestCookie *securecookie.SecureCookie
 )
 
@@ -189,8 +192,8 @@ func PublicKeyInfo(cert string) (keyname string, publickey *rsa.PublicKey, err e
 }
 
 // GetPrivateKey extract the key from Metadata and builds a name and reads the key
-func GetPrivateKey(md *goxml.Xp) (privatekey []byte, err error) {
-	cert := md.Query1(nil, "./"+SigningCertQuery) // actual signing key is always first
+func GetPrivateKey(md *goxml.Xp) (privatekey []byte, cert string, err error) {
+	cert = md.Query1(nil, "./"+SigningCertQuery) // actual signing key is always first
 	keyname, _, err := PublicKeyInfo(cert)
 	if err != nil {
 		return
@@ -509,7 +512,7 @@ func CheckSAMLMessage(r *http.Request, xp, issuerMd, destinationMd *goxml.Xp, ro
 	// add checks for xtra element on top level in tests - does schema checks handle that or should we do it here???
 	protoChecks := map[string]protoCheckInfoStruct{
 		"AuthnRequest": {
-			minSignatures:     0,
+			minSignatures:     map[bool]int{true: 1, false: 0}[destinationMd.QueryXMLBool(nil, "./md:IDPSSODescriptor/@WantAuthnRequestsSigned")],
 			service:           "md:SingleSignOnService",
 			signatureElements: []string{"/samlp:AuthnRequest[1]/ds:Signature[1]/..]", ""}},
 		"Response": {
@@ -822,8 +825,6 @@ func VerifySign(xp *goxml.Xp, certificates []string, signature types.Node) (err 
 
 // VerifyTiming verify the presence and value of timestamps
 func VerifyTiming(xp *goxml.Xp) (verifiedXp *goxml.Xp, err error) {
-	const timeskew = 90
-
 	type timing struct {
 		required     bool
 		notonorafter bool
@@ -1027,14 +1028,7 @@ func NewSLOInfo(response *goxml.Xp, de string) (slo *SLOInfo) {
 // SignResponse signs the response with the given method.
 // Returns an error if unable to sign.
 func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp, signingMethod string, signFor int) (err error) {
-	cert := md.Query1(nil, "md:IDPSSODescriptor"+SigningCertQuery) // actual signing key is always first
-	var keyname string
-	keyname, _, err = PublicKeyInfo(cert)
-	if err != nil {
-		return
-	}
-	var privatekey []byte
-	privatekey, err = ioutil.ReadFile(Config.CertPath + keyname + ".key")
+	privatekey, cert, err := GetPrivateKey(md)
 	if err != nil {
 		return
 	}
@@ -1190,10 +1184,10 @@ func NewResponse(idpMd, spMd, authnrequest, sourceResponse *goxml.Xp) (response 
 	//response.QueryDashP(authstatement, "@SessionIndex", "missing", nil)
 
 	if sourceResponse != nil {
-	    ac := sourceResponse.Query1(nil, `//saml:AttributeStatement/saml:Attribute[@Name="AuthnContextClassRef"]/saml:AttributeValue`)
-	    if ac == "" {
-	        ac = "urn:oasis:names:tc:SAML:2.0:ac:classes:unspecified"
-	    }
+		ac := sourceResponse.Query1(nil, `//saml:AttributeStatement/saml:Attribute[@Name="AuthnContextClassRef"]/saml:AttributeValue`)
+		if ac == "" {
+			ac = "urn:oasis:names:tc:SAML:2.0:ac:classes:unspecified"
+		}
 		response.QueryDashP(authstatement, "saml:AuthnContext/saml:AuthnContextClassRef", ac, nil)
 		for _, aa := range sourceResponse.QueryMulti(nil, "//saml:AuthnContext/saml:AuthenticatingAuthority") {
 			response.QueryDashP(authstatement, "saml:AuthnContext/saml:AuthenticatingAuthority[0]", aa, nil)
@@ -1307,66 +1301,65 @@ func samlTime2JwtTime(xmlTime string) int64 {
 	return samlTime.Unix()
 }
 
-func Jwt2saml(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExternalIdP, mdExternalSP Md, requestHandler func (*goxml.Xp, *goxml.Xp, *goxml.Xp) (map[string][]string, error), signerMd *goxml.Xp) (err error) {
+func Jwt2saml(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExternalIdP, mdExternalSP Md, requestHandler func(*goxml.Xp, *goxml.Xp, *goxml.Xp) (map[string][]string, error), signerMd *goxml.Xp) (err error) {
 	defer r.Body.Close()
 	r.ParseForm()
 
-    request, spMd, idpMd, _, _, _, err := ReceiveAuthnRequest(r, MdSets{mdHub, mdExternalSP}, MdSets{mdInternal, mdExternalIdP}, r.Form.Get("sso"))
-    if err != nil {
-        return
-    }
+	request, spMd, idpMd, _, _, _, err := ReceiveAuthnRequest(r, MdSets{mdHub, mdExternalSP}, MdSets{mdInternal, mdExternalIdP}, r.Form.Get("sso"))
+	if err != nil {
+		return
+	}
 
-    req, err := requestHandler(request, idpMd, spMd)
-    if err != nil {
-        return
-    }
-
-    checksign := signerMd != nil // if we are running locally we don't need to check
-    if signerMd == nil {
-        signerMd = idpMd
-    }
-
-    jwt := r.Form.Get("jwt")
+	jwt := r.Form.Get("jwt")
 	if jwt == "" {
-        json, err := json.MarshalIndent(&req, "  ", "  ")
-        if err != nil {
-            return err
-        }
+		req, err := requestHandler(request, idpMd, spMd)
+		if err != nil {
+			return err
+		}
+		json, err := json.MarshalIndent(&req, "  ", "  ")
+		if err != nil {
+			return err
+		}
 
 		w.Header().Set("Content-Type", "application/json")
-        w.Header().Set("Content-Length", strconv.Itoa(len(json)))
-        w.Write(json)
-        return err
+		w.Header().Set("Content-Length", strconv.Itoa(len(json)))
+		w.Write(json)
+		return err
 	} else {
-	    payload := []byte(jwt)
-	    var headerPayloadSignature []string
-	    if checksign {
-    		headerPayloadSignature = strings.SplitN(jwt, ".", 3)
-	    	payload, _ = base64.RawURLEncoding.DecodeString(headerPayloadSignature[1])
-        }
-
-		var attrs map[string][]string
+		zzz, err := jwtVerify(jwt, idpMd.QueryMulti(nil, "./md:IDPSSODescriptor"+SigningCertQuery))
+		if err != nil {
+			return err
+		}
+		payload, _ := base64.RawURLEncoding.DecodeString(zzz)
+		var attrs map[string]interface{}
 		err = json.Unmarshal(payload, &attrs)
 		if err != nil {
 			return err
 		}
 
-        if checksign {
-            certificates := idpMd.QueryMulti(nil, "./md:IDPSSODescriptor"+SigningCertQuery)
-            err = verify(certificates, strings.Join(headerPayloadSignature[:2], "."), headerPayloadSignature[2])
-            if err != nil {
-                return
-            }
-        }
-
 		response := NewResponse(idpMd, spMd, request, nil)
+
+		iat, _ := attrs["iat"].(float64)
+		delete(attrs, "iat")
+
+		if math.Abs(float64(time.Now().Unix())-iat) > timeskew {
+			return fmt.Errorf("jwt timed out")
+		}
+
+		for _, aa := range attrs["saml:AuthenticatingAuthority"].([]interface{}) {
+			response.QueryDashP(nil, "./saml:Assertion/saml:AuthnStatement/saml:AuthnContext/saml:AuthenticatingAuthority[0]", aa.(string), nil)
+		}
+		delete(attrs, "saml:AuthenticatingAuthority")
 
 		destinationAttributes := response.QueryDashP(nil, `/saml:Assertion/saml:AttributeStatement[1]`, "", nil)
 		for name, vals := range attrs {
 			attr := response.QueryDashP(destinationAttributes, `saml:Attribute[@Name=`+strconv.Quote(name)+`]`, "", nil)
 			response.QueryDashP(attr, `@NameFormat`, "urn:oasis:names:tc:SAML:2.0:attrname-format:basic", nil)
-			for _, value := range vals {
-				response.QueryDashP(attr, "saml:AttributeValue[0]", value, nil)
+			switch v := vals.(type) {
+			case []interface{}:
+				for _, value := range v {
+					response.QueryDashP(attr, "saml:AttributeValue[0]", value.(string), nil)
+				}
 			}
 		}
 
@@ -1390,12 +1383,12 @@ func Jwt2saml(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 }
 
 // saml2jwt handles saml2jwt request
-func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExternalIdP, mdExternalSP Md, requestHandler func (*goxml.Xp, *goxml.Xp, *goxml.Xp) (map[string][]string, error), defaultIdpentityid string, sign bool, allowedDigestAndSignatureAlgorithms []string, signingMethodPath string) (err error) {
+func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExternalIdP, mdExternalSP Md, requestHandler func(*goxml.Xp, *goxml.Xp, *goxml.Xp) (map[string][]string, error), defaultIdpentityid string, allowedDigestAndSignatureAlgorithms []string, signingMethodPath string) (err error) {
 	defer r.Body.Close()
 	r.ParseForm()
 
 	// backward compatible - use either or
-    entityID := r.Header.Get("X-Issuer") + r.Form.Get("issuer")
+	entityID := r.Header.Get("X-Issuer") + r.Form.Get("issuer")
 
 	spMd, _, err := FindInMetadataSets(MdSets{mdInternal, mdExternalSP}, entityID)
 	if err != nil {
@@ -1418,12 +1411,12 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 		switch response.QueryString(nil, "local-name(/*)") {
 		case "Response":
 
-	        if err = CheckDigestAndSignatureAlgorithms(response, allowedDigestAndSignatureAlgorithms, idpMd.QueryMulti(nil, signingMethodPath)); err != nil {
-	            return err
-	        }
-            if _, err = requestHandler(response, idpMd, spMd); err != nil {
-                return err
-            }
+			if err = CheckDigestAndSignatureAlgorithms(response, allowedDigestAndSignatureAlgorithms, idpMd.QueryMulti(nil, signingMethodPath)); err != nil {
+				return err
+			}
+			if _, err = requestHandler(response, idpMd, spMd); err != nil {
+				return err
+			}
 			attrs := map[string]interface{}{}
 
 			assertion := response.Query(nil, "/samlp:Response/saml:Assertion")[0]
@@ -1437,6 +1430,9 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 			attrs["nbf"] = samlTime2JwtTime(response.Query1(assertion, "./saml:Conditions/@NotBefore"))
 			attrs["exp"] = samlTime2JwtTime(response.Query1(assertion, "./saml:Conditions/@NotOnOrAfter"))
 			attrs["iat"] = samlTime2JwtTime(response.Query1(assertion, "@IssueInstant"))
+			attrs["saml:AuthenticatingAuthority"] = response.QueryMulti(assertion, "./saml:AuthnStatement/saml:AuthnContext/saml:AuthenticatingAuthority")
+			//attrs["saml:AuthenticatingAuthority"] = append(attrs["saml:AuthenticatingAuthority"].([]string), attrs["iss"].(string))
+
 			//sloinfoJson, _ := json.Marshal(NewSLOInfo(response, spMd.Query1(nil, "@entityID")))
 			//attrs["sloinfo"] = sloinfoJson
 
@@ -1447,22 +1443,20 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 
 			payload := string(json)
 
-            if sign {
-			    payload = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9."+strings.TrimRight(base64.URLEncoding.EncodeToString(json), "=")
-                privatekey, err := GetPrivateKey(idpMd)
-                if err != nil {
-                    return err
-                }
-
-                digest := goxml.Hash(goxml.Algos["sha256"].Algo, payload)
-                signature, err := goxml.Sign([]byte(digest), privatekey, []byte(""), "sha256")
-                if err != nil {
-                    return err
-                }
-
-                payload += "." + strings.TrimRight(base64.URLEncoding.EncodeToString(signature), "=")
-    			w.Header().Set("Authorization", "Bearer "+payload)
+			payload = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9." + strings.TrimRight(base64.URLEncoding.EncodeToString(json), "=")
+			privatekey, _, err := GetPrivateKey(idpMd)
+			if err != nil {
+				return err
 			}
+
+			digest := goxml.Hash(goxml.Algos["sha256"].Algo, payload)
+			signature, err := goxml.Sign([]byte(digest), privatekey, []byte("-"), "sha256")
+			if err != nil {
+				return err
+			}
+
+			payload += "." + strings.TrimRight(base64.URLEncoding.EncodeToString(signature), "=")
+			w.Header().Set("Authorization", "Bearer "+payload)
 
 			var app []byte
 			err = AuthnRequestCookie.Decode("app", relayState, &app)
@@ -1516,17 +1510,17 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 			return err
 		}
 
-        relayState, err := AuthnRequestCookie.Encode("app", []byte(app))
-        if err != nil {
-            return err
-        }
+		relayState, err := AuthnRequestCookie.Encode("app", []byte(app))
+		if err != nil {
+			return err
+		}
 
 		request, err := NewAuthnRequest(nil, spMd, idpMd, strings.Split(r.Form.Get("idplist"), ","), acs)
 		if err != nil {
 			return err
 		}
 
-        u, err := SAMLRequest2Url(request, relayState, "", "", "")
+		u, err := SAMLRequest2Url(request, relayState, "", "", "")
 		if err != nil {
 			return err
 		}
@@ -1544,76 +1538,80 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 	return
 }
 
-func verify(certificates []string, payload, signature string) (err error) {
-    if len(certificates) == 0 {
-        return errors.New("No Certs found")
-    }
-
-	digest := sha256.Sum256([]byte(payload))
-	sign, _ := base64.RawURLEncoding.DecodeString(signature)
-
-    var pub *rsa.PublicKey
-    for _, certificate := range certificates {
-        _, pub, err = PublicKeyInfo(certificate)
-        if err != nil {
-            return err
-        }
-        err = rsa.VerifyPKCS1v15(pub, goxml.Algos["sha256"].Algo, digest[:], sign)
-        if err == nil {
-            break
-        }
-    }
-    return
-}
-
-func sign(plaintext, privatekeypem, pw []byte) (signature []byte, err error) {
-	digest := sha256.Sum256(plaintext)
-
-	var privateKey *rsa.PrivateKey
-
-	block, _ := pem.Decode(privatekeypem) // not used rest
-	derbytes := block.Bytes
-	if string(pw) != "" {
-		if derbytes, err = x509.DecryptPEMBlock(block, pw); err != nil {
-			return nil, err
-		}
+func jwtVerify(jwt string, certificates []string) (payload string, err error) {
+	if len(certificates) == 0 {
+		return payload, errors.New("No Certs found")
 	}
-	if privateKey, err = x509.ParsePKCS1PrivateKey(derbytes); err != nil {
-		var pk interface{}
-		if pk, err = x509.ParsePKCS8PrivateKey(derbytes); err != nil {
-			return nil, err
-		}
-		privateKey = pk.(*rsa.PrivateKey)
+	hps := strings.SplitN(jwt, ".", 3)
+	hp := []byte(strings.Join(hps[:2], "."))
+	headerJSON, _ := base64.RawURLEncoding.DecodeString(hps[0])
+	header := struct{ Alg string }{}
+	err = json.Unmarshal(headerJSON, &header)
+	if err != nil {
+		return
+	}
+	var hh crypto.Hash
+	var digest []byte
+	switch header.Alg {
+	case "RS256":
+		dg := sha256.Sum256(hp)
+		digest = dg[:]
+		hh = crypto.SHA256
+	case "RS512":
+		dg := sha512.Sum512(hp)
+		digest = dg[:]
+		hh = crypto.SHA512
+	default:
+		return payload, fmt.Errorf("Unsupported alg: %s", header.Alg)
 	}
 
-	signature, err = rsa.SignPKCS1v15(rand.Reader, privateKey, crypto.SHA256, digest[:])
+	sign, _ := base64.RawURLEncoding.DecodeString(hps[2])
+	var pub *rsa.PublicKey
+	for _, certificate := range certificates {
+		_, pub, err = PublicKeyInfo(certificate)
+		if err != nil {
+			return
+		}
+		err = rsa.VerifyPKCS1v15(pub, hh, digest, sign)
+		if err == nil {
+			return hps[1], err
+		}
+	}
 	return
 }
 
 func CheckDigestAndSignatureAlgorithms(response *goxml.Xp, allowedDigestAndSignatureAlgorithms, xtraAlgos []string) (err error) {
-    contexts := []string{"/samlp:Response/ds:Signature/ds:SignedInfo/", "/samlp:Response/saml:Assertion/ds:Signature/ds:SignedInfo/"}
-    paths := []string{"ds:SignatureMethod/@Algorithm", "ds:Reference/ds:DigestMethod/@Algorithm" }
-    seen := 0
-    allowedAlgosMap := map[string]bool{}
-    for _,algo := range allowedDigestAndSignatureAlgorithms {
-        allowedAlgosMap[algo] = true
-    }
-    for _, algo := range xtraAlgos {
-        allowedAlgosMap[goxml.Algos[algo].Short] = true
-    }
-    for _, context := range contexts {
-        for _, path := range paths {
-            algo := response.Query1(nil, context+path)
-            if algo != "" {
-                if !allowedAlgosMap[goxml.Algos[algo].Short] {
-                    return fmt.Errorf("Unsupported Digest/Signing algorithm: %s", algo)
-                }
-                seen++
-            }
-        }
-    }
-    if seen < 2 {
-        return fmt.Errorf("No or to few Digest/Signing algoritms found")
-    }
-    return
+	contexts := []string{"/samlp:Response/ds:Signature/ds:SignedInfo/", "/samlp:Response/saml:Assertion/ds:Signature/ds:SignedInfo/"}
+	paths := []string{"ds:SignatureMethod/@Algorithm", "ds:Reference/ds:DigestMethod/@Algorithm"}
+	seen := 0
+	allowedAlgosMap := map[string]bool{}
+	for _, algo := range allowedDigestAndSignatureAlgorithms {
+		allowedAlgosMap[algo] = true
+	}
+	for _, algo := range xtraAlgos {
+		allowedAlgosMap[goxml.Algos[algo].Short] = true
+	}
+	for _, context := range contexts {
+		for _, path := range paths {
+			algo := response.Query1(nil, context+path)
+			if algo != "" {
+				if !allowedAlgosMap[goxml.Algos[algo].Short] {
+					return fmt.Errorf("Unsupported Digest/Signing algorithm: %s", algo)
+				}
+				seen++
+			}
+		}
+	}
+	if seen < 2 {
+		return fmt.Errorf("No or to few Digest/Signing algoritms found")
+	}
+	return
+}
+
+func PP(i ...interface{}) {
+	for _, e := range i {
+		s, _ := json.MarshalIndent(e, "", "\t")
+		fmt.Println(string(s))
+	}
+	return
 }
