@@ -31,6 +31,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/wayf-dk/go-libxml2/types"
@@ -83,8 +84,6 @@ const (
 	SIMPLESIGN = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST-SimpleSign"
 	// Allowed slack for timingchecks
 	timeskew = 90
-	// SRequestPrefixLength - ardcoded prefix for special space saving encoding of sRequests
-	SRequestPrefixLength = 5
 )
 
 type (
@@ -110,21 +109,22 @@ type (
 	}
 	// SLOInfo refers to Single Logout information
 	SLOInfo struct {
-		IssuerID, NameID, SPNameQualifier, SessionIndex, DestinationID string
-		NameIDFormat                                                   uint8
+		IDP, SP, NameID, SPNameQualifier, SessionIndex, ID string
+		NameIDFormat, HubRole, SLOStatus                   uint8
+		SLOSupport, Async                                  bool
 	}
+
+	SLOInfoList []SLOInfo
 
 	// Formdata for passing parameters to display template
 	Formdata struct {
-		Acs                       string
-		Samlresponse, Samlrequest string
-		RelayState                string
-		WsFed                     bool
-		Ard                       template.JS
-	}
-
-	xmapElement struct {
-		key, xpath string
+		AcsURL                         template.URL
+		Acs, Samlresponse, Samlrequest string
+		RelayState                     string
+		WsFed                          bool
+		SLOStatus                      string
+		Ard                            template.JS
+		Initial                        bool
 	}
 
 	// Hm - HMac struct
@@ -157,6 +157,10 @@ var (
 	PostForm *template.Template
 	// AuthnRequestCookie - shortlived hmaced timelimited data
 	AuthnRequestCookie *Hm
+	// B2I map for marshalling bool to uint
+	B2I             = map[bool]byte{false: 0, true: 1}
+	privatekeyLock  sync.RWMutex
+	privatekeyCache = map[string][]byte{}
 )
 
 // DebugSetting for debugging cookies
@@ -167,6 +171,14 @@ func DebugSetting(r *http.Request, name string) string {
 		return vals.Get(name)
 	}
 	return ""
+}
+
+func DebugSettingWithDefault(r *http.Request, name, def string) (res string) {
+	res = DebugSetting(r, name)
+	if res == "" {
+		res = def
+	}
+	return
 }
 
 // DumpFile is for logging requests and responses
@@ -218,10 +230,20 @@ func GetPrivateKey(md *goxml.Xp) (privatekey []byte, cert string, err error) {
 		return
 	}
 
+	privatekeyLock.RLock()
+	privatekey = privatekeyCache[keyname]
+	privatekeyLock.RUnlock()
+	if len(privatekey) != 0 {
+		return
+	}
+
 	privatekey, err = ioutil.ReadFile(Config.CertPath + keyname + ".key")
 	if err != nil {
 		err = goxml.Wrap(err)
 	}
+	privatekeyLock.Lock()
+	privatekeyCache[keyname] = privatekey
+	privatekeyLock.Unlock()
 	return
 }
 
@@ -259,9 +281,11 @@ func Inflate(deflated []byte) []byte {
 func HTML2SAMLResponse(html []byte) (samlresponse *goxml.Xp, relayState string) {
 	response := goxml.NewHTMLXp(html)
 	samlbase64 := response.Query1(nil, `//input[@name="SAMLResponse"]/@value`)
-	relayState = response.Query1(nil, `//input[@name="RelayState"]/@value`)
-	samlxml, _ := base64.StdEncoding.DecodeString(samlbase64)
-	samlresponse = goxml.NewXp(samlxml)
+	if samlbase64 != "" {
+		relayState = response.Query1(nil, `//input[@name="RelayState"]/@value`)
+		samlxml, _ := base64.StdEncoding.DecodeString(samlbase64)
+		samlresponse = goxml.NewXp(samlxml)
+	}
 	return
 }
 
@@ -366,8 +390,7 @@ func ReceiveAuthnRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 		return
 	}
 
-	if nameIDFormat == Transient {
-	} else if nameIDFormat == Unspecified || nameIDFormat == "" {
+	if nameIDFormat == Unspecified || nameIDFormat == "" {
 		nameIDFormat = issuerMd.Query1(nil, "./md:SPSSODescriptor/md:NameIDFormat") // none ends up being Transient
 	} else if inArray(nameIDFormat, issuerMd.QueryMulti(nil, "./md:SPSSODescriptor/md:NameIDFormat")) {
 	} else {
@@ -376,11 +399,11 @@ func ReceiveAuthnRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 	xp.QueryDashP(nil, "./samlp:NameIDPolicy/@Format", nameIDFormat, nil)
 
 	/*
-		allowcreate := xp.Query1(nil, "./samlp:NameIDPolicy/@AllowCreate")
-		if allowcreate != "true" && allowcreate != "1" {
-			err = fmt.Errorf("only supported value for NameIDPolicy @AllowCreate is true/1, got: %s", allowcreate)
-			return
-		}
+	   allowcreate := xp.Query1(nil, "./samlp:NameIDPolicy/@AllowCreate")
+	   if allowcreate != "true" && allowcreate != "1" {
+	       err = fmt.Errorf("only supported value for NameIDPolicy @AllowCreate is true/1, got: %s", allowcreate)
+	       return
+	   }
 	*/
 	return
 }
@@ -492,19 +515,6 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSets, destinationMdSets MdSets, role
 	}
 
 	key := location
-	// we only receive responses for requests we have made ourselves - either from an IdP or via SAML2jwt, i.e. we have an encoded SamlRequest in @InResponseTo
-	if protocol == "Response" {
-		var tmpID []byte
-		tmpID, err = AuthnRequestCookie.SpcDecode("id", tmpXp.Query1(nil, "./@InResponseTo")[1:], SRequestPrefixLength) // skip _
-		if err != nil {
-			return
-		}
-		sRequest := SamlRequest{}
-		sRequest.Unmarshal(tmpID)
-		if sRequest.RequestID == "" { // An "edge" request - i.e. not across the hub
-			key = sRequest.SP
-		}
-	}
 
 	destination := tmpXp.Query1(nil, "./@Destination")
 	if destination == "" {
@@ -888,13 +898,13 @@ func VerifyTiming(xp *goxml.Xp) (verifiedXp *goxml.Xp, err error) {
 		}
 	case "Response":
 		checks = map[string]timing{
-			"/samlp:Response[1]/@IssueInstant": {true, true, true},
-			//			"/samlp:Response[1]/saml:Assertion[1]/@IssueInstant":                                                                    timing{true, true, true},
+			"/samlp:Response[1]/@IssueInstant":                   {true, true, true},
+			"/samlp:Response[1]/saml:Assertion[1]/@IssueInstant": timing{true, true, true},
 			"/samlp:Response[1]/saml:Assertion[1]/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@NotOnOrAfter": {false, true, false},
 			"/samlp:Response[1]/saml:Assertion[1]/saml:Conditions/@NotBefore":                                                       {false, false, true},
 			"/samlp:Response[1]/saml:Assertion[1]/saml:Conditions/@NotOnOrAfter":                                                    {false, true, false},
-			//			"/samlp:Response[1]/saml:Assertion[1]/saml:AuthnStatement/@AuthnInstant":                                                timing{true, true, true},
-			//			"/samlp:Response[1]/saml:Assertion[1]/saml:AuthnStatement/@SessionNotOnOrAfter":                                         timing{false, true, false},
+			"/samlp:Response[1]/saml:Assertion[1]/saml:AuthnStatement/@AuthnInstant":                                                timing{true, true, true},
+			"/samlp:Response[1]/saml:Assertion[1]/saml:AuthnStatement/@SessionNotOnOrAfter":                                         timing{false, true, false},
 		}
 	}
 
@@ -958,12 +968,12 @@ func NewErrorResponse(idpMd, spMd, authnrequest, sourceResponse *goxml.Xp) (resp
 }
 
 // NewLogoutRequest makes a logout request with issuer destination ... and returns a NewRequest
-func NewLogoutRequest(destination *goxml.Xp, sloinfo *SLOInfo, role int) (request *goxml.Xp, binding string, err error) {
+func NewLogoutRequest(destination *goxml.Xp, sloinfo *SLOInfo, issuer string, async bool) (request *goxml.Xp, binding string, err error) {
 	template := `<samlp:LogoutRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0"></samlp:LogoutRequest>`
 	request = goxml.NewXpFromString(template)
 	issueInstant, _, _, _, _ := IDAndTiming()
 
-	slo := destination.Query(nil, `./`+Roles[role]+`/md:SingleLogoutService[@Binding="`+REDIRECT+`" or @Binding="`+POST+`"]`)
+	slo := destination.Query(nil, `./`+Roles[(sloinfo.HubRole+1)%2]+`/md:SingleLogoutService[@Binding="`+REDIRECT+`" or @Binding="`+POST+`"]`)
 	if len(slo) == 0 {
 		err = goxml.NewWerror("cause:no SingleLogoutService found", "entityID:"+destination.Query1(nil, "./@entityID"))
 		return
@@ -972,10 +982,12 @@ func NewLogoutRequest(destination *goxml.Xp, sloinfo *SLOInfo, role int) (reques
 	binding = destination.Query1(slo[0], "./@Binding")
 
 	request.QueryDashP(nil, "./@IssueInstant", issueInstant, nil)
-	request.QueryDashP(nil, "./@ID", ID(), nil)
+	request.QueryDashP(nil, "./@ID", sloinfo.ID, nil)
 	request.QueryDashP(nil, "./@Destination", destination.Query1(slo[0], "./@Location"), nil)
-	request.QueryDashP(nil, "./saml:Issuer", sloinfo.IssuerID, nil)
-
+	request.QueryDashP(nil, "./saml:Issuer", issuer, nil)
+	if async {
+		request.QueryDashP(nil, "./samlp:Extensions/aslo:Asynchronous", "", nil)
+	}
 	request.QueryDashP(nil, "./saml:NameID/@Format", NameIDList[sloinfo.NameIDFormat], nil)
 	if sloinfo.SPNameQualifier != "" {
 		request.QueryDashP(nil, "./saml:NameID/@SPNameQualifier", sloinfo.SPNameQualifier, nil)
@@ -988,20 +1000,9 @@ func NewLogoutRequest(destination *goxml.Xp, sloinfo *SLOInfo, role int) (reques
 }
 
 // NewLogoutResponse creates a Logout Response oon the basis of Logout request
-func NewLogoutResponse(issuer, destination, request *goxml.Xp, role int) (response *goxml.Xp, binding string, err error) {
-	template := `<samlp:LogoutResponse xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
-                      xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
-                      ID=""
-                      Version="2.0"
-                      IssueInstant=""
-                      Destination=""
-                      InResponseTo="">
-    <saml:Issuer>
-     https://wayf.wayf.dk
-    </saml:Issuer>
-    <samlp:Status>
-        <samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
-    </samlp:Status>
+func NewLogoutResponse(issuer string, destination *goxml.Xp, inResponseTo string, role int) (response *goxml.Xp, binding string, err error) {
+	template := `<samlp:LogoutResponse xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0">
+<samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/></samlp:Status>
 </samlp:LogoutResponse>
 `
 	response = goxml.NewXpFromString(template)
@@ -1015,16 +1016,17 @@ func NewLogoutResponse(issuer, destination, request *goxml.Xp, role int) (respon
 
 	response.QueryDashP(nil, "./@IssueInstant", time.Now().Format(XsDateTime), nil)
 	response.QueryDashP(nil, "./@ID", ID(), nil)
-	response.QueryDashP(nil, "./@InResponseTo", request.Query1(nil, "./@ID"), nil)
-	response.QueryDashP(nil, "./saml:Issuer", issuer.Query1(nil, `/md:EntityDescriptor/@entityID`), nil)
+	response.QueryDashP(nil, "./@InResponseTo", inResponseTo, nil)
+	response.QueryDashP(nil, "./saml:Issuer", issuer, nil)
 	return
 }
 
 // SloRequest generates a single logout request
 func SloRequest(w http.ResponseWriter, r *http.Request, response, spMd, IdpMd *goxml.Xp, pk string) {
-	sloinfo := NewSLOInfo(response, spMd.Query1(nil, "@entityID"))
-	sloinfo.IssuerID = spMd.Query1(nil, "@entityID")
-	request, binding, _ := NewLogoutRequest(IdpMd, sloinfo, IDPRole)
+	context := response.Query(nil, "/samlp:Response/saml:Assertion")[0]
+	sloinfo := NewSLOInfo(response, context, spMd.Query1(nil, "@entityID"), false, SPRole)
+	request, binding, _ := NewLogoutRequest(IdpMd, sloinfo, spMd.Query1(nil, "@entityID"), false)
+	request.QueryDashP(nil, "@ID", ID(), nil)
 	switch binding {
 	case REDIRECT:
 		u, _ := SAMLRequest2URL(request, "", pk, "-", "")
@@ -1037,7 +1039,7 @@ func SloRequest(w http.ResponseWriter, r *http.Request, response, spMd, IdpMd *g
 
 // SloResponse generates a single logout reponse
 func SloResponse(w http.ResponseWriter, r *http.Request, request, issuer, destination *goxml.Xp, pk string) {
-	response, binding, _ := NewLogoutResponse(issuer, destination, request, IDPRole)
+	response, binding, _ := NewLogoutResponse(issuer.Query1(nil, `./@entityID`), destination, request.Query1(nil, "@ID"), IDPRole)
 	switch binding {
 	case REDIRECT:
 		u, _ := SAMLRequest2URL(response, "", pk, "-", "")
@@ -1049,14 +1051,92 @@ func SloResponse(w http.ResponseWriter, r *http.Request, request, issuer, destin
 }
 
 // NewSLOInfo extract necessary Logout information
-func NewSLOInfo(response *goxml.Xp, de string) (slo *SLOInfo) {
+func NewSLOInfo(xp *goxml.Xp, context types.Node, sp string, sloSupport bool, hubRole uint8) (slo *SLOInfo) {
 	slo = &SLOInfo{
-		IssuerID:        response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Issuer"),
-		NameID:          response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID"),
-		NameIDFormat:    NameIDMap[response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID/@Format")],
-		SPNameQualifier: response.Query1(nil, "/samlp:Response/saml:Assertion/saml:Subject/saml:NameID/@SPNameQualifier"),
-		SessionIndex:    response.Query1(nil, "/samlp:Response/saml:Assertion/saml:AuthnStatement/@SessionIndex"),
-		DestinationID:   de,
+		HubRole:         hubRole,
+		IDP:             IDHash(xp.Query1(context, "saml:Issuer")),
+		SP:              IDHash(sp),
+		NameID:          xp.Query1(context, "saml:Subject/saml:NameID"),
+		NameIDFormat:    NameIDMap[xp.Query1(context, "saml:Subject/saml:NameID/@Format")],
+		SPNameQualifier: xp.Query1(context, "saml:Subject/saml:NameID/@SPNameQualifier"),
+		SessionIndex:    xp.Query1(context, "saml:AuthnStatement/@SessionIndex") + xp.Query1(context, "samlp:SessionIndex"), // never both at the same time !!!
+		SLOSupport:      sloSupport,
+	}
+	return
+}
+
+func (sil *SLOInfoList) LogoutRequest(request *goxml.Xp, hub string, hubRole uint8) (slo *SLOInfo) {
+	context := request.Query(nil, "/samlp:LogoutRequest")[0]
+	newSlo := NewSLOInfo(request, context, hub, true, hubRole)
+	if hubRole == IDPRole { // if from a SP we need to swap roles - the hub is the IDP
+		newSlo.SP, newSlo.IDP = newSlo.IDP, newSlo.SP
+	}
+	// to-do delete if async request
+	for i, sloInfo := range *sil { // find the SLOInfo
+		if newSlo.HubRole == sloInfo.HubRole && newSlo.IDP == sloInfo.IDP && newSlo.SP == sloInfo.SP { // ignoring NameID etc for now
+			(*sil)[i].ID = request.Query1(context, "@ID") // remember the ID for the response
+			(*sil)[i].NameID = ""                         // sentinel for initial request
+			(*sil)[i].SPNameQualifier = ""
+			(*sil)[i].SessionIndex = ""
+			(*sil)[i].SLOStatus = 1
+			(*sil)[i].Async = request.QueryBool(context, "boolean(./samlp:Extensions/aslo:Asynchronous)")
+			break
+		}
+	}
+	slo, _ = sil.Find(nil)
+	return
+}
+
+func (sil *SLOInfoList) LogoutResponse(response *goxml.Xp) (slo *SLOInfo, sendResponse bool) {
+	return sil.Find(response)
+}
+
+func (sil *SLOInfoList) Response(response *goxml.Xp, sp string, sloSupport bool, hubRole uint8) {
+	newSil := SLOInfoList{}
+	context := response.Query(nil, "/samlp:Response/saml:Assertion")[0]
+	newSlo := NewSLOInfo(response, context, sp, sloSupport, hubRole)
+	newSil = append(newSil, *newSlo)
+	for _, sloInfo := range *sil {
+		if newSlo.HubRole == sloInfo.HubRole && newSlo.IDP == sloInfo.IDP && newSlo.SP == sloInfo.SP {
+			continue // we only support one active "session" per SP/IDP so skip it if already there
+		}
+		newSil = append(newSil, sloInfo)
+	}
+	*sil = newSil
+	return
+}
+
+func (sil *SLOInfoList) Find(response *goxml.Xp) (slo *SLOInfo, ok bool) {
+	if response != nil {
+		id := response.Query1(nil, "@InResponseTo")
+		for i, sloInfo := range *sil {
+			if id == sloInfo.ID && response.QueryBool(nil, `count(./samlp:Status/samlp:StatusCode[@Value="urn:oasis:names:tc:SAML:2.0:status:Success"]) > 0`) {
+				(*sil)[i].SLOStatus = 1
+			}
+		}
+	}
+	// try first to find an IDP to log out from
+	for i, sloInfo := range *sil { // find the SLOInfo
+		if sloInfo.HubRole == SPRole && sloInfo.ID == "" && sloInfo.SLOSupport {
+			(*sil)[i].ID = ID()
+			slo = &(*sil)[i]
+			return
+		}
+	}
+	// If no IDPs find a SP
+	for i, sloInfo := range *sil { // find the SLOInfo
+		if sloInfo.HubRole == IDPRole && sloInfo.ID == "" && sloInfo.SLOSupport {
+			(*sil)[i].ID = ID()
+			slo = &(*sil)[i]
+			return
+		}
+	}
+	ok = true
+	for i, sloInfo := range *sil {
+		ok = ok && sloInfo.SLOStatus == 1
+		if sloInfo.NameID == "" {
+			slo = &(*sil)[i]
+		}
 	}
 	return
 }
@@ -1093,7 +1173,7 @@ func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp, signing
 //  - The ProtocolBinding is post
 //  - The Issuer is the entityID in the idpmetadata
 //  - The NameID defaults to transient
-func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDPID string, idPList []string, acs string, wantRequesterID bool, spIndex, hubBirkIndex uint8) (request *goxml.Xp, err error) {
+func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDPID string, idPList []string, acs string, wantRequesterID bool, spIndex, hubBirkIndex uint8) (request *goxml.Xp, sRequest SamlRequest, err error) {
 	template := `<samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
                     xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
                     Version="2.0"
@@ -1106,7 +1186,7 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDPID string
 	var ID, issuer, nameIDFormat, protocol string
 
 	request = goxml.NewXpFromString(template)
-	//request.QueryDashP(nil, "./@ID", msgID, nil)
+	request.QueryDashP(nil, "./@ID", msgID, nil)
 	request.QueryDashP(nil, "./@IssueInstant", issueInstant, nil)
 	request.QueryDashP(nil, "./@Destination", idpMd.Query1(nil, `./md:IDPSSODescriptor/md:SingleSignOnService[@Binding="`+REDIRECT+`"]/@Location`), nil)
 	acses := spMd.QueryMulti(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`"]/@Location`)
@@ -1145,7 +1225,7 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDPID string
 		virtualIDPID = IDHash(virtualIDPID)
 	}
 
-	sRequest := SamlRequest{
+	sRequest = SamlRequest{
 		Nonce:                  msgID,
 		RequestID:              ID,
 		SP:                     IDHash(issuer),
@@ -1156,16 +1236,6 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDPID string
 		HubBirkIndex:           hubBirkIndex,
 		Protocol:               protocol,
 	}
-	buf, n := sRequest.Marshal()
-
-	// session.Set(w, r, prefix+idHash(id), domain, bytes, authnRequestCookie, authnRequestTTL)
-	// Experimental use of @ID for saving info on the original request - we will get it back as @inResponseTo
-	encodedSRequest, err := AuthnRequestCookie.SpcEncode("id", buf, n)
-	if err != nil {
-		return
-	}
-
-	request.QueryDashP(nil, "./@ID", "_"+encodedSRequest, nil)
 	return
 }
 
@@ -1173,31 +1243,31 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDPID string
 // The response is primarily for the attributes, but other fields is eg. the AuthnContextClassRef is also drawn from it
 func NewResponse(idpMd, spMd, authnrequest, sourceResponse *goxml.Xp) (response *goxml.Xp) {
 	template := `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" xmlns:xs="http://www.w3.org/2001/XMLSchema">
-	<saml:Issuer></saml:Issuer>
-	<samlp:Status>
-		<samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success" />
-	</samlp:Status>
-	<saml:Assertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0">
-		<saml:Issuer></saml:Issuer>
-		<saml:Subject>
-			<saml:NameID></saml:NameID>
-			<saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
-				<saml:SubjectConfirmationData/>
-			</saml:SubjectConfirmation>
-		</saml:Subject>
-		<saml:Conditions>
-			<saml:AudienceRestriction>
-				<saml:Audience>
-				</saml:Audience>
-			</saml:AudienceRestriction>
-		</saml:Conditions>
-		<saml:AuthnStatement>
-			<saml:AuthnContext>
-				<saml:AuthnContextClassRef>
-				</saml:AuthnContextClassRef>
-			</saml:AuthnContext>
-		</saml:AuthnStatement>
-	</saml:Assertion>
+    <saml:Issuer></saml:Issuer>
+    <samlp:Status>
+        <samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success" />
+    </samlp:Status>
+    <saml:Assertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0">
+        <saml:Issuer></saml:Issuer>
+        <saml:Subject>
+            <saml:NameID></saml:NameID>
+            <saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
+                <saml:SubjectConfirmationData/>
+            </saml:SubjectConfirmation>
+        </saml:Subject>
+        <saml:Conditions>
+            <saml:AudienceRestriction>
+                <saml:Audience>
+                </saml:Audience>
+            </saml:AudienceRestriction>
+        </saml:Conditions>
+        <saml:AuthnStatement>
+            <saml:AuthnContext>
+                <saml:AuthnContextClassRef>
+                </saml:AuthnContextClassRef>
+            </saml:AuthnContext>
+        </saml:AuthnStatement>
+    </saml:Assertion>
 </samlp:Response>
 `
 	response = goxml.NewXpFromString(template)
@@ -1261,7 +1331,7 @@ func request2samlRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 		acs := r.Form.Get("wreply") + r.Form.Get("redirect_uri")
 
 		samlrequest := goxml.NewXpFromString(`<samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" Version="2.0"
-        	                                          ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"/>`)
+                                                      ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"/>`)
 		issueInstant, msgID, _, _, _ := IDAndTiming()
 		samlrequest.QueryDashP(nil, "./@ID", msgID, nil)
 		samlrequest.QueryDashP(nil, "./@IssueInstant", issueInstant, nil)
@@ -1280,6 +1350,8 @@ func request2samlRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 		DumpFileIfTracing(r, samlrequest)
 		msg = base64.StdEncoding.EncodeToString(Deflate(samlrequest.Dump()))
 		return
+	} else if r.Form.Get("wa") == "wsignout1.0" {
+
 	}
 	err = fmt.Errorf("no SAMLRequest/SAMLResponse found")
 	return
@@ -1290,39 +1362,39 @@ func request2samlRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 func NewWsFedResponse(idpMd, spMd, sourceResponse *goxml.Xp) (response *goxml.Xp) {
 	template := `<t:RequestSecurityTokenResponse xmlns:t="http://schemas.xmlsoap.org/ws/2005/02/trust" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"
     xmlns:wsp="http://schemas.xmlsoap.org/ws/2004/09/policy" xmlns:wsa="http://www.w3.org/2005/08/addressing" xmlns:saml1="urn:oasis:names:tc:SAML:1.0:assertion">
-	<t:Lifetime>
-		<wsu:Created></wsu:Created>
-		<wsu:Expires></wsu:Expires>
-	</t:Lifetime>
-	<wsp:AppliesTo><wsa:EndpointReference><wsa:Address></wsa:Address></wsa:EndpointReference></wsp:AppliesTo>
-	<t:RequestedSecurityToken>
-		<saml1:Assertion MajorVersion="1" MinorVersion="1">
-			<saml1:Conditions>
-				<saml1:AudienceRestrictionCondition><saml1:Audience></saml1:Audience></saml1:AudienceRestrictionCondition>
-			</saml1:Conditions>
-			<saml1:AttributeStatement>
-			    <saml1:Subject></saml1:Subject>
-			</saml1:AttributeStatement>
-			<saml1:AuthenticationStatement>
-			    <saml1:Subject></saml1:Subject>
-			</saml1:AuthenticationStatement>
-		</saml1:Assertion>
-	</t:RequestedSecurityToken>
-	<t:TokenType>urn:oasis:names:tc:SAML:1.0:assertion</t:TokenType>
-	<t:RequestType>http://schemas.xmlsoap.org/ws/2005/02/trust/Issue</t:RequestType>
-	<t:KeyType>http://schemas.xmlsoap.org/ws/2005/05/identity/NoProofKey</t:KeyType>
+    <t:Lifetime>
+        <wsu:Created></wsu:Created>
+        <wsu:Expires></wsu:Expires>
+    </t:Lifetime>
+    <wsp:AppliesTo><wsa:EndpointReference><wsa:Address></wsa:Address></wsa:EndpointReference></wsp:AppliesTo>
+    <t:RequestedSecurityToken>
+        <saml1:Assertion MajorVersion="1" MinorVersion="1">
+            <saml1:Conditions>
+                <saml1:AudienceRestrictionCondition><saml1:Audience></saml1:Audience></saml1:AudienceRestrictionCondition>
+            </saml1:Conditions>
+            <saml1:AttributeStatement>
+                <saml1:Subject></saml1:Subject>
+            </saml1:AttributeStatement>
+            <saml1:AuthenticationStatement>
+                <saml1:Subject></saml1:Subject>
+            </saml1:AuthenticationStatement>
+        </saml1:Assertion>
+    </t:RequestedSecurityToken>
+    <t:TokenType>urn:oasis:names:tc:SAML:1.0:assertion</t:TokenType>
+    <t:RequestType>http://schemas.xmlsoap.org/ws/2005/02/trust/Issue</t:RequestType>
+    <t:KeyType>http://schemas.xmlsoap.org/ws/2005/05/identity/NoProofKey</t:KeyType>
 </t:RequestSecurityTokenResponse>
 `
 	response = goxml.NewXpFromString(template)
 
-	issueInstant, _, assertionID, _, sessionNotOnOrAfter := IDAndTiming()
+	issueInstant, _, assertionID, assertionNotOnOrAfter, _ := IDAndTiming()
 	assertionIssueInstant := issueInstant
 
 	spEntityID := spMd.Query1(nil, `/md:EntityDescriptor/@entityID`)
 	idpEntityID := idpMd.Query1(nil, `/md:EntityDescriptor/@entityID`)
 
 	response.QueryDashP(nil, "./t:Lifetime/wsu:Created", issueInstant, nil)
-	response.QueryDashP(nil, "./t:Lifetime/wsu:Expires", sessionNotOnOrAfter, nil)
+	response.QueryDashP(nil, "./t:Lifetime/wsu:Expires", assertionNotOnOrAfter, nil)
 	response.QueryDashP(nil, "./wsp:AppliesTo/wsa:EndpointReference/wsa:Address", spEntityID, nil)
 
 	assertion := response.Query(nil, "t:RequestedSecurityToken/saml1:Assertion")[0]
@@ -1332,7 +1404,7 @@ func NewWsFedResponse(idpMd, spMd, sourceResponse *goxml.Xp) (response *goxml.Xp
 
 	conditions := response.Query(assertion, "saml1:Conditions")[0]
 	response.QueryDashP(conditions, "@NotBefore", assertionIssueInstant, nil)
-	response.QueryDashP(conditions, "@NotOnOrAfter", sessionNotOnOrAfter, nil)
+	response.QueryDashP(conditions, "@NotOnOrAfter", assertionNotOnOrAfter, nil)
 	response.QueryDashP(conditions, "saml1:AudienceRestrictionCondition/saml1:Audience", spEntityID, nil)
 
 	nameIdentifierElement := sourceResponse.Query(nil, "./saml:Assertion/saml:Subject/saml:NameID")[0]
@@ -1386,11 +1458,11 @@ func Jwt2saml(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 		w.Write(json)
 		return err
 	}
-	zzz, err := jwtVerify(jwt, idpMd.QueryMulti(nil, "./md:IDPSSODescriptor"+SigningCertQuery))
+	pl, err := jwtVerify(jwt, idpMd.QueryMulti(nil, "./md:IDPSSODescriptor"+SigningCertQuery))
 	if err != nil {
 		return err
 	}
-	payload, _ := base64.RawURLEncoding.DecodeString(zzz)
+	payload, _ := base64.RawURLEncoding.DecodeString(pl)
 	var attrs map[string]interface{}
 	err = json.Unmarshal(payload, &attrs)
 	if err != nil {
@@ -1424,7 +1496,7 @@ func Jwt2saml(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 		}
 	}
 
-	err = SignResponse(response, "/samlp:Response/saml:Assertion", signerMd, "sha256", SAMLSign)
+	err = SignResponse(response, "/samlp:Response/saml:Assertion", signerMd, "", SAMLSign)
 	if err != nil {
 		return err
 	}
@@ -1434,7 +1506,9 @@ func Jwt2saml(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 		ea := goxml.NewXpFromString(`<saml:EncryptedAssertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"></saml:EncryptedAssertion>`)
 		assertion := response.Query(nil, "saml:Assertion[1]")[0]
 		err = response.Encrypt(assertion, publicKey, ea)
-		fmt.Println("err", err)
+		if err != nil {
+			return
+		}
 	}
 
 	data := Formdata{Acs: response.Query1(nil, "./@Destination"), Samlresponse: base64.StdEncoding.EncodeToString(response.Dump()), RelayState: r.Form.Get("RelayState")}
@@ -1493,7 +1567,7 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 			attrs["saml:AuthenticatingAuthority"] = response.QueryMulti(assertion, "./saml:AuthnStatement/saml:AuthnContext/saml:AuthenticatingAuthority")
 			//attrs["saml:AuthenticatingAuthority"] = append(attrs["saml:AuthenticatingAuthority"].([]string), attrs["iss"].(string))
 
-			//sloinfoJson, _ := json.Marshal(NewSLOInfo(response, spMd.Query1(nil, "@entityID")))
+			//sloinfoJson, _ := json.Marshal(NewSLOInfo(response, response.Query(nil, "/samlp:Response/saml:Assertion")[0], spMd.Query1(nil, "@entityID"), spMd.Query1(nil, "./md:SPSSODescriptor/md:SingleLogoutService/@Location") != "", IDPRole))
 			//attrs["sloinfo"] = sloinfoJson
 
 			json, err := json.Marshal(&attrs)
@@ -1540,12 +1614,12 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 		if err != nil {
 			return err
 		}
-		sloinfo.IssuerID, sloinfo.DestinationID = sloinfo.DestinationID, sloinfo.IssuerID
-		idpMd, _, err := FindInMetadataSets(MdSets{mdHub, mdExternalIDP}, sloinfo.DestinationID)
+		sloinfo.IDP, sloinfo.SP = sloinfo.SP, sloinfo.IDP
+		idpMd, _, err := FindInMetadataSets(MdSets{mdHub, mdExternalIDP}, sloinfo.IDP)
 		if err != nil {
 			return err
 		}
-		request, _, err := NewLogoutRequest(idpMd, sloinfo, IDPRole)
+		request, _, err := NewLogoutRequest(idpMd, sloinfo, entityID, false)
 		if err != nil {
 			return err
 		}
@@ -1567,7 +1641,7 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 			return err
 		}
 
-		request, err := NewAuthnRequest(nil, spMd, idpMd, "", strings.Split(r.Form.Get("idplist"), ","), acs, false, 0, 0)
+		request, _, err := NewAuthnRequest(nil, spMd, idpMd, "", strings.Split(r.Form.Get("idplist"), ","), acs, false, 0, 0)
 		if err != nil {
 			return err
 		}
@@ -1712,43 +1786,22 @@ func CheckDigestAndSignatureAlgorithms(response *goxml.Xp, allowedDigestAndSigna
 	return
 }
 
-// Marshal - hand-held marshal for SLOInfo struct
-func (r SLOInfo) Marshal() (msg []byte) {
-	for _, str := range []string{r.IssuerID, r.NameID, r.SPNameQualifier, r.SessionIndex, r.DestinationID} {
-		msg = append(msg, 0xd9, uint8(len(str)))
-		msg = append(msg, str...)
-	}
-	msg = append(msg, 0xcc, r.NameIDFormat)
-	return
-}
-
-// Unmarshal - hand-held unmarshal for SLOInfo struct
-func (r *SLOInfo) Unmarshal(msg []byte) {
-	i := byte(2)
-	l := i + msg[i-1]
-	for _, x := range []*string{&r.IssuerID, &r.NameID, &r.SPNameQualifier, &r.SessionIndex} {
-		*x = string(msg[i:l])
-		i = l + 2
-		l = i + msg[i-1]
-	}
-	r.DestinationID = string(msg[i:l])
-	i = l + 1
-	r.NameIDFormat = msg[i]
-	return
-}
-
 // Encode using hand-held MessagePack for keeping the size down - no double base64 encodings
 func (h *Hm) Encode(id string, msg []byte) (str string, err error) {
 	bts, err := h.innerSign(id, msg, time.Now().Unix())
-	return base64.RawURLEncoding.EncodeToString(bts), err
+	str = base64.RawURLEncoding.EncodeToString(bts)
+	return
 }
 
 // SpcEncode - does not base64 encodes the msg from num bytes onward - ie. it is already in
 // an allowed format for whatever purpose it is intended - this is to save space by not base64
 // encode data that does not need it
-func (h *Hm) SpcEncode(id string, msg []byte, num int) (str string, err error) {
+func (h *Hm) SpcEncode(id string, msg []byte) (str string, err error) {
 	bts, err := h.innerSign(id, msg, time.Now().Unix())
-	str = base64.RawURLEncoding.EncodeToString(bts[:24+num]) + string(msg[num:]) // 24 is the size of hmac + timestamp in MP format
+	num := int((msg[0]-97)*(msg[1]-97)) + 2
+	b64encoded := base64.RawURLEncoding.EncodeToString(bts[:24+num])
+	str = string(msg[:2]) + b64encoded + string(msg[num:]) // 24 is the size of hmac + timestamp in MP format
+	fmt.Println("encode", len(msg), msg, b64encoded, len(b64encoded), str)
 	return
 }
 
@@ -1759,9 +1812,13 @@ func (h *Hm) Decode(id, in string) ([]byte, error) {
 }
 
 // SpcDecode - only base64 decode specified number of bytes
-func (h *Hm) SpcDecode(id, in string, num int) ([]byte, error) {
-	encoded, _ := base64.RawURLEncoding.DecodeString(in[:40]) // len(base64 encoded(24+num)) == 40
-	encoded = append(encoded, in[40:]...)
+func (h *Hm) SpcDecode(id, msg string) ([]byte, error) {
+	num := int((msg[0]-97)*(msg[1]-97)) + 2
+	numb64encodedlen := ((num+24)*8 + 6 - 1) / 6 // http://www.cs.nott.ac.uk/~psarb2/G51MPC/slides/NumberLogic.pdf
+	fmt.Println("num", num, numb64encodedlen)
+	encoded, _ := base64.RawURLEncoding.DecodeString(msg[2 : numb64encodedlen+2])
+	encoded = append(encoded, msg[numb64encodedlen+2:]...)
+	fmt.Println("decode", msg, len(msg[2:numb64encodedlen]), msg[2:numb64encodedlen])
 	return h.innerValidate(id, encoded)
 }
 
@@ -1797,40 +1854,90 @@ func (h *Hm) innerValidate(id string, signedMsg []byte) (msg []byte, err error) 
 	return nil, goxml.NewWerror("hmac failed")
 }
 
-// PP - super simple Pretty Print - using JSON
-func PP(i ...interface{}) {
-	for _, e := range i {
-		s, _ := json.MarshalIndent(e, "", "  ")
-		fmt.Println(string(s))
-	}
-	return
-}
-
 // Marshal hand-held marshal SamlRequest
-func (r SamlRequest) Marshal() (msg []byte, n int) {
+func (r SamlRequest) Marshal() (msg []byte) {
 	prefix := []byte{}
 	for _, str := range []string{r.Nonce, r.RequestID, r.SP, r.VirtualIDPID, r.AssertionConsumerIndex, r.Protocol} {
-		prefix = append(prefix, uint8(len(str))) // if over 127 we are in trouble
+		prefix = append(prefix, uint8(len(str))) // if over 255 we are in trouble
 		msg = append(msg, str...)
 	}
-	str := fmt.Sprintf("%1d%1d%1d", r.NameIDFormat, r.SPIndex, r.HubBirkIndex)
-	msg = append(msg, str...)
+	msg = append(msg, r.NameIDFormat+97, r.SPIndex+97, r.HubBirkIndex+97) // use a-z for small numbers 0-26 that does not need to be b64 encoded
 	msg = append(prefix, msg...)
-	n = len(prefix)
+	msg = append([]byte{98, byte(len(prefix) + 97)}, msg...)
 	return
 }
 
 // Unmarshal - hand held unmarshal for SamlRequest
 func (r *SamlRequest) Unmarshal(msg []byte) {
-	i := byte(6)
-	l := msg[0]
+	i := int((msg[0]-97)*(msg[1]-97)) + 2 // num records and number of b64 encoded string lengths
 	for j, x := range []*string{&r.Nonce, &r.RequestID, &r.SP, &r.VirtualIDPID, &r.AssertionConsumerIndex, &r.Protocol} {
+		l := int(msg[j+2])
 		*x = string(msg[i : i+l])
 		i = i + l
-		l = msg[j+1]
 	}
-	r.NameIDFormat = msg[i] - 48 // cheap char to int8
-	r.SPIndex = msg[i+1] - 48
-	r.HubBirkIndex = msg[i+2] - 48
+	r.NameIDFormat = msg[i] - 97 // cheap char to int8
+	r.SPIndex = msg[i+1] - 97
+	r.HubBirkIndex = msg[i+2] - 97
+	return
+}
+
+// Marshal - hand-held marshal for SLOInfo struct - save some b64 encoding by keeping ascii values at end
+func (sil SLOInfoList) Marshal() (msg []byte) {
+	n := 0
+	prefix := []byte{}
+	for _, r := range sil {
+		fields := []string{r.IDP, r.SP, r.NameID, r.SPNameQualifier, r.SessionIndex, r.ID}
+		n = len(fields)
+		for _, str := range fields {
+			prefix = append(prefix, uint8(len(str)))
+			msg = append(msg, str...)
+		}
+		msg = append(msg, r.NameIDFormat+97, r.HubRole+97, r.SLOStatus+97, B2I[r.SLOSupport]+97, B2I[r.Async]+97)
+	}
+	msg = append(prefix, msg...)
+	msg = append([]byte{byte(len(sil) + 97), byte(n + 97)}, msg...)
+	return
+}
+
+// Unmarshal - hand-held unmarshal for SLOInfo struct
+func (sil *SLOInfoList) Unmarshal(msg []byte) {
+	length := len(msg)
+	if length == 0 {
+		return
+	}
+	i := int((msg[0]-97)*(msg[1]-97)) + 2 // num records and number of b64 encoded string lengths
+	j := 2
+	for {
+		if i == length {
+			break
+		}
+		r := SLOInfo{}
+		for _, x := range []*string{&r.IDP, &r.SP, &r.NameID, &r.SPNameQualifier, &r.SessionIndex, &r.ID} {
+			l := int(msg[j])
+			*x = string(msg[i : i+l])
+			i = i + l
+			j = j + 1
+		}
+		r.NameIDFormat = msg[i] - 97
+		i++
+		r.HubRole = msg[i] - 97
+		i++
+		r.SLOStatus = msg[i] - 97
+		i++
+		r.SLOSupport = msg[i]-97 != 0
+		i++
+		r.Async = msg[i]-97 != 0
+		i++
+		*sil = append(*sil, r)
+	}
+	return
+}
+
+// PP - super simple Pretty Print - using JSON
+func PP(i ...interface{}) {
+	for _, e := range i {
+		s, _ := json.MarshalIndent(e, "", "    ")
+		fmt.Println(string(s))
+	}
 	return
 }
