@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/wayf-dk/go-libxml2/types"
 	"github.com/wayf-dk/goxml"
-	"q"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -48,7 +47,6 @@ type (
 
 var (
 	_ = log.Printf // For debugging; delete when done.
-	_ = q.Q
 
 	wg                                                                                                                         sync.WaitGroup
 	mdq                                                                                                                        = "https://phph.wayf.dk/MDQ/"

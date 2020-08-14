@@ -36,12 +36,10 @@ import (
 
 	"github.com/wayf-dk/go-libxml2/types"
 	"github.com/wayf-dk/goxml"
-	"q"
 )
 
 var (
 	_ = log.Printf // For debugging; delete when done.
-	_ = q.Q
 )
 
 const (
