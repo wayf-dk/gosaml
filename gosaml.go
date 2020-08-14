@@ -36,7 +36,7 @@ import (
 
 	"github.com/wayf-dk/go-libxml2/types"
 	"github.com/wayf-dk/goxml"
-	"github.com/y0ssar1an/q"
+	"q"
 )
 
 var (
