@@ -1000,11 +1000,8 @@ func NewLogoutRequest(destination *goxml.Xp, sloinfo *SLOInfo, issuer string, as
 }
 
 // NewLogoutResponse creates a Logout Response oon the basis of Logout request
-func NewLogoutResponse(issuer string, destination *goxml.Xp, inResponseTo string, role int) (response *goxml.Xp, binding string, err error) {
-	template := `<samlp:LogoutResponse xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0">
-<samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/></samlp:Status>
-</samlp:LogoutResponse>
-`
+func NewLogoutResponse(issuer string, destination *goxml.Xp, inResponseTo string, role uint8) (response *goxml.Xp, binding string, err error) {
+	template := `<samlp:LogoutResponse xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"></samlp:LogoutResponse>`
 	response = goxml.NewXpFromString(template)
 	slo := destination.Query(nil, `./`+Roles[role]+`/md:SingleLogoutService[@Binding="`+REDIRECT+`" or @Binding="`+POST+`"]`)
 	if len(slo) == 0 {
@@ -1013,11 +1010,12 @@ func NewLogoutResponse(issuer string, destination *goxml.Xp, inResponseTo string
 	}
 	binding = destination.Query1(slo[0], "./@Binding")
 	response.QueryDashP(nil, "./@Destination", destination.Query1(slo[0], "./@Location"), nil)
-
+	response.QueryDashP(nil, "./@Version", "2.0", nil)
 	response.QueryDashP(nil, "./@IssueInstant", time.Now().Format(XsDateTime), nil)
 	response.QueryDashP(nil, "./@ID", ID(), nil)
 	response.QueryDashP(nil, "./@InResponseTo", inResponseTo, nil)
 	response.QueryDashP(nil, "./saml:Issuer", issuer, nil)
+	response.QueryDashP(nil, "./samlp:Status/samlp:StatusCode/@Value", "urn:oasis:names:tc:SAML:2.0:status:Success", nil)
 	return
 }
 
