@@ -1789,33 +1789,10 @@ func (h *Hm) Encode(id string, msg []byte) (str string, err error) {
 	return
 }
 
-// SpcEncode - does not base64 encodes the msg from num bytes onward - ie. it is already in
-// an allowed format for whatever purpose it is intended - this is to save space by not base64
-// encode data that does not need it
-func (h *Hm) SpcEncode(id string, msg []byte) (str string, err error) {
-	bts, err := h.innerSign(id, msg, time.Now().Unix())
-	num := int((msg[0]-97)*(msg[1]-97)) + 2
-	b64encoded := base64.RawURLEncoding.EncodeToString(bts[:24+num])
-	str = string(msg[:2]) + b64encoded + string(msg[num:]) // 24 is the size of hmac + timestamp in MP format
-	fmt.Println("encode", len(msg), msg, b64encoded, len(b64encoded), str)
-	return
-}
-
 // Decode - the whole message
 func (h *Hm) Decode(id, in string) ([]byte, error) {
 	signedMsg, _ := base64.RawURLEncoding.DecodeString(in)
 	return h.innerValidate(id, signedMsg)
-}
-
-// SpcDecode - only base64 decode specified number of bytes
-func (h *Hm) SpcDecode(id, msg string) ([]byte, error) {
-	num := int((msg[0]-97)*(msg[1]-97)) + 2
-	numb64encodedlen := ((num+24)*8 + 6 - 1) / 6 // http://www.cs.nott.ac.uk/~psarb2/G51MPC/slides/NumberLogic.pdf
-	fmt.Println("num", num, numb64encodedlen)
-	encoded, _ := base64.RawURLEncoding.DecodeString(msg[2 : numb64encodedlen+2])
-	encoded = append(encoded, msg[numb64encodedlen+2:]...)
-	fmt.Println("decode", msg, len(msg[2:numb64encodedlen]), msg[2:numb64encodedlen])
-	return h.innerValidate(id, encoded)
 }
 
 func (h *Hm) innerSign(id string, msg []byte, ts int64) (signedMsg []byte, err error) {
