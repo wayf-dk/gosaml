@@ -1035,8 +1035,12 @@ func SloRequest(w http.ResponseWriter, r *http.Request, response, spMd, IdpMd *g
 }
 
 // SloResponse generates a single logout reponse
-func SloResponse(w http.ResponseWriter, r *http.Request, request, issuer, destination *goxml.Xp, pk string) {
-	response, binding, _ := NewLogoutResponse(issuer.Query1(nil, `./@entityID`), destination, request.Query1(nil, "@ID"), IDPRole)
+func SloResponse(w http.ResponseWriter, r *http.Request, request, issuer, destination *goxml.Xp, pk string, role uint8) (err error) {
+	response, binding, err := NewLogoutResponse(issuer.Query1(nil, `./@entityID`), destination, request.Query1(nil, "@ID"), role)
+	if err != nil {
+		return
+	}
+
 	switch binding {
 	case REDIRECT:
 		u, _ := SAMLRequest2URL(response, "", pk, "-", "")
@@ -1045,6 +1049,7 @@ func SloResponse(w http.ResponseWriter, r *http.Request, request, issuer, destin
 		data := Formdata{Acs: response.Query1(nil, "./@Destination"), Samlresponse: base64.StdEncoding.EncodeToString(response.Dump())}
 		PostForm.ExecuteTemplate(w, "postForm", data)
 	}
+	return
 }
 
 // NewSLOInfo extract necessary Logout information
