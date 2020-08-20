@@ -1052,7 +1052,7 @@ func SloResponse(w http.ResponseWriter, r *http.Request, request, issuer, destin
 	return
 }
 
-// NewSLOInfo extract necessary Logout information
+// NewSLOInfo extract necessary Logout information - xp is expectd to be a Response
 func NewSLOInfo(xp *goxml.Xp, context types.Node, sp string, sloSupport bool, hubRole uint8) (slo *SLOInfo) {
 	slo = &SLOInfo{
 		HubRole:         hubRole,
