@@ -1439,14 +1439,13 @@ func Jwt2saml(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 	defer r.Body.Close()
 	r.ParseForm()
 
-	request, spMd, idpMd, _, _, _, err := ReceiveAuthnRequest(r, MdSets{mdHub, mdExternalSP}, MdSets{mdInternal, mdExternalIDP}, r.Form.Get("sso"))
+	msg, spMd, idpMd, relayState, _, _, err := DecodeSAMLMsg(r, MdSets{mdHub, mdExternalSP}, MdSets{mdInternal, mdExternalIDP}, IDPRole, []string{"AuthnRequest", "LogoutRequest", "LogoutResponse"}, r.Form.Get("sso"), nil)
 	if err != nil {
-		return
+		return err
 	}
 
-	jwt := r.Form.Get("jwt")
-	if jwt == "" {
-		req, err := requestHandler(request, idpMd, spMd)
+	if r.Form.Get("preflight") != "" {
+		req, err := requestHandler(msg, idpMd, spMd)
 		if err != nil {
 			return err
 		}
@@ -1460,6 +1459,10 @@ func Jwt2saml(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 		w.Write(json)
 		return err
 	}
+	msgType := msg.QueryString(nil, "local-name(/*)")
+	switch msgType {
+	case "AuthnRequest":
+		jwt := r.Form.Get("jwt")
 	pl, err := jwtVerify(jwt, idpMd.QueryMulti(nil, "./md:IDPSSODescriptor"+SigningCertQuery))
 	if err != nil {
 		return err
@@ -1471,7 +1474,7 @@ func Jwt2saml(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 		return err
 	}
 
-	response := NewResponse(idpMd, spMd, request, nil)
+		response := NewResponse(idpMd, spMd, msg, nil)
 
 	if iat, ok := attrs["iat"]; ok {
 		delete(attrs, "iat")
@@ -1509,13 +1512,17 @@ func Jwt2saml(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 		assertion := response.Query(nil, "saml:Assertion[1]")[0]
 		err = response.Encrypt(assertion, publicKey, ea)
 		if err != nil {
-			return
+				return err
 		}
 	}
 
-	data := Formdata{Acs: response.Query1(nil, "./@Destination"), Samlresponse: base64.StdEncoding.EncodeToString(response.Dump()), RelayState: r.Form.Get("RelayState")}
+		data := Formdata{Acs: response.Query1(nil, "./@Destination"), Samlresponse: base64.StdEncoding.EncodeToString(response.Dump()), RelayState: relayState}
 	return PostForm.ExecuteTemplate(w, "postForm", data)
-
+	case "LogoutRequest":
+		return SloResponse(w, r, msg, idpMd, spMd, "", SPRole)
+	case "LogoutResponse":
+	}
+	return
 }
 
 // Saml2jwt - JSON based SP interface
