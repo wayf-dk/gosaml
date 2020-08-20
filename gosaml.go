@@ -971,7 +971,8 @@ func NewLogoutRequest(destination *goxml.Xp, sloinfo *SLOInfo, issuer string, as
 	request = goxml.NewXpFromString(template)
 	issueInstant, _, _, _, _ := IDAndTiming()
 
-	slo := destination.Query(nil, `./`+Roles[(sloinfo.HubRole+1)%2]+`/md:SingleLogoutService[@Binding="`+REDIRECT+`" or @Binding="`+POST+`"]`)
+	role := (sloinfo.HubRole + 1) % 2 // the request is going out from the hub so look for the reverse role in destination metadata
+	slo := destination.Query(nil, `./`+Roles[role]+`/md:SingleLogoutService[@Binding="`+REDIRECT+`" or @Binding="`+POST+`"]`)
 	if len(slo) == 0 {
 		err = goxml.NewWerror("cause:no SingleLogoutService found", "entityID:"+destination.Query1(nil, "./@entityID"))
 		return
