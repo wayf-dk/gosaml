@@ -276,13 +276,21 @@ func Inflate(deflated []byte) []byte {
 }
 
 // HTML2SAMLResponse extracts the SAMLResponse from a HTML document
-func HTML2SAMLResponse(html []byte) (samlresponse *goxml.Xp, relayState string) {
+func HTML2SAMLResponse(html []byte) (samlresponse *goxml.Xp, relayState string, action *url.URL) {
 	response := goxml.NewHTMLXp(html)
+	action, _ = url.Parse(response.Query1(nil, `//form/@action`))
 	samlbase64 := response.Query1(nil, `//input[@name="SAMLResponse"]/@value`)
 	if samlbase64 != "" {
 		relayState = response.Query1(nil, `//input[@name="RelayState"]/@value`)
 		samlxml, _ := base64.StdEncoding.DecodeString(samlbase64)
 		samlresponse = goxml.NewXp(samlxml)
+		return
+	}
+	samlxml := response.Query1(nil, `//input[@name="wresult"]/@value`)
+	if samlxml != "" {
+	    samlresponse = goxml.NewXp([]byte(samlxml))
+	    relayState =response.Query1(nil, `//input[@name="wctx"]/@value`)
+	    return
 	}
 	return
 }
@@ -336,15 +344,15 @@ func SAMLRequest2URL(samlrequest *goxml.Xp, relayState, privatekey, pw, algo str
 func AttributeCanonicalDump(w io.Writer, xp *goxml.Xp) {
 	attrsmap := map[string][]string{}
 	keys := []string{}
-	attrs := xp.Query(nil, "./saml:Assertion/saml:AttributeStatement/saml:Attribute")
+	attrs := xp.Query(nil, "./saml:Assertion/saml:AttributeStatement/saml:Attribute | ./t:RequestedSecurityToken/saml1:Assertion/saml1:AttributeStatement/saml1:Attribute")
 	for _, attr := range attrs {
 		values := []string{}
-		for _, value := range xp.QueryMulti(attr, "saml:AttributeValue") {
+		for _, value := range xp.QueryMulti(attr, "saml:AttributeValue | saml1:AttributeValue") {
 			values = append(values, value)
 		}
-		name := xp.Query1(attr, "@Name") + " "
+		name := xp.Query1(attr, "@Name | @AttributeName") + " "
 		friendlyName := xp.Query1(attr, "@FriendlyName") + " "
-		nameFormat := xp.Query1(attr, "@NameFormat")
+		nameFormat := xp.Query1(attr, "@NameFormat | @AttributeNamespace")
 		if name == friendlyName {
 			friendlyName = ""
 		}
