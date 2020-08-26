@@ -288,9 +288,9 @@ func HTML2SAMLResponse(html []byte) (samlresponse *goxml.Xp, relayState string, 
 	}
 	samlxml := response.Query1(nil, `//input[@name="wresult"]/@value`)
 	if samlxml != "" {
-	    samlresponse = goxml.NewXp([]byte(samlxml))
-	    relayState =response.Query1(nil, `//input[@name="wctx"]/@value`)
-	    return
+		samlresponse = goxml.NewXp([]byte(samlxml))
+		relayState = response.Query1(nil, `//input[@name="wctx"]/@value`)
+		return
 	}
 	return
 }
@@ -1319,16 +1319,18 @@ func NewResponse(idpMd, spMd, authnrequest, sourceResponse *goxml.Xp) (response 
 	response.QueryDashP(authstatement, "@AuthnInstant", assertionIssueInstant, nil)
 	response.QueryDashP(authstatement, "@SessionIndex", ID(), nil)
 	response.QueryDashP(authstatement, "@SessionNotOnOrAfter", sessionNotOnOrAfter, nil)
-	//response.QueryDashP(authstatement, "@SessionIndex", "missing", nil)
 
 	if sourceResponse != nil {
-		for _, aa := range sourceResponse.QueryMulti(nil, "//saml:AuthnContext/saml:AuthenticatingAuthority") {
+	    srcAssertion := sourceResponse.Query(nil, "saml:Assertion")[0]
+		for _, aa := range sourceResponse.QueryMulti(srcAssertion, "saml:AuthnStatement/saml:AuthnContext/saml:AuthenticatingAuthority") {
 			response.QueryDashP(authstatement, "saml:AuthnContext/saml:AuthenticatingAuthority[0]", aa, nil)
 		}
-		response.QueryDashP(nameid, "@Format", sourceResponse.Query1(nil, "//saml:NameID/@Format"), nil)
-		response.QueryDashP(nameid, ".", sourceResponse.Query1(nil, "//saml:NameID"), nil)
-		response.QueryDashP(authstatement, "saml:AuthnContext/saml:AuthenticatingAuthority[0]", sourceResponse.Query1(nil, "./saml:Issuer"), nil)
-		response.QueryDashP(authstatement, "saml:AuthnContext/saml:AuthnContextClassRef", sourceResponse.Query1(nil, "//saml:AuthnContextClassRef"), nil)
+		response.QueryDashP(nameid, "@Format", sourceResponse.Query1(srcAssertion, "saml:Subject/saml:NameID/@Format"), nil)
+		response.QueryDashP(nameid, ".", sourceResponse.Query1(srcAssertion, "saml:Subject/saml:NameID"), nil)
+		response.QueryDashP(authstatement, "saml:AuthnContext/saml:AuthenticatingAuthority[0]", sourceResponse.Query1(srcAssertion, "saml:Issuer"), nil)
+		response.QueryDashP(authstatement, "saml:AuthnContext/saml:AuthnContextClassRef", sourceResponse.Query1(srcAssertion, `saml:AttributeStatement/saml:Attribute[@Name="AuthnContextClassRef"]/saml:AttributeValue`), nil)
+		response.QueryDashP(authstatement, "@AuthnInstant", sourceResponse.Query1(srcAssertion, "saml:AuthnStatement/@AuthnInstant"), nil)
+		response.QueryDashP(authstatement, "@SessionNotOnOrAfter", sourceResponse.Query1(srcAssertion, "saml:AuthnStatement/@SessionNotOnOrAfter"), nil)
 	}
 	return
 }
