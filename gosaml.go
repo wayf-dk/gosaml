@@ -1454,7 +1454,8 @@ func Jwt2saml(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 		return err
 	}
 
-	if r.Form.Get("preflight") != "" {
+	jwt := r.Form.Get("jwt")
+	if jwt == "" {
 		req, err := requestHandler(msg, idpMd, spMd)
 		if err != nil {
 			return err
@@ -1472,7 +1473,6 @@ func Jwt2saml(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 	msgType := msg.QueryString(nil, "local-name(/*)")
 	switch msgType {
 	case "AuthnRequest":
-		jwt := r.Form.Get("jwt")
 		pl, err := jwtVerify(jwt, idpMd.QueryMulti(nil, "./md:IDPSSODescriptor"+SigningCertQuery))
 		if err != nil {
 			return err
