@@ -1594,7 +1594,7 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 			if err != nil {
 				return err
 			}
-			jwt, _, err := JwtSign(json, privatekey, "RS512")
+			jwt, _, err := JwtSign(json, privatekey, "RS256")
 			if err != nil {
 				return err
 			}
@@ -1611,7 +1611,7 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 			w.Write([]byte(jwt))
 			return err
 		case "LogoutResponse":
-			jwt, _, err := JwtSign([]byte("{}"), privatekey, "RS512")
+			jwt, _, err := JwtSign([]byte("{}"), privatekey, "RS256")
 			if err != nil {
 				return err
 			}
