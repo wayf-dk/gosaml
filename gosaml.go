@@ -1841,8 +1841,8 @@ func (h *Hm) innerValidate(id string, signedMsg []byte) (msg []byte, err error) 
 		return
 	}
 	if hmac.Equal(signedMsg[:24], []byte(computed)[:24]) {
-		now := time.Now().Unix()
-		if now-ts < h.TTL {
+		diff := time.Now().Unix() - ts
+		if diff >= 0 && diff < h.TTL {
 			return msg, nil
 		}
 	}
