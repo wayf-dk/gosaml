@@ -213,6 +213,7 @@ func PublicKeyInfo(cert string) (keyname string, publickey *rsa.PublicKey, err e
 	key, err := base64.StdEncoding.DecodeString(whitespace.ReplaceAllString(cert, ""))
 	pk, err := x509.ParseCertificate(key)
 	if err != nil {
+		err = goxml.Wrap(err)
 		return
 	}
 	publickey = pk.PublicKey.(*rsa.PublicKey)
@@ -221,9 +222,8 @@ func PublicKeyInfo(cert string) (keyname string, publickey *rsa.PublicKey, err e
 }
 
 // GetPrivateKey extract the key from Metadata and builds a name and reads the key
-func GetPrivateKey(md *goxml.Xp) (privatekey []byte, cert string, err error) {
-	cert = md.Query1(nil, "./"+SigningCertQuery) // actual signing key is always first
-	keyname, _, err := PublicKeyInfo(cert)
+func GetPrivateKey(md *goxml.Xp, path string) (privatekey []byte, cert string, err error) {
+	keyname, _, err := PublicKeyInfo(md.Query1(nil, path))
 	if err != nil {
 		return
 	}
@@ -238,6 +238,7 @@ func GetPrivateKey(md *goxml.Xp) (privatekey []byte, cert string, err error) {
 	privatekey, err = ioutil.ReadFile(Config.CertPath + keyname + ".key")
 	if err != nil {
 		err = goxml.Wrap(err)
+		return
 	}
 	privatekeyLock.Lock()
 	privatekeyCache[keyname] = privatekey
@@ -686,16 +687,7 @@ findbinding:
 		if protocol == "Response" {
 			encryptedAssertions := xp.Query(nil, "/samlp:Response/saml:EncryptedAssertion")
 			if len(encryptedAssertions) == 1 {
-
-				cert := destinationMd.Query1(nil, "./md:SPSSODescriptor"+EncryptionCertQuery) // actual encryption key is always first
-				var keyname string
-				keyname, _, err = PublicKeyInfo(cert)
-				if err != nil {
-					return nil, goxml.Wrap(err)
-				}
-				var privatekey []byte
-
-				privatekey, err = ioutil.ReadFile(Config.CertPath + keyname + ".key")
+				privatekey, _, err := GetPrivateKey(destinationMd, "md:SPSSODescriptor"+EncryptionCertQuery)
 				if err != nil {
 					return nil, goxml.Wrap(err)
 				}
@@ -909,8 +901,8 @@ func VerifyTiming(xp *goxml.Xp) (verifiedXp *goxml.Xp, err error) {
 			"/samlp:Response[1]/saml:Assertion[1]/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@NotOnOrAfter": {false, true, false},
 			"/samlp:Response[1]/saml:Assertion[1]/saml:Conditions/@NotBefore":                                                       {false, false, true},
 			"/samlp:Response[1]/saml:Assertion[1]/saml:Conditions/@NotOnOrAfter":                                                    {false, true, false},
-//			"/samlp:Response[1]/saml:Assertion[1]/saml:AuthnStatement/@AuthnInstant":                                                {true, true, true},
-//			"/samlp:Response[1]/saml:Assertion[1]/saml:AuthnStatement/@SessionNotOnOrAfter":                                         {false, true, false},
+			//			"/samlp:Response[1]/saml:Assertion[1]/saml:AuthnStatement/@AuthnInstant":                                                {true, true, true},
+			//			"/samlp:Response[1]/saml:Assertion[1]/saml:AuthnStatement/@SessionNotOnOrAfter":                                         {false, true, false},
 		}
 	}
 
@@ -1154,7 +1146,7 @@ func (sil *SLOInfoList) Find(response *goxml.Xp) (slo *SLOInfo, ok bool) {
 // SignResponse signs the response with the given method.
 // Returns an error if unable to sign.
 func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp, signingMethod string, signFor int) (err error) {
-	privatekey, cert, err := GetPrivateKey(md)
+	privatekey, cert, err := GetPrivateKey(md, "md:IDPSSODescriptor"+SigningCertQuery)
 	if err != nil {
 		return
 	}
@@ -1321,7 +1313,7 @@ func NewResponse(idpMd, spMd, authnrequest, sourceResponse *goxml.Xp) (response 
 	response.QueryDashP(authstatement, "@SessionNotOnOrAfter", sessionNotOnOrAfter, nil)
 
 	if sourceResponse != nil {
-	    srcAssertion := sourceResponse.Query(nil, "saml:Assertion")[0]
+		srcAssertion := sourceResponse.Query(nil, "saml:Assertion")[0]
 		for _, aa := range sourceResponse.QueryMulti(srcAssertion, "saml:AuthnStatement/saml:AuthnContext/saml:AuthenticatingAuthority") {
 			response.QueryDashP(authstatement, "saml:AuthnContext/saml:AuthenticatingAuthority[0]", aa, nil)
 		}
@@ -1561,7 +1553,7 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 		if err != nil {
 			return err
 		}
-		privatekey, _, err := GetPrivateKey(idpMd)
+		privatekey, _, err := GetPrivateKey(idpMd, "md:IDPSSODescriptor"+SigningCertQuery)
 		if err != nil {
 			return err
 		}
