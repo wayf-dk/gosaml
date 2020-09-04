@@ -223,7 +223,8 @@ func PublicKeyInfo(cert string) (keyname string, publickey *rsa.PublicKey, err e
 
 // GetPrivateKey extract the key from Metadata and builds a name and reads the key
 func GetPrivateKey(md *goxml.Xp, path string) (privatekey []byte, cert string, err error) {
-	keyname, _, err := PublicKeyInfo(md.Query1(nil, path))
+    cert = md.Query1(nil, path)
+	keyname, _, err := PublicKeyInfo(cert)
 	if err != nil {
 		return
 	}
