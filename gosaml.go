@@ -970,22 +970,24 @@ func NewErrorResponse(idpMd, spMd, authnrequest, sourceResponse *goxml.Xp) (resp
 
 // NewLogoutRequest makes a logout request with issuer destination ... and returns a NewRequest
 func NewLogoutRequest(destination *goxml.Xp, sloinfo *SLOInfo, issuer string, async bool) (request *goxml.Xp, binding string, err error) {
-	template := `<samlp:LogoutRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0"></samlp:LogoutRequest>`
-	request = goxml.NewXpFromString(template)
-	issueInstant, _, _, _, _ := IDAndTiming()
-
 	role := (sloinfo.HubRole + 1) % 2 // the request is going out from the hub so look for the reverse role in destination metadata
 	slo := destination.Query(nil, `./`+Roles[role]+`/md:SingleLogoutService[@Binding="`+REDIRECT+`" or @Binding="`+POST+`"]`)
 	if len(slo) == 0 {
 		err = goxml.NewWerror("cause:no SingleLogoutService found", "entityID:"+destination.Query1(nil, "./@entityID"))
 		return
 	}
-
 	binding = destination.Query1(slo[0], "./@Binding")
+	request = logoutRequest(sloinfo, issuer, destination.Query1(slo[0], "./@Location"), async)
+	return
+}
 
+func logoutRequest(sloinfo *SLOInfo, issuer, destination string, async bool) (request *goxml.Xp) {
+	template := `<samlp:LogoutRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0"></samlp:LogoutRequest>`
+	request = goxml.NewXpFromString(template)
+	issueInstant, _, _, _, _ := IDAndTiming()
 	request.QueryDashP(nil, "./@IssueInstant", issueInstant, nil)
 	request.QueryDashP(nil, "./@ID", sloinfo.ID, nil)
-	request.QueryDashP(nil, "./@Destination", destination.Query1(slo[0], "./@Location"), nil)
+	request.QueryDashP(nil, "./@Destination", destination, nil)
 	request.QueryDashP(nil, "./saml:Issuer", issuer, nil)
 	if async {
 		request.QueryDashP(nil, "./samlp:Extensions/aslo:Asynchronous", "", nil)
