@@ -108,8 +108,8 @@ type (
 	// SLOInfo refers to Single Logout information
 	SLOInfo struct {
 		IDP, SP, NameID, SPNameQualifier, SessionIndex, ID, Protocol string
-		NameIDFormat, HubRole, SLOStatus                   uint8
-		SLOSupport, Async                                  bool
+		NameIDFormat, HubRole, SLOStatus                             uint8
+		SLOSupport, Async                                            bool
 	}
 
 	SLOInfoList []SLOInfo
@@ -223,7 +223,7 @@ func PublicKeyInfo(cert string) (keyname string, publickey *rsa.PublicKey, err e
 
 // GetPrivateKey extract the key from Metadata and builds a name and reads the key
 func GetPrivateKey(md *goxml.Xp, path string) (privatekey []byte, cert string, err error) {
-    cert = md.Query1(nil, path)
+	cert = md.Query1(nil, path)
 	keyname, _, err := PublicKeyInfo(cert)
 	if err != nil {
 		return
@@ -474,18 +474,18 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSets, destinationMdSets MdSets, role
 	msg := r.Form.Get("SAMLRequest") + r.Form.Get("SAMLResponse") // never both at the same time
 	if msg != "" {
 		bmsg, err = base64.StdEncoding.DecodeString(msg)
-			if err != nil {
-				return
-			}
+		if err != nil {
+			return
+		}
 		if method == "GET" {
 			bmsg = Inflate(bmsg)
 		}
 		tmpXp = goxml.NewXp(bmsg)
 	} else {
 		tmpXp, relayState, err = request2samlRequest(r, issuerMdSets, destinationMdSets)
-	if err != nil {
-		return
-	}
+		if err != nil {
+			return
+		}
 	}
 
 	DumpFileIfTracing(r, tmpXp)
@@ -726,17 +726,17 @@ findbinding:
 				validatedMessage = xp
 				// we trust the whole message if the first signature was validated
 
-/*
-				if validatedMessage == nil {
-					// replace with the validated assertion
-					validatedMessage = goxml.NewXp(nil)
-					shallowresponse := validatedMessage.CopyNode(xp.Query(nil, "/samlp:Response[1]")[0], 2)
-					validatedMessage.Doc.SetDocumentElement(shallowresponse)
-					validatedMessage.QueryDashP(nil, "./saml:Issuer", xp.Query1(nil, "/samlp:Response/saml:Issuer"), nil)
-					validatedMessage.QueryDashP(nil, "./samlp:Status/samlp:StatusCode/@Value", xp.Query1(nil, "/samlp:Response/samlp:Status/samlp:StatusCode/@Value"), nil)
-					shallowresponse.AddChild(validatedMessage.CopyNode(xp.Query(nil, "/samlp:Response[1]/saml:Assertion[1]")[0], 1))
-				}
-*/
+				/*
+					if validatedMessage == nil {
+						// replace with the validated assertion
+						validatedMessage = goxml.NewXp(nil)
+						shallowresponse := validatedMessage.CopyNode(xp.Query(nil, "/samlp:Response[1]")[0], 2)
+						validatedMessage.Doc.SetDocumentElement(shallowresponse)
+						validatedMessage.QueryDashP(nil, "./saml:Issuer", xp.Query1(nil, "/samlp:Response/saml:Issuer"), nil)
+						validatedMessage.QueryDashP(nil, "./samlp:Status/samlp:StatusCode/@Value", xp.Query1(nil, "/samlp:Response/samlp:Status/samlp:StatusCode/@Value"), nil)
+						shallowresponse.AddChild(validatedMessage.CopyNode(xp.Query(nil, "/samlp:Response[1]/saml:Assertion[1]")[0], 1))
+					}
+				*/
 			}
 		}
 	}
@@ -1334,9 +1334,9 @@ func NewResponse(idpMd, spMd, authnrequest, sourceResponse *goxml.Xp) (response 
 
 // request2samlRequest does the protocol translation from ws-fed to saml
 func request2samlRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets) (samlrequest *goxml.Xp, relayState string, err error) {
-		relayState = r.Form.Get("wctx") + r.Form.Get("state")
-		issuer := r.Form.Get("wtrealm") + r.Form.Get("client_id")
-		acs := r.Form.Get("wreply") + r.Form.Get("redirect_uri")
+	relayState = r.Form.Get("wctx") + r.Form.Get("state")
+	issuer := r.Form.Get("wtrealm") + r.Form.Get("client_id")
+	acs := r.Form.Get("wreply") + r.Form.Get("redirect_uri")
 
 	if r.Form.Get("wa") == "wsignin1.0" || r.Form.Get("response_type") != "" {
 		samlrequest = goxml.NewXpFromString(`<samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" Version="2.0"/>`)
@@ -1356,7 +1356,7 @@ func request2samlRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 		}
 		return
 	} else if r.Form.Get("wa") == "wsignout1.0" {
-		samlrequest = logoutRequest(&SLOInfo{ID: "dummy", NameID: "dummy" }, issuer, "https://"+r.Host+r.URL.Path, false)
+		samlrequest = logoutRequest(&SLOInfo{ID: "dummy", NameID: "dummy"}, issuer, "https://"+r.Host+r.URL.Path, false)
 		samlrequest.QueryDashP(nil, "./samlp:Extensions/wayf:protocol", "wsfed", samlrequest.Query(nil, "saml:NameID")[0])
 		return
 	} else if r.Form.Get("wa") == "wsignoutcleanup1.0" {
