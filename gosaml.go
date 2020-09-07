@@ -1271,8 +1271,6 @@ func NewResponse(idpMd, spMd, authnrequest, sourceResponse *goxml.Xp) (response 
         </saml:Conditions>
         <saml:AuthnStatement>
             <saml:AuthnContext>
-                <saml:AuthnContextClassRef>
-                </saml:AuthnContextClassRef>
             </saml:AuthnContext>
         </saml:AuthnStatement>
     </saml:Assertion>
