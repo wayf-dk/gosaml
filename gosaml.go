@@ -725,9 +725,10 @@ findbinding:
 				if err = VerifySign(xp, certificates, signatures[0]); err != nil {
 					return nil, goxml.Wrap(err, "err:unable to validate signature")
 				}
-				//validatedMessage = xp
+				validatedMessage = xp
 				// we trust the whole message if the first signature was validated
 
+/*
 				if validatedMessage == nil {
 					// replace with the validated assertion
 					validatedMessage = goxml.NewXp(nil)
@@ -737,6 +738,7 @@ findbinding:
 					validatedMessage.QueryDashP(nil, "./samlp:Status/samlp:StatusCode/@Value", xp.Query1(nil, "/samlp:Response/samlp:Status/samlp:StatusCode/@Value"), nil)
 					shallowresponse.AddChild(validatedMessage.CopyNode(xp.Query(nil, "/samlp:Response[1]/saml:Assertion[1]")[0], 1))
 				}
+*/
 			}
 		}
 	}
