@@ -107,7 +107,7 @@ type (
 	}
 	// SLOInfo refers to Single Logout information
 	SLOInfo struct {
-		IDP, SP, NameID, SPNameQualifier, SessionIndex, ID string
+		IDP, SP, NameID, SPNameQualifier, SessionIndex, ID, Protocol string
 		NameIDFormat, HubRole, SLOStatus                   uint8
 		SLOSupport, Async                                  bool
 	}
@@ -1022,9 +1022,9 @@ func NewLogoutResponse(issuer string, destination *goxml.Xp, inResponseTo string
 }
 
 // SloRequest generates a single logout request
-func SloRequest(w http.ResponseWriter, r *http.Request, response, spMd, IdpMd *goxml.Xp, pk string) {
+func SloRequest(w http.ResponseWriter, r *http.Request, response, spMd, IdpMd *goxml.Xp, pk string, protocol string) {
 	context := response.Query(nil, "/samlp:Response/saml:Assertion")[0]
-	sloinfo := NewSLOInfo(response, context, spMd.Query1(nil, "@entityID"), false, SPRole)
+	sloinfo := NewSLOInfo(response, context, spMd.Query1(nil, "@entityID"), false, SPRole, protocol)
 	request, binding, _ := NewLogoutRequest(IdpMd, sloinfo, spMd.Query1(nil, "@entityID"), false)
 	request.QueryDashP(nil, "@ID", ID(), nil)
 	switch binding {
@@ -1056,7 +1056,7 @@ func SloResponse(w http.ResponseWriter, r *http.Request, request, issuer, destin
 }
 
 // NewSLOInfo extract necessary Logout information - xp is expectd to be a Response
-func NewSLOInfo(xp *goxml.Xp, context types.Node, sp string, sloSupport bool, hubRole uint8) (slo *SLOInfo) {
+func NewSLOInfo(xp *goxml.Xp, context types.Node, sp string, sloSupport bool, hubRole uint8, protocol string) (slo *SLOInfo) {
 	slo = &SLOInfo{
 		HubRole:         hubRole,
 		IDP:             IDHash(xp.Query1(context, "saml:Issuer")),
@@ -1066,13 +1066,14 @@ func NewSLOInfo(xp *goxml.Xp, context types.Node, sp string, sloSupport bool, hu
 		SPNameQualifier: xp.Query1(context, "saml:Subject/saml:NameID/@SPNameQualifier"),
 		SessionIndex:    xp.Query1(context, "saml:AuthnStatement/@SessionIndex") + xp.Query1(context, "samlp:SessionIndex"), // never both at the same time !!!
 		SLOSupport:      sloSupport,
+		Protocol:        protocol,
 	}
 	return
 }
 
-func (sil *SLOInfoList) LogoutRequest(request *goxml.Xp, hub string, hubRole uint8) (slo *SLOInfo) {
+func (sil *SLOInfoList) LogoutRequest(request *goxml.Xp, hub string, hubRole uint8, protocol string) (slo *SLOInfo) {
 	context := request.Query(nil, "/samlp:LogoutRequest")[0]
-	newSlo := NewSLOInfo(request, context, hub, true, hubRole)
+	newSlo := NewSLOInfo(request, context, hub, true, hubRole, protocol)
 	if hubRole == IDPRole { // if from a SP we need to swap roles - the hub is the IDP
 		newSlo.SP, newSlo.IDP = newSlo.IDP, newSlo.SP
 	}
@@ -1084,7 +1085,8 @@ func (sil *SLOInfoList) LogoutRequest(request *goxml.Xp, hub string, hubRole uin
 			(*sil)[i].SPNameQualifier = ""
 			(*sil)[i].SessionIndex = ""
 			(*sil)[i].SLOStatus = 1
-			(*sil)[i].Async = request.QueryBool(context, "boolean(./samlp:Extensions/aslo:Asynchronous)")
+			(*sil)[i].Async = request.QueryBool(context, "boolean(samlp:Extensions/aslo:Asynchronous)")
+			(*sil)[i].Protocol = request.Query1(context, "samlp:Extensions/wayf:protocol")
 			break
 		}
 	}
@@ -1096,10 +1098,10 @@ func (sil *SLOInfoList) LogoutResponse(response *goxml.Xp) (slo *SLOInfo, sendRe
 	return sil.Find(response)
 }
 
-func (sil *SLOInfoList) Response(response *goxml.Xp, sp string, sloSupport bool, hubRole uint8) {
+func (sil *SLOInfoList) Response(response *goxml.Xp, sp string, sloSupport bool, hubRole uint8, protocol string) {
 	newSil := SLOInfoList{}
 	context := response.Query(nil, "/samlp:Response/saml:Assertion")[0]
-	newSlo := NewSLOInfo(response, context, sp, sloSupport, hubRole)
+	newSlo := NewSLOInfo(response, context, sp, sloSupport, hubRole, protocol)
 	newSil = append(newSil, *newSlo)
 	for _, sloInfo := range *sil {
 		if newSlo.HubRole == sloInfo.HubRole && newSlo.IDP == sloInfo.IDP && newSlo.SP == sloInfo.SP {
@@ -1876,7 +1878,7 @@ func (sil SLOInfoList) Marshal() (msg []byte) {
 	n := 0
 	prefix := []byte{}
 	for _, r := range sil {
-		fields := []string{r.IDP, r.SP, r.NameID, r.SPNameQualifier, r.SessionIndex, r.ID}
+		fields := []string{r.IDP, r.SP, r.NameID, r.SPNameQualifier, r.SessionIndex, r.ID, r.Protocol}
 		n = len(fields)
 		for _, str := range fields {
 			prefix = append(prefix, uint8(len(str)))
@@ -1902,7 +1904,7 @@ func (sil *SLOInfoList) Unmarshal(msg []byte) {
 			break
 		}
 		r := SLOInfo{}
-		for _, x := range []*string{&r.IDP, &r.SP, &r.NameID, &r.SPNameQualifier, &r.SessionIndex, &r.ID} {
+		for _, x := range []*string{&r.IDP, &r.SP, &r.NameID, &r.SPNameQualifier, &r.SessionIndex, &r.ID, &r.Protocol} {
 			l := int(msg[j])
 			*x = string(msg[i : i+l])
 			i = i + l
