@@ -469,26 +469,24 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSets, destinationMdSets MdSets, role
 
 	relayState = r.Form.Get("RelayState")
 
-	msg := r.Form.Get("SAMLRequest")
-	if msg == "" {
-		msg = r.Form.Get("SAMLResponse")
-		if msg == "" {
-			msg, relayState, err = request2samlRequest(r, issuerMdSets, destinationMdSets)
+	var bmsg []byte
+	var tmpXp *goxml.Xp
+	msg := r.Form.Get("SAMLRequest") + r.Form.Get("SAMLResponse") // never both at the same time
+	if msg != "" {
+		bmsg, err = base64.StdEncoding.DecodeString(msg)
 			if err != nil {
 				return
 			}
+		if method == "GET" {
+			bmsg = Inflate(bmsg)
 		}
-	}
-
-	bmsg, err := base64.StdEncoding.DecodeString(msg)
+		tmpXp = goxml.NewXp(bmsg)
+	} else {
+		tmpXp, relayState, err = request2samlRequest(r, issuerMdSets, destinationMdSets)
 	if err != nil {
 		return
 	}
-	if method == "GET" {
-		bmsg = Inflate(bmsg)
 	}
-
-	tmpXp := goxml.NewXp(bmsg)
 
 	DumpFileIfTracing(r, tmpXp)
 	//log.Println("stack", goxml.New().Stack(1))
@@ -1335,14 +1333,13 @@ func NewResponse(idpMd, spMd, authnrequest, sourceResponse *goxml.Xp) (response 
 }
 
 // request2samlRequest does the protocol translation from ws-fed to saml
-func request2samlRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets) (msg, relayState string, err error) {
-	if r.Form.Get("wa") == "wsignin1.0" || r.Form.Get("response_type") != "" {
+func request2samlRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets) (samlrequest *goxml.Xp, relayState string, err error) {
 		relayState = r.Form.Get("wctx") + r.Form.Get("state")
 		issuer := r.Form.Get("wtrealm") + r.Form.Get("client_id")
 		acs := r.Form.Get("wreply") + r.Form.Get("redirect_uri")
 
-		samlrequest := goxml.NewXpFromString(`<samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" Version="2.0"
-                                                      ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"/>`)
+	if r.Form.Get("wa") == "wsignin1.0" || r.Form.Get("response_type") != "" {
+		samlrequest = goxml.NewXpFromString(`<samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" Version="2.0"/>`)
 		issueInstant, msgID, _, _, _ := IDAndTiming()
 		samlrequest.QueryDashP(nil, "./@ID", msgID, nil)
 		samlrequest.QueryDashP(nil, "./@IssueInstant", issueInstant, nil)
@@ -1357,16 +1354,16 @@ func request2samlRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 			samlrequest.QueryDashP(nil, "./@ID", r.Form.Get("nonce"), nil)
 			relayState = r.Form.Get("state")
 		}
-
-		DumpFileIfTracing(r, samlrequest)
-		msg = base64.StdEncoding.EncodeToString(Deflate(samlrequest.Dump()))
 		return
 	} else if r.Form.Get("wa") == "wsignout1.0" {
+		samlrequest = logoutRequest(&SLOInfo{ID: "dummy", NameID: "dummy" }, issuer, "https://"+r.Host+r.URL.Path, false)
+		samlrequest.QueryDashP(nil, "./samlp:Extensions/wayf:protocol", "wsfed", samlrequest.Query(nil, "saml:NameID")[0])
+		return
+	} else if r.Form.Get("wa") == "wsignoutcleanup1.0" {
 
 	}
 	err = fmt.Errorf("no SAMLRequest/SAMLResponse found")
 	return
-
 }
 
 // NewWsFedResponse generates a Ws-fed response
