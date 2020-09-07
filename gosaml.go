@@ -1114,6 +1114,7 @@ func (sil *SLOInfoList) Response(response *goxml.Xp, sp string, sloSupport bool,
 }
 
 func (sil *SLOInfoList) Find(response *goxml.Xp) (slo *SLOInfo, ok bool) {
+    slo = &SLOInfo{}
 	if response != nil {
 		id := response.Query1(nil, "@InResponseTo")
 		for i, sloInfo := range *sil {
