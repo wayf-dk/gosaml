@@ -1897,12 +1897,16 @@ func (sil *SLOInfoList) Unmarshal(msg []byte) {
 	}
 	i := int((msg[0]-97)*(msg[1]-97)) + 2 // num records and number of b64 encoded string lengths
 	j := 2
+	n := int(msg[1]-97)
 	for {
 		if i == length {
 			break
 		}
 		r := SLOInfo{}
-		for _, x := range []*string{&r.IDP, &r.SP, &r.NameID, &r.SPNameQualifier, &r.SessionIndex, &r.ID, &r.Protocol} {
+		for nn, x := range []*string{&r.IDP, &r.SP, &r.NameID, &r.SPNameQualifier, &r.SessionIndex, &r.ID, &r.Protocol} {
+		    if nn >= n { // needed to be backwards compatible with old SLOInfo recs with no protocol field
+        		    break
+        		 }
 			l := int(msg[j])
 			*x = string(msg[i : i+l])
 			i = i + l
