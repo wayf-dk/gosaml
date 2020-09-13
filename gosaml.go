@@ -692,18 +692,12 @@ findbinding:
 				}
 
 				encryptedAssertion := encryptedAssertions[0]
-				encryptedData := xp.Query(encryptedAssertion, "xenc:EncryptedData")[0]
-				decryptedAssertion, err := xp.Decrypt(encryptedData.(types.Element), privatekey, []byte("-"))
+				err = xp.Decrypt(encryptedAssertion.(types.Element), privatekey, []byte("-"))
 				if err != nil {
 					err = goxml.Wrap(err)
 					err = goxml.PublicError(err.(goxml.Werror), "cause:encryption error") // hide the real problem from attacker
 					return nil, err
 				}
-
-				decryptedAssertionElement, _ := decryptedAssertion.Doc.DocumentElement()
-				decryptedAssertionElement = xp.CopyNode(decryptedAssertionElement, 1)
-				_ = encryptedAssertion.AddPrevSibling(decryptedAssertionElement)
-				goxml.RmElement(encryptedAssertion)
 
 				// repeat schemacheck
 				_, err = xp.SchemaValidate(Config.SamlSchema)
@@ -1525,9 +1519,8 @@ func Jwt2saml(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 		if spMd.QueryXMLBool(nil, "/md:EntityDescriptor/md:Extensions/wayf:wayf/wayf:assertion.encryption") {
 			cert := spMd.Query1(nil, "./md:SPSSODescriptor"+EncryptionCertQuery) // actual encryption key is always first
 			_, publicKey, _ := PublicKeyInfo(cert)
-			ea := goxml.NewXpFromString(`<saml:EncryptedAssertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"></saml:EncryptedAssertion>`)
 			assertion := response.Query(nil, "saml:Assertion[1]")[0]
-			err = response.Encrypt(assertion, publicKey, ea)
+			err = response.Encrypt(assertion, publicKey)
 			if err != nil {
 				return err
 			}
