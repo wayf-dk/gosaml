@@ -1539,7 +1539,12 @@ func Jwt2saml(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 		data := Formdata{Acs: response.Query1(nil, "./@Destination"), Samlresponse: base64.StdEncoding.EncodeToString(response.Dump()), RelayState: relayState}
 		return PostForm.ExecuteTemplate(w, "postForm", data)
 	case "LogoutRequest":
-		return SloResponse(w, r, msg, idpMd, spMd, "", SPRole)
+        response, err := NewLogoutResponseWithBinding(idpMd.Query1(nil, `./@entityID`), spMd, msg.Query1(nil, "@ID"), SPRole, POST)
+        if err != nil {
+            return err
+        }
+        data := Formdata{Acs: response.Query1(nil, "./@Destination"), Samlresponse: base64.StdEncoding.EncodeToString(response.Dump())}
+        return PostForm.ExecuteTemplate(w, "postForm", data)
 	case "LogoutResponse":
 	}
 	return
