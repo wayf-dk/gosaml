@@ -997,9 +997,19 @@ func logoutRequest(sloinfo *SLOInfo, issuer, destination string, async bool) (re
 
 // NewLogoutResponse creates a Logout Response oon the basis of Logout request
 func NewLogoutResponse(issuer string, destination *goxml.Xp, inResponseTo string, role uint8) (response *goxml.Xp, binding string, err error) {
+    for _, binding = range []string{REDIRECT, POST} {
+        response, err = NewLogoutResponseWithBinding(issuer, destination, inResponseTo, role, binding)
+        if err == nil {
+            return
+        }
+    }
+    return
+}
+
+func NewLogoutResponseWithBinding(issuer string, destination *goxml.Xp, inResponseTo string, role uint8, binding string) (response *goxml.Xp, err error) {
 	template := `<samlp:LogoutResponse xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"></samlp:LogoutResponse>`
 	response = goxml.NewXpFromString(template)
-	slo := destination.Query(nil, `./`+Roles[role]+`/md:SingleLogoutService[@Binding="`+REDIRECT+`" or @Binding="`+POST+`"]`)
+	slo := destination.Query(nil, `./`+Roles[role]+`/md:SingleLogoutService[@Binding="`+binding+`"]`)
 	if len(slo) == 0 {
 		err = goxml.NewWerror("cause:no SingleLogoutService found", "entityID:"+destination.Query1(nil, "./@entityID"))
 		return
