@@ -765,8 +765,8 @@ func checkDestinationAndACS(message, issuerMd, destinationMd *goxml.Xp, role int
 	case "AuthnRequest":
 		acs := message.Query1(nil, "@AssertionConsumerServiceURL")
 		if acs == "" {
-			acsIndex := message.Query1(nil, "@AttributeConsumingServiceIndex")
-			acs = issuerMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Index=`+strconv.Quote(acsIndex)+`]/@Location`)
+			acsIndex := message.Query1(nil, "@AssertionConsumerServiceIndex")
+			acs = issuerMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@index=`+strconv.Quote(acsIndex)+`]/@Location`)
 		}
 		if acs == "" {
 			acs = issuerMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`" and (@isDefault="true" or @isDefault!="false" or not(@isDefault))]/@Location`)
