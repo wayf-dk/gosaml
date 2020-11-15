@@ -1619,12 +1619,14 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 
 			w.Header().Set("Authorization", "Bearer "+jwt)
 
+			if relayState != "" {
 			app, err := AuthnRequestCookie.Decode("app", relayState)
 			if err != nil {
 				return err
 			}
 
 			w.Header().Set("X-Accel-Redirect", string(app))
+			}
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(jwt))
 			return err
