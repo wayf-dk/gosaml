@@ -997,13 +997,13 @@ func logoutRequest(sloinfo *SLOInfo, issuer, destination string, async bool) (re
 
 // NewLogoutResponse creates a Logout Response oon the basis of Logout request
 func NewLogoutResponse(issuer string, destination *goxml.Xp, inResponseTo string, role uint8) (response *goxml.Xp, binding string, err error) {
-    for _, binding = range []string{REDIRECT, POST} {
-        response, err = NewLogoutResponseWithBinding(issuer, destination, inResponseTo, role, binding)
-        if err == nil {
-            return
-        }
-    }
-    return
+	for _, binding = range []string{REDIRECT, POST} {
+		response, err = NewLogoutResponseWithBinding(issuer, destination, inResponseTo, role, binding)
+		if err == nil {
+			return
+		}
+	}
+	return
 }
 
 func NewLogoutResponseWithBinding(issuer string, destination *goxml.Xp, inResponseTo string, role uint8, binding string) (response *goxml.Xp, err error) {
@@ -1118,7 +1118,7 @@ func (sil *SLOInfoList) Response(response *goxml.Xp, sp string, sloSupport bool,
 }
 
 func (sil *SLOInfoList) Find(response *goxml.Xp) (slo *SLOInfo, ok bool) {
-    slo = &SLOInfo{}
+	slo = &SLOInfo{}
 	if response != nil {
 		id := response.Query1(nil, "@InResponseTo")
 		for i, sloInfo := range *sil {
@@ -1489,22 +1489,22 @@ func Jwt2saml(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 		}
 
 		requiredFields := []string{"iat", "saml:AuthnContextClassRef"}
-        for _, f := range requiredFields {
-            if _, ok := attrs[f]; !ok {
-                return fmt.Errorf("missing required field: %s", f)
-            }
-        }
+		for _, f := range requiredFields {
+			if _, ok := attrs[f]; !ok {
+				return fmt.Errorf("missing required field: %s", f)
+			}
+		}
 
 		response := NewResponse(idpMd, spMd, msg, nil)
 
 		iat := attrs["iat"]
 		delete(attrs, "iat")
-        if math.Abs(float64(time.Now().Unix())-iat.(float64)) > timeskew {
-            return fmt.Errorf("jwt timed out")
-        }
+		if math.Abs(float64(time.Now().Unix())-iat.(float64)) > timeskew {
+			return fmt.Errorf("jwt timed out")
+		}
 
-        response.QueryDashP(nil, "saml:Assertion/saml:AuthnStatement/saml:AuthnContext/saml:AuthnContextClassRef", attrs["saml:AuthnContextClassRef"].(string), nil)
-        delete(attrs, "saml:AuthnContextClassRef")
+		response.QueryDashP(nil, "saml:Assertion/saml:AuthnStatement/saml:AuthnContext/saml:AuthnContextClassRef", attrs["saml:AuthnContextClassRef"].(string), nil)
+		delete(attrs, "saml:AuthnContextClassRef")
 
 		if aas := attrs["saml:AuthenticatingAuthority"]; aas != nil {
 			for _, aa := range aas.([]interface{}) {
@@ -1542,12 +1542,12 @@ func Jwt2saml(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 		data := Formdata{Acs: response.Query1(nil, "./@Destination"), Samlresponse: base64.StdEncoding.EncodeToString(response.Dump()), RelayState: relayState}
 		return PostForm.ExecuteTemplate(w, "postForm", data)
 	case "LogoutRequest":
-        response, err := NewLogoutResponseWithBinding(idpMd.Query1(nil, `./@entityID`), spMd, msg.Query1(nil, "@ID"), SPRole, POST)
-        if err != nil {
-            return err
-        }
-        data := Formdata{Acs: response.Query1(nil, "./@Destination"), Samlresponse: base64.StdEncoding.EncodeToString(response.Dump())}
-        return PostForm.ExecuteTemplate(w, "postForm", data)
+		response, err := NewLogoutResponseWithBinding(idpMd.Query1(nil, `./@entityID`), spMd, msg.Query1(nil, "@ID"), SPRole, POST)
+		if err != nil {
+			return err
+		}
+		data := Formdata{Acs: response.Query1(nil, "./@Destination"), Samlresponse: base64.StdEncoding.EncodeToString(response.Dump())}
+		return PostForm.ExecuteTemplate(w, "postForm", data)
 	case "LogoutResponse":
 	}
 	return
@@ -1620,12 +1620,12 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 			w.Header().Set("Authorization", "Bearer "+jwt)
 
 			if relayState != "" {
-			app, err := AuthnRequestCookie.Decode("app", relayState)
-			if err != nil {
-				return err
-			}
+				app, err := AuthnRequestCookie.Decode("app", relayState)
+				if err != nil {
+					return err
+				}
 
-			w.Header().Set("X-Accel-Redirect", string(app))
+				w.Header().Set("X-Accel-Redirect", string(app))
 			}
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(jwt))
@@ -1922,16 +1922,16 @@ func (sil *SLOInfoList) Unmarshal(msg []byte) {
 	}
 	i := int((msg[0]-97)*(msg[1]-97)) + 2 // num records and number of b64 encoded string lengths
 	j := 2
-	n := int(msg[1]-97)
+	n := int(msg[1] - 97)
 	for {
 		if i == length {
 			break
 		}
 		r := SLOInfo{}
 		for nn, x := range []*string{&r.IDP, &r.SP, &r.NameID, &r.SPNameQualifier, &r.SessionIndex, &r.ID, &r.Protocol} {
-		    if nn >= n { // needed to be backwards compatible with old SLOInfo recs with no protocol field
-        		    break
-        		 }
+			if nn >= n { // needed to be backwards compatible with old SLOInfo recs with no protocol field
+				break
+			}
 			l := int(msg[j])
 			*x = string(msg[i : i+l])
 			i = i + l
