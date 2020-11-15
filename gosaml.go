@@ -1400,8 +1400,11 @@ func NewWsFedResponse(idpMd, spMd, sourceResponse *goxml.Xp) (response *goxml.Xp
 `
 	response = goxml.NewXpFromString(template)
 
-	issueInstant, _, assertionID, assertionNotOnOrAfter, _ := IDAndTiming()
-	assertionIssueInstant := issueInstant
+    assertionID :=  sourceResponse.Query1(nil, "./saml:Assertion/saml:Conditions/@NotOnOrAfter")
+	issueInstant := sourceResponse.Query1(nil, "@IssueInstant")
+    assertionNotBefore := sourceResponse.Query1(nil, "./saml:Assertion/saml:Conditions/@NotBefore")
+    assertionNotOnOrAfter := sourceResponse.Query1(nil, "./saml:Assertion/saml:Conditions/@NotOnOrAfter")
+    authnInstant :=sourceResponse.Query1(nil, "./saml:Assertion/saml:AuthnStatement/@AuthnInstant")
 
 	spEntityID := spMd.Query1(nil, `/md:EntityDescriptor/@entityID`)
 	idpEntityID := idpMd.Query1(nil, `/md:EntityDescriptor/@entityID`)
@@ -1412,11 +1415,11 @@ func NewWsFedResponse(idpMd, spMd, sourceResponse *goxml.Xp) (response *goxml.Xp
 
 	assertion := response.Query(nil, "t:RequestedSecurityToken/saml1:Assertion")[0]
 	response.QueryDashP(assertion, "@AssertionID", assertionID, nil)
-	response.QueryDashP(assertion, "@IssueInstant", assertionIssueInstant, nil)
+	response.QueryDashP(assertion, "@IssueInstant", issueInstant, nil)
 	response.QueryDashP(assertion, "@Issuer", idpEntityID, nil)
 
 	conditions := response.Query(assertion, "saml1:Conditions")[0]
-	response.QueryDashP(conditions, "@NotBefore", assertionIssueInstant, nil)
+	response.QueryDashP(conditions, "@NotBefore", assertionNotBefore, nil)
 	response.QueryDashP(conditions, "@NotOnOrAfter", assertionNotOnOrAfter, nil)
 	response.QueryDashP(conditions, "saml1:AudienceRestrictionCondition/saml1:Audience", spEntityID, nil)
 
@@ -1425,7 +1428,7 @@ func NewWsFedResponse(idpMd, spMd, sourceResponse *goxml.Xp) (response *goxml.Xp
 	nameIDFormat := sourceResponse.Query1(nameIdentifierElement, "./@Format")
 
 	authStmt := response.Query(assertion, "saml1:AuthenticationStatement")[0]
-	response.QueryDashP(authStmt, "@AuthenticationInstant", assertionIssueInstant, nil)
+	response.QueryDashP(authStmt, "@AuthenticationInstant", authnInstant, nil)
 
 	for _, stmt := range response.Query(assertion, ".//saml1:Subject") {
 		response.QueryDashP(stmt, "saml1:NameIdentifier", nameIdentifier, nil)
