@@ -1400,7 +1400,7 @@ func NewWsFedResponse(idpMd, spMd, sourceResponse *goxml.Xp) (response *goxml.Xp
 `
 	response = goxml.NewXpFromString(template)
 
-    assertionID :=  sourceResponse.Query1(nil, "./saml:Assertion/saml:Conditions/@NotOnOrAfter")
+    assertionID :=  sourceResponse.Query1(nil, "./saml:Assertion/@ID")
 	issueInstant := sourceResponse.Query1(nil, "@IssueInstant")
     assertionNotBefore := sourceResponse.Query1(nil, "./saml:Assertion/saml:Conditions/@NotBefore")
     assertionNotOnOrAfter := sourceResponse.Query1(nil, "./saml:Assertion/saml:Conditions/@NotOnOrAfter")
