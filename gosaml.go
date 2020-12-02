@@ -933,7 +933,7 @@ func VerifyTiming(xp *goxml.Xp) (verifiedXp *goxml.Xp, err error) {
 func IDAndTiming() (issueInstant, id, assertionID, assertionNotOnOrAfter, sessionNotOnOrAfter string) {
 	now := TestTime
 	if now.IsZero() {
-		now = time.Now()
+		now = time.Now().UTC()
 	}
 	issueInstant = now.Format(XsDateTime)
 	assertionNotOnOrAfter = now.Add(4 * time.Minute).Format(XsDateTime)
