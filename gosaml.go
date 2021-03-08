@@ -114,7 +114,7 @@ type (
 	Formdata struct {
 		AcsURL                         template.URL
 		Acs, Samlresponse, Samlrequest string
-		RelayState                     string
+		RelayState, SigAlg, Signature  string
 		WsFed                          bool
 		SLOStatus                      string
 		Ard                            template.JS
@@ -589,11 +589,12 @@ func CheckSAMLMessage(r *http.Request, xp, issuerMd, destinationMd *goxml.Xp, ro
 
 	var usedBinding string
 	validBinding := false
+	postSignature := r.PostFormValue("Signature") != "" // only from POST - used to check for SimpleSign
 
 findbinding:
 	for _, usedBinding = range bindings[r.Method] {
 		for _, v := range destinationMd.QueryMulti(nil, `./`+Roles[role]+`/`+protoChecks[protocol].service+`[@Location=`+strconv.Quote(location)+`]/@Binding`) {
-			validBinding = v == usedBinding
+			validBinding = v == usedBinding && ((usedBinding == SIMPLESIGN) == postSignature)
 			if validBinding {
 				break findbinding
 			}
@@ -617,120 +618,71 @@ findbinding:
 		return
 	}
 
-	if usedBinding == REDIRECT {
-		if _, ok := r.Form["SigAlg"]; !ok && protoChecks[protocol].minSignatures <= 0 {
-			return xp, nil
-		}
-		rawValues := parseQueryRaw(r.URL.RawQuery)
-		query := ""
-		delim := ""
-		for _, key := range []string{"SAMLRequest", "SAMLResponse", "RelayState", "SigAlg"} {
-			if rw, ok := rawValues[key]; ok {
-				query += delim + key + "=" + rw[0]
-				delim = "&"
+	switch usedBinding {
+	case REDIRECT, SIMPLESIGN:
+		{
+			if r.Form.Get("SigAlg") == "" && protoChecks[protocol].minSignatures <= 0 {
+				return xp, nil
 			}
+			params := r.Form
+			if usedBinding == REDIRECT {
+				params = parseQueryRaw(r.URL.RawQuery)
+			}
+			if err = checkRedirectOrSimpleSign(params, certificates, usedBinding == SIMPLESIGN); err != nil {
+				return
+			}
+			validatedMessage = xp
 		}
 
-		sigAlg := r.Form.Get("SigAlg") // needed as decoded value
-		if _, ok := goxml.Algos[sigAlg]; !ok {
-			return nil, goxml.NewWerror("unsupported SigAlg", sigAlg)
-		}
-		digest := goxml.Hash(goxml.Algos[sigAlg].Algo, query)
-		signature, _ := base64.StdEncoding.DecodeString(r.Form.Get("Signature"))
-		verified := 0
-		signerrors := []error{}
-		for _, certificate := range certificates {
-			var pub *rsa.PublicKey
-			_, pub, err = PublicKeyInfo(certificate)
-
-			if err != nil {
-				return nil, goxml.Wrap(err)
-			}
-			signerror := rsa.VerifyPKCS1v15(pub, goxml.Algos[sigAlg].Algo, digest[:], signature)
-			if signerror != nil {
-				signerrors = append(signerrors, signerror)
-			} else {
-				verified++
-				break
-			}
-		}
-		if verified != 1 {
-			errorstring := ""
-			delim := ""
-			for _, e := range signerrors {
-				errorstring += e.Error() + delim
-				delim = ", "
-			}
-			err = goxml.NewWerror("cause:unable to validate signature", errorstring)
-			return
-		}
-		validatedMessage = xp
-	}
-
-	if usedBinding == POST {
-		if query := protoChecks[protocol].signatureElements[0]; query != "" {
-			signatures := xp.Query(nil, query)
-			if len(signatures) == 1 {
-				if err = VerifySign(xp, certificates, signatures[0]); err != nil {
-					return
-				}
-				validatedMessage = xp
-			}
-		}
-		if protocol == "Response" {
-			encryptedAssertions := xp.Query(nil, "/samlp:Response/saml:EncryptedAssertion")
-			if len(encryptedAssertions) == 1 {
-				privatekey, _, err := GetPrivateKey(destinationMd, "md:SPSSODescriptor"+EncryptionCertQuery)
-				if err != nil {
-					return nil, goxml.Wrap(err)
-				}
-
-				encryptedAssertion := encryptedAssertions[0]
-				err = xp.Decrypt(encryptedAssertion.(types.Element), privatekey, []byte("-"))
-				if err != nil {
-					err = goxml.Wrap(err)
-					err = goxml.PublicError(err.(goxml.Werror), "cause:encryption error") // hide the real problem from attacker
-					return nil, err
-				}
-
-				// repeat schemacheck
-				_, err = xp.SchemaValidate(Config.SamlSchema)
-				if err != nil {
-					err = goxml.Wrap(err)
-					err = goxml.PublicError(err.(goxml.Werror), "cause:encryption error") // hide the real problem from attacker
-					return nil, err
-				}
-			} else if len(encryptedAssertions) != 0 {
-				err = fmt.Errorf("only 1 EncryptedAssertion allowed, %d found", len(encryptedAssertions))
-			}
-		}
-		// Only Responses with an Assertion will have a second signatureElements query
-		if query := protoChecks[protocol].signatureElements[1]; query != "" {
-			signatures := xp.Query(nil, query)
-			if len(signatures) == 1 {
-				if err = VerifySign(xp, certificates, signatures[0]); err != nil {
-					return nil, goxml.Wrap(err, "err:unable to validate signature")
-				}
-				validatedMessage = xp
-				// we trust the whole message if the first signature was validated
-
-				/*
-					if validatedMessage == nil {
-						// replace with the validated assertion
-						validatedMessage = goxml.NewXp(nil)
-						shallowresponse := validatedMessage.CopyNode(xp.Query(nil, "/samlp:Response[1]")[0], 2)
-						validatedMessage.Doc.SetDocumentElement(shallowresponse)
-						validatedMessage.QueryDashP(nil, "./saml:Issuer", xp.Query1(nil, "/samlp:Response/saml:Issuer"), nil)
-						validatedMessage.QueryDashP(nil, "./samlp:Status/samlp:StatusCode/@Value", xp.Query1(nil, "/samlp:Response/samlp:Status/samlp:StatusCode/@Value"), nil)
-						shallowresponse.AddChild(validatedMessage.CopyNode(xp.Query(nil, "/samlp:Response[1]/saml:Assertion[1]")[0], 1))
+	case POST:
+		{
+			if query := protoChecks[protocol].signatureElements[0]; query != "" {
+				signatures := xp.Query(nil, query)
+				if len(signatures) == 1 {
+					if err = VerifySign(xp, certificates, signatures[0]); err != nil {
+						return
 					}
-				*/
+					validatedMessage = xp
+				}
+			}
+			if protocol == "Response" {
+				encryptedAssertions := xp.Query(nil, "/samlp:Response/saml:EncryptedAssertion")
+				if len(encryptedAssertions) == 1 {
+					privatekey, _, err := GetPrivateKey(destinationMd, "md:SPSSODescriptor"+EncryptionCertQuery)
+					if err != nil {
+						return nil, goxml.Wrap(err)
+					}
+
+					encryptedAssertion := encryptedAssertions[0]
+					err = xp.Decrypt(encryptedAssertion.(types.Element), privatekey, []byte("-"))
+					if err != nil {
+						err = goxml.Wrap(err)
+						err = goxml.PublicError(err.(goxml.Werror), "cause:encryption error") // hide the real problem from attacker
+						return nil, err
+					}
+
+					// repeat schemacheck
+					_, err = xp.SchemaValidate()
+					if err != nil {
+						err = goxml.Wrap(err)
+						err = goxml.PublicError(err.(goxml.Werror), "cause:encryption error") // hide the real problem from attacker
+						return nil, err
+					}
+				} else if len(encryptedAssertions) != 0 {
+					err = fmt.Errorf("only 1 EncryptedAssertion allowed, %d found", len(encryptedAssertions))
+				}
+			}
+			// Only Responses with an Assertion will have a second signatureElements query
+			if query := protoChecks[protocol].signatureElements[1]; query != "" {
+				signatures := xp.Query(nil, query)
+				if len(signatures) == 1 {
+					if err = VerifySign(xp, certificates, signatures[0]); err != nil {
+						return nil, goxml.Wrap(err, "err:unable to validate signature")
+					}
+					validatedMessage = xp
+				}
 			}
 		}
-	}
-
-	if usedBinding == SIMPLESIGN {
-		return nil, goxml.NewWerror("err:SimpleSign not yet supported")
 	}
 
 	// if we don't have a validatedResponse by now we are toast
@@ -748,6 +700,59 @@ findbinding:
 	return
 }
 
+func checkRedirectOrSimpleSign(params url.Values, certificates []string, forSimpleSign bool) (err error) {
+	signed, delim := "", ""
+
+	for _, key := range []string{"SAMLRequest", "SAMLResponse", "RelayState", "SigAlg"} {
+		if rw, ok := params[key]; ok {
+		    val := rw[0]
+			if forSimpleSign && (key == "SAMLRequest" || key == "SAMLResponse") {
+				p, _ := base64.StdEncoding.DecodeString(val)
+				val = string(p)
+
+			}
+			signed += delim + key + "=" + val
+			delim = "&"
+		}
+	}
+
+	signature, _ := base64.RawURLEncoding.DecodeString(params["Signature"][0])
+	sigAlg := params["SigAlg"][0]
+
+	if _, ok := goxml.Algos[sigAlg]; !ok {
+		return goxml.NewWerror("unsupported SigAlg", sigAlg)
+	}
+	digest := goxml.Hash(goxml.Algos[sigAlg].Algo, signed)
+	verified := 0
+	signerrors := []error{}
+	for _, certificate := range certificates {
+		var pub *rsa.PublicKey
+		_, pub, err = PublicKeyInfo(certificate)
+
+		if err != nil {
+			return goxml.Wrap(err)
+		}
+		signerror := rsa.VerifyPKCS1v15(pub, goxml.Algos[sigAlg].Algo, digest[:], signature)
+		if signerror != nil {
+			signerrors = append(signerrors, signerror)
+		} else {
+			verified++
+			break
+		}
+	}
+	if verified != 1 {
+		errorstring := ""
+		delim := ""
+		for _, e := range signerrors {
+			errorstring += e.Error() + delim
+			delim = ", "
+		}
+		err = goxml.NewWerror("cause:unable to validate signature", errorstring)
+		return
+	}
+	return
+}
+
 // checkDestinationAndACS checks for valid destination
 // Returns Error Otherwise
 func checkDestinationAndACS(message, issuerMd, destinationMd *goxml.Xp, role int, location string) (checkedMessage *goxml.Xp, err error) {
@@ -757,24 +762,25 @@ func checkDestinationAndACS(message, issuerMd, destinationMd *goxml.Xp, role int
 	protocol := message.QueryString(nil, "local-name(/*)")
 	switch protocol {
 	case "AuthnRequest":
-		acs := message.Query1(nil, "@AssertionConsumerServiceURL")
+		acs := message.Query1(nil, "@AssertionConsumerServiceURL") // either index or ACSURL + Binding
+		binding := message.Query1(nil, "@ProtocolBinding")
 		if acs == "" {
 			acsIndex := message.Query1(nil, "@AssertionConsumerServiceIndex")
 			acs = issuerMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@index=`+strconv.Quote(acsIndex)+`]/@Location`)
 		}
 		if acs == "" {
-			acs = issuerMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`" and (@isDefault="true" or @isDefault!="false" or not(@isDefault))]/@Location`)
+			acs = issuerMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding=`+strconv.Quote(binding)+` and (@isDefault="true" or @isDefault!="false" or not(@isDefault))]/@Location`)
 		}
 
-		checkedAcs := issuerMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`" and @Location=`+strconv.Quote(acs)+`]/@index`)
+		checkedAcs := issuerMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding=`+strconv.Quote(binding)+` and @Location=`+strconv.Quote(acs)+`]/@index`)
 		if checkedAcs == "" {
-			return nil, goxml.Wrap(ErrorACS, "acs:"+acs, "acsindex:"+acsIndex)
+			return nil, goxml.Wrap(ErrorACS, "acs:"+acs, "acsindex:"+acsIndex, "binding:"+binding)
 		}
 
 		// we now have a validated AssertionConsumerService - and Binding - let's put them into the request
 		message.QueryDashP(nil, "@AssertionConsumerServiceURL", acs, nil)
-		message.QueryDashP(nil, "@ProtocolBinding", POST, nil)
-		message.QueryDashP(nil, "@AssertionConsumerServiceIndex", checkedAcs, nil)
+		message.QueryDashP(nil, "@ProtocolBinding", binding, nil)
+		message.QueryDashP(nil, "@AssertionConsumerServiceIndex", checkedAcs, nil) // used in the compressed request - we will be able to get Binding and ACSURL from the index
 
 		checkedDest = destinationMd.Query1(nil, `./md:IDPSSODescriptor/md:SingleSignOnService[@Binding="`+REDIRECT+`" and @Location=`+strconv.Quote(location)+`]/@Location`)
 		if checkedDest == "" {
@@ -1154,7 +1160,6 @@ func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp, signing
 	if err != nil {
 		return
 	}
-
 	element := response.Query(nil, elementQuery)
 	if len(element) != 1 {
 		err = errors.New("did not find exactly one element to sign")
@@ -1182,9 +1187,7 @@ func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp, signing
 func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDPID string, idPList []string, acs string, wantRequesterID bool, spIndex, hubBirkIndex uint8) (request *goxml.Xp, sRequest SamlRequest, err error) {
 	template := `<samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
                     xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
-                    Version="2.0"
-                    ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
-                    >
+                    Version="2.0">
 <saml:Issuer>Issuer</saml:Issuer>
 <samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" AllowCreate="true" />
 </samlp:AuthnRequest>`
@@ -1195,11 +1198,22 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDPID string
 	request.QueryDashP(nil, "./@ID", msgID, nil)
 	request.QueryDashP(nil, "./@IssueInstant", issueInstant, nil)
 	request.QueryDashP(nil, "./@Destination", idpMd.Query1(nil, `./md:IDPSSODescriptor/md:SingleSignOnService[@Binding="`+REDIRECT+`"]/@Location`), nil)
-	acses := spMd.QueryMulti(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`"]/@Location`)
-	if acs == "" {
-		acs = acses[0]
+    var protocolBinding string
+	if acs != "" {
+        protocolBinding = spMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Location=`+strconv.Quote(acs)+`]/@Binding`)
+	} else {
+    	// acs = spMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+SIMPLESIGN+`"]/@Location`)
+        // protocolBinding = SIMPLESIGN
+    	if acs == "" {
+        	acs = spMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`"]/@Location`)
+   	        protocolBinding = POST
+    	}
 	}
-	acsIndex := spMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`" and @Location=`+strconv.Quote(acs)+`]/@index`)
+	if protocolBinding == "" {
+		err = goxml.NewWerror("cause:no @Binding found for acs", "acs:"+acs)
+		return
+    }
+    request.QueryDashP(nil, "./@ProtocolBinding", protocolBinding, nil)
 	request.QueryDashP(nil, "./@AssertionConsumerServiceURL", acs, nil)
 	issuer = spMd.Query1(nil, `./@entityID`) // we save the issueing SP in the sRequest for edge request - will be overwritten later if an originalRequest is given
 	request.QueryDashP(nil, "./saml:Issuer", issuer, nil)
@@ -1210,6 +1224,7 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDPID string
 	}
 	request.QueryDashP(nil, "./samlp:NameIDPolicy/@Format", spMd.Query1(nil, `./md:SPSSODescriptor/md:NameIDFormat`), nil)
 
+    acsIndex := ""
 	if originalRequest != nil { // already checked for supported nameidformat
 		if originalRequest.QueryXMLBool(nil, "./@ForceAuthn") {
 			request.QueryDashP(nil, "./@ForceAuthn", "true", nil)
@@ -1344,6 +1359,7 @@ func request2samlRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 		samlrequest.QueryDashP(nil, "./@IssueInstant", issueInstant, nil)
 		samlrequest.QueryDashP(nil, "./@Destination", "https://"+r.Host+r.URL.Path, nil)
 		samlrequest.QueryDashP(nil, "./@AssertionConsumerServiceURL", acs, nil)
+		samlrequest.QueryDashP(nil, "./@ProtocolBinding", POST, nil)
 		samlrequest.QueryDashP(nil, "./saml:Issuer", issuer, nil)
 		protocol := samlrequest.QueryDashP(nil, "./samlp:Extensions/wayf:protocol", "", nil)
 		if r.Form.Get("wa") == "wsignin1.0" {
@@ -1394,11 +1410,11 @@ func NewWsFedResponse(idpMd, spMd, sourceResponse *goxml.Xp) (response *goxml.Xp
 `
 	response = goxml.NewXpFromString(template)
 
-    assertionID :=  sourceResponse.Query1(nil, "./saml:Assertion/@ID")
+	assertionID := sourceResponse.Query1(nil, "./saml:Assertion/@ID")
 	issueInstant := sourceResponse.Query1(nil, "@IssueInstant")
-    assertionNotBefore := sourceResponse.Query1(nil, "./saml:Assertion/saml:Conditions/@NotBefore")
-    assertionNotOnOrAfter := sourceResponse.Query1(nil, "./saml:Assertion/saml:Conditions/@NotOnOrAfter")
-    authnInstant :=sourceResponse.Query1(nil, "./saml:Assertion/saml:AuthnStatement/@AuthnInstant")
+	assertionNotBefore := sourceResponse.Query1(nil, "./saml:Assertion/saml:Conditions/@NotBefore")
+	assertionNotOnOrAfter := sourceResponse.Query1(nil, "./saml:Assertion/saml:Conditions/@NotOnOrAfter")
+	authnInstant := sourceResponse.Query1(nil, "./saml:Assertion/saml:AuthnStatement/@AuthnInstant")
 
 	spEntityID := spMd.Query1(nil, `/md:EntityDescriptor/@entityID`)
 	idpEntityID := idpMd.Query1(nil, `/md:EntityDescriptor/@entityID`)
