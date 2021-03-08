@@ -484,7 +484,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSets, destinationMdSets MdSets, role
 
 	DumpFileIfTracing(r, tmpXp)
 	//log.Println("stack", goxml.New().Stack(1))
-	errs, err := tmpXp.SchemaValidate(Config.SamlSchema)
+	errs, err := tmpXp.SchemaValidate()
 	if err != nil {
 		dump("raw", bmsg)
 		err = goxml.Wrap(err)
