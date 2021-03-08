@@ -22,6 +22,7 @@ import (
 	"hash"
 	"html/template"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"log"
 	"math"
@@ -36,6 +37,7 @@ import (
 
 	"github.com/wayf-dk/go-libxml2/types"
 	"github.com/wayf-dk/goxml"
+	"x.config"
 )
 
 var (
@@ -99,12 +101,6 @@ type (
 	// MdSets slice of Md sets - for searching one MD at at time and remembering the index
 	MdSets []Md
 
-	// Conf refers to Configuration values for Schema and Certificates
-	Conf struct {
-		SamlSchema string
-		CertPath   string
-		LogPath    string
-	}
 	// SLOInfo refers to Single Logout information
 	SLOInfo struct {
 		IDP, SP, NameID, SPNameQualifier, SessionIndex, ID, Protocol string
@@ -142,10 +138,8 @@ var (
 	TestAssertionID string
 	// Roles refers to defining roles for SPs and IDPs
 	Roles = []string{"md:IDPSSODescriptor", "md:SPSSODescriptor"}
-	// Config initialisation
-	Config = Conf{}
 	// ErrorACS refers error information
-	ErrorACS = errors.New("invalid AsssertionConsumerService or AsssertionConsumerServiceIndex")
+	ErrorACS = errors.New("AsssertionConsumerService, AsssertionConsumerServiceIndex, ProtocolBinding combination not found in metadata")
 	// NameIDList list of supported nameid formats
 	NameIDList = []string{"", Transient, Persistent, X509, Email, Unspecified}
 	// NameIDMap refers to mapping the nameid formats
@@ -236,7 +230,7 @@ func GetPrivateKey(md *goxml.Xp, path string) (privatekey []byte, cert string, e
 		return
 	}
 
-	privatekey, err = ioutil.ReadFile(Config.CertPath + keyname + ".key")
+	privatekey, err = fs.ReadFile(config.PrivateKeys, keyname + ".key")
 	if err != nil {
 		err = goxml.Wrap(err)
 		return
