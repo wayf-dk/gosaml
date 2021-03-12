@@ -484,11 +484,10 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSets, destinationMdSets MdSets, role
 
 	DumpFileIfTracing(r, tmpXp)
 	//log.Println("stack", goxml.New().Stack(1))
-	errs, err := tmpXp.SchemaValidate()
+	err = tmpXp.SchemaValidate()
 	if err != nil {
 		dump("raw", bmsg)
 		err = goxml.Wrap(err)
-		fmt.Println(errs)
 		return
 	}
 
@@ -662,7 +661,7 @@ findbinding:
 					}
 
 					// repeat schemacheck
-					_, err = xp.SchemaValidate()
+					err = xp.SchemaValidate()
 					if err != nil {
 						err = goxml.Wrap(err)
 						err = goxml.PublicError(err.(goxml.Werror), "cause:encryption error") // hide the real problem from attacker
