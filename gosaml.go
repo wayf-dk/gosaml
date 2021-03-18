@@ -515,34 +515,35 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSets, destinationMdSets MdSets, role
 
 	key := location
 
-	destination := tmpXp.Query1(nil, "./@Destination")
-	if destination == "" {
-		err = fmt.Errorf("no destination found in SAMLRequest/SAMLResponse")
-		return
-	}
-
 	destinationMd, destinationIndex, err = FindInMetadataSets(destinationMdSets, key)
 	if err != nil {
 		return
 	}
 
-	if destination != location && !strings.HasPrefix(destination, location+"?") { // ignore params ...
-		err = fmt.Errorf("destination: %s is not here, here is %s", destination, location)
-		return
-	}
-
-	xp, err = CheckSAMLMessage(r, tmpXp, issuerMd, destinationMd, role, destination, xtraCerts)
+	xp, signed, err := CheckSAMLMessage(r, tmpXp, issuerMd, destinationMd, role, location, xtraCerts)
 	if err != nil {
 		err = goxml.Wrap(err)
 		return
 	}
 
-	xp, err = checkDestinationAndACS(xp, issuerMd, destinationMd, role, destination)
+	if signed {
+		destination := xp.Query1(nil, "./@Destination")
+		if destination == "" {
+			err = fmt.Errorf("no destination found in SAMLRequest/SAMLResponse")
+			return
+		}
+		if destination != location && !strings.HasPrefix(destination, location+"?") { // ignore params ...
+			err = fmt.Errorf("destination: %s is not here, here is %s", destination, location)
+			return
+		}
+	}
+
+	xp, err = checkDestinationAndACS(xp, issuerMd, destinationMd, role, location)
 	if err != nil {
 		return
 	}
 
-	xp, err = VerifyTiming(xp)
+	xp, err = VerifyTiming(xp, signed)
 	if err != nil {
 		return
 	}
@@ -551,7 +552,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSets, destinationMdSets MdSets, role
 
 // CheckSAMLMessage checks for Authentication Requests, Reponses and Logout Requests
 // Checks for invalid Bindings. Check for Certificates. Verify Signatures
-func CheckSAMLMessage(r *http.Request, xp, issuerMd, destinationMd *goxml.Xp, role int, location string, xtraCerts []string) (validatedMessage *goxml.Xp, err error) {
+func CheckSAMLMessage(r *http.Request, xp, issuerMd, destinationMd *goxml.Xp, role int, location string, xtraCerts []string) (validatedMessage *goxml.Xp, signed bool, err error) {
 	type protoCheckInfoStruct struct {
 		minSignatures     int
 		service           string
@@ -606,7 +607,7 @@ findbinding:
 	}
 
 	if protoChecks[protocol].minSignatures <= 0 {
-		return xp, nil
+		return xp, false, nil
 	}
 
 	certificates := issuerMd.QueryMulti(nil, `./`+Roles[(role+1)%2]+SigningCertQuery) // the issuer's role
@@ -621,7 +622,7 @@ findbinding:
 	case REDIRECT, SIMPLESIGN:
 		{
 			if r.Form.Get("SigAlg") == "" && protoChecks[protocol].minSignatures <= 0 {
-				return xp, nil
+				return xp, false, nil
 			}
 			params := r.Form
 			if usedBinding == REDIRECT {
@@ -649,7 +650,7 @@ findbinding:
 				if len(encryptedAssertions) == 1 {
 					privatekey, _, err := GetPrivateKey(destinationMd, "md:SPSSODescriptor"+EncryptionCertQuery)
 					if err != nil {
-						return nil, goxml.Wrap(err)
+						return nil, false, goxml.Wrap(err)
 					}
 
 					encryptedAssertion := encryptedAssertions[0]
@@ -657,7 +658,7 @@ findbinding:
 					if err != nil {
 						err = goxml.Wrap(err)
 						err = goxml.PublicError(err.(goxml.Werror), "cause:encryption error") // hide the real problem from attacker
-						return nil, err
+						return nil, false, err
 					}
 
 					// repeat schemacheck
@@ -665,7 +666,7 @@ findbinding:
 					if err != nil {
 						err = goxml.Wrap(err)
 						err = goxml.PublicError(err.(goxml.Werror), "cause:encryption error") // hide the real problem from attacker
-						return nil, err
+						return nil, false, err
 					}
 				} else if len(encryptedAssertions) != 0 {
 					err = fmt.Errorf("only 1 EncryptedAssertion allowed, %d found", len(encryptedAssertions))
@@ -676,7 +677,7 @@ findbinding:
 				signatures := xp.Query(nil, query)
 				if len(signatures) == 1 {
 					if err = VerifySign(xp, certificates, signatures[0]); err != nil {
-						return nil, goxml.Wrap(err, "err:unable to validate signature")
+						return nil, false, goxml.Wrap(err, "err:unable to validate signature")
 					}
 					validatedMessage = xp
 				}
@@ -688,14 +689,15 @@ findbinding:
 	if validatedMessage == nil {
 		err = goxml.NewWerror("err:no signatures found")
 		err = goxml.PublicError(err.(goxml.Werror), "cause:encryption error") // hide the real problem from attacker
-		return nil, err
+		return nil, false, err
 	}
 
 	for _, check := range protoChecks[protocol].checks {
 		if !validatedMessage.QueryBool(nil, check) {
-			return nil, goxml.NewWerror("cause: check failed", "check: "+check)
+			return nil, false, goxml.NewWerror("cause: check failed", "check: "+check)
 		}
 	}
+	signed = validatedMessage != nil
 	return
 }
 
@@ -704,7 +706,7 @@ func checkRedirectOrSimpleSign(params url.Values, certificates []string, forSimp
 
 	for _, key := range []string{"SAMLRequest", "SAMLResponse", "RelayState", "SigAlg"} {
 		if rw, ok := params[key]; ok {
-		    val := rw[0]
+			val := rw[0]
 			if forSimpleSign && (key == "SAMLRequest" || key == "SAMLResponse") {
 				p, _ := base64.StdEncoding.DecodeString(val)
 				val = string(p)
@@ -866,7 +868,7 @@ func VerifySign(xp *goxml.Xp, certificates []string, signature types.Node) (err 
 }
 
 // VerifyTiming verify the presence and value of timestamps
-func VerifyTiming(xp *goxml.Xp) (verifiedXp *goxml.Xp, err error) {
+func VerifyTiming(xp *goxml.Xp, signed bool) (verifiedXp *goxml.Xp, err error) {
 	type timing struct {
 		required     bool
 		notonorafter bool
@@ -886,7 +888,7 @@ func VerifyTiming(xp *goxml.Xp) (verifiedXp *goxml.Xp, err error) {
 	switch protocol {
 	case "AuthnRequest", "LogoutRequest", "LogoutResponse":
 		checks = map[string]timing{
-			"./@IssueInstant": {true, true, true},
+			"./@IssueInstant": {signed, signed, signed},
 		}
 	case "Response":
 		checks = map[string]timing{
@@ -1197,22 +1199,22 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDPID string
 	request.QueryDashP(nil, "./@ID", msgID, nil)
 	request.QueryDashP(nil, "./@IssueInstant", issueInstant, nil)
 	request.QueryDashP(nil, "./@Destination", idpMd.Query1(nil, `./md:IDPSSODescriptor/md:SingleSignOnService[@Binding="`+REDIRECT+`"]/@Location`), nil)
-    var protocolBinding string
+	var protocolBinding string
 	if acs != "" {
-        protocolBinding = spMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Location=`+strconv.Quote(acs)+`]/@Binding`)
+		protocolBinding = spMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Location=`+strconv.Quote(acs)+`]/@Binding`)
 	} else {
-    	// acs = spMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+SIMPLESIGN+`"]/@Location`)
-        // protocolBinding = SIMPLESIGN
-    	if acs == "" {
-        	acs = spMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`"]/@Location`)
-   	        protocolBinding = POST
-    	}
+		// acs = spMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+SIMPLESIGN+`"]/@Location`)
+		// protocolBinding = SIMPLESIGN
+		if acs == "" {
+			acs = spMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`"]/@Location`)
+			protocolBinding = POST
+		}
 	}
 	if protocolBinding == "" {
 		err = goxml.NewWerror("cause:no @Binding found for acs", "acs:"+acs)
 		return
-    }
-    request.QueryDashP(nil, "./@ProtocolBinding", protocolBinding, nil)
+	}
+	request.QueryDashP(nil, "./@ProtocolBinding", protocolBinding, nil)
 	request.QueryDashP(nil, "./@AssertionConsumerServiceURL", acs, nil)
 	issuer = spMd.Query1(nil, `./@entityID`) // we save the issueing SP in the sRequest for edge request - will be overwritten later if an originalRequest is given
 	request.QueryDashP(nil, "./saml:Issuer", issuer, nil)
@@ -1223,7 +1225,7 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDPID string
 	}
 	request.QueryDashP(nil, "./samlp:NameIDPolicy/@Format", spMd.Query1(nil, `./md:SPSSODescriptor/md:NameIDFormat`), nil)
 
-    acsIndex := ""
+	acsIndex := ""
 	if originalRequest != nil { // already checked for supported nameidformat
 		if originalRequest.QueryXMLBool(nil, "./@ForceAuthn") {
 			request.QueryDashP(nil, "./@ForceAuthn", "true", nil)
