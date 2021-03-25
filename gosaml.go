@@ -1202,7 +1202,11 @@ func (sil *SLOInfoList) Find(response *goxml.Xp) (slo *SLOInfo, ok bool) {
 func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp, signingMethod string, signFor int) (err error) {
 	privatekey, cert, err := GetPrivateKeyByMethod(md, "md:IDPSSODescriptor"+SigningCertQuery, config.CryptoMethods[signingMethod].Type)
 	if err != nil {
-		return
+	    signingMethod = config.DefaultCryptoMethod // try again with default signingMethod
+	    privatekey, cert, err = GetPrivateKeyByMethod(md, "md:IDPSSODescriptor"+SigningCertQuery, config.CryptoMethods[signingMethod].Type)
+	    if err != nil {
+    		return
+    	}
 	}
 	element := response.Query(nil, elementQuery)
 	if len(element) != 1 {
