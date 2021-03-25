@@ -256,6 +256,10 @@ func GetPrivateKey(md *goxml.Xp, path string) (privatekey []byte, cert string, e
 func GetPrivateKeyByMethod(md *goxml.Xp, path string, keyType x509.PublicKeyAlgorithm) (privatekey []byte, cert string, err error) {
 	certs := md.QueryMulti(nil, path)
 	names, crts, _, _ := PublicKeyInfoByMethod(certs, keyType)
+	if len(names) == 0 {
+	    err = fmt.Errorf("No keys found: %d", keyType)
+	    return
+	}
 	privatekey, err = getPrivateKeyByName(names[0])
 	cert = crts[0]
 	return
