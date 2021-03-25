@@ -1757,8 +1757,11 @@ func JwtSign(payload []byte, privatekey []byte, alg string) (jwt, atHash string,
 	payload = append([]byte(header), base64.RawURLEncoding.EncodeToString(payload)...)
 	var dgst hash.Hash
 	var signature []byte
-	// EdDSA
 	switch alg {
+	case "EdDSA":
+		dgst = sha512.New()
+		dg := sha512.Sum512(payload)
+		signature, err = goxml.Sign(dg[:], privatekey, []byte("-"), "ed25519")
 	case "RS256":
 		dgst = sha256.New()
 		dg := sha256.Sum256(payload)
