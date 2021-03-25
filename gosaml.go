@@ -1647,7 +1647,7 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 		case "Response":
 
 			if err = CheckDigestAndSignatureAlgorithms(response); err != nil {
-				return err
+				// return err
 			}
 			if _, err = requestHandler(response, idpMd, spMd); err != nil {
 				return err
