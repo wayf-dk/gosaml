@@ -556,9 +556,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSets, destinationMdSets MdSets, role
 		return
 	}
 
-	key := location
-
-	destinationMd, destinationIndex, err = FindInMetadataSets(destinationMdSets, key)
+	destinationMd, destinationIndex, err = FindInMetadataSets(destinationMdSets, location)
 	if err != nil {
 		return
 	}
