@@ -808,6 +808,9 @@ func checkDestinationAndACS(message, issuerMd, destinationMd *goxml.Xp, role int
 	case "AuthnRequest":
 		acs := message.Query1(nil, "@AssertionConsumerServiceURL") // either index or ACSURL + Binding
 		binding := message.Query1(nil, "@ProtocolBinding")
+		if binding == "" {
+		    binding = POST
+		}
 		if acs == "" {
 			acsIndex := message.Query1(nil, "@AssertionConsumerServiceIndex")
 			acs = issuerMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@index=`+strconv.Quote(acsIndex)+`]/@Location`)
