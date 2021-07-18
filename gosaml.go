@@ -567,7 +567,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSets, destinationMdSets MdSets, role
 		return
 	}
 
-	if signed {
+	if signed { // Bindings 3.4.5.2 Security Considerations and 3.5.5.2 Security Considerations
 		destination := xp.Query1(nil, "./@Destination")
 		if destination == "" {
 			err = fmt.Errorf("no destination found in SAMLRequest/SAMLResponse")
@@ -932,7 +932,7 @@ func VerifyTiming(xp *goxml.Xp, signed bool) (verifiedXp *goxml.Xp, err error) {
 	switch protocol {
 	case "AuthnRequest", "LogoutRequest", "LogoutResponse":
 		checks = map[string]timing{
-			"./@IssueInstant": {signed, signed, signed},
+			"./@IssueInstant": {signed, signed, signed}, // used signed here because Mind The Gab requests uses client side timing and we can not count on that being precise
 		}
 	case "Response":
 		checks = map[string]timing{
