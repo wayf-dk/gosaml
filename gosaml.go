@@ -819,7 +819,10 @@ func checkDestinationAndACS(message, issuerMd, destinationMd *goxml.Xp, role int
 
 		checkedAcs := issuerMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding=`+strconv.Quote(binding)+` and @Location=`+strconv.Quote(acs)+`]/@index`)
 		if checkedAcs == "" {
-			return nil, goxml.Wrap(ErrorACS, "acs:"+acs, "acsindex:"+acsIndex, "binding:"+binding)
+    		checkedAcs := issuerMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding=`+strconv.Quote(POST)+` and @Location=`+strconv.Quote(acs)+`]/@index`)
+    		if checkedAcs == "" {
+    			return nil, goxml.Wrap(ErrorACS, "acs:"+acs, "acsindex:"+acsIndex, "binding:"+binding)
+			}
 		}
 
 		// we now have a validated AssertionConsumerService - and Binding - let's put them into the request
