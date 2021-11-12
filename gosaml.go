@@ -1291,6 +1291,13 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDPID string
 		nameIDFormat = originalRequest.Query1(nil, "./samlp:NameIDPolicy/@Format")
 		protocol = originalRequest.Query1(nil, "./samlp:Extensions/wayf:protocol")
 		acsIndex = originalRequest.Query1(nil, "./@AssertionConsumerServiceIndex")
+
+		for _, attr := range []string{"./@ForceAuthn", "./@IsPassive"} {
+		    if val := originalRequest.Query1(nil, attr); val != "" {
+    			request.QueryDashP(nil, attr, val, nil)
+    		}
+		}
+
 		if wantRequesterID {
 			request.QueryDashP(nil, "./samlp:Scoping/samlp:RequesterID", issuer, nil)
 			if virtualIDPID != idpMd.Query1(nil, "@entityID") { // add virtual idp to wayf extension if mapped
