@@ -1271,21 +1271,10 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDPID string
 	request.QueryDashP(nil, "./@AssertionConsumerServiceURL", acs, nil)
 	issuer = spMd.Query1(nil, `./@entityID`) // we save the issueing SP in the sRequest for edge request - will be overwritten later if an originalRequest is given
 	request.QueryDashP(nil, "./saml:Issuer", issuer, nil)
-	for _, providerID := range idPList {
-		if providerID != "" {
-			request.QueryDashP(nil, "./samlp:Scoping/samlp:IDPList/samlp:IDPEntry[0]/@ProviderID", providerID, nil)
-		}
-	}
 	request.QueryDashP(nil, "./samlp:NameIDPolicy/@Format", spMd.Query1(nil, `./md:SPSSODescriptor/md:NameIDFormat`), nil)
 
 	acsIndex := ""
 	if originalRequest != nil { // already checked for supported nameidformat
-		if originalRequest.QueryXMLBool(nil, "./@ForceAuthn") {
-			request.QueryDashP(nil, "./@ForceAuthn", "true", nil)
-		}
-		if originalRequest.QueryXMLBool(nil, "./@IsPassive") {
-			request.QueryDashP(nil, "./@IsPassive", "true", nil)
-		}
 		ID = originalRequest.Query1(nil, "./@ID")
 		issuer = originalRequest.Query1(nil, "./saml:Issuer")
 		nameIDFormat = originalRequest.Query1(nil, "./samlp:NameIDPolicy/@Format")
@@ -1298,6 +1287,11 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDPID string
     		}
 		}
 
+        for _, rac := range originalRequest.QueryMulti(nil, "./samlp:RequestedAuthnContext/saml:AuthnContextClassRef") {
+            request.QueryDashP(nil, "./samlp:RequestedAuthnContext/saml:AuthnContextClassRef[0]", rac, nil)
+            request.QueryDashP(nil, "./samlp:RequestedAuthnContext/@Comparison", originalRequest.Query1(nil, "./samlp:RequestedAuthnContext/@Comparison"), nil)
+        }
+
 		if wantRequesterID {
 			request.QueryDashP(nil, "./samlp:Scoping/samlp:RequesterID", issuer, nil)
 			if virtualIDPID != idpMd.Query1(nil, "@entityID") { // add virtual idp to wayf extension if mapped
@@ -1305,6 +1299,12 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDPID string
 			}
 		}
 		virtualIDPID = IDHash(virtualIDPID)
+	}
+
+    for _, providerID := range idPList {
+		if providerID != "" {
+			request.QueryDashP(nil, "./samlp:Scoping/samlp:IDPList/samlp:IDPEntry[0]/@ProviderID", providerID, nil)
+		}
 	}
 
 	sRequest = SamlRequest{
