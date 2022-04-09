@@ -5,7 +5,10 @@ package gosaml
 import (
 	"bytes"
 	"compress/flate"
+	"compress/gzip"
 	"crypto"
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/ed25519"
 	"crypto/hmac"
 	"crypto/rand"
@@ -29,6 +32,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -128,6 +132,10 @@ type (
 		Hash func() hash.Hash
 		Key  []byte
 	}
+
+	HashWriter struct {
+		w io.Writer
+	}
 )
 
 var (
@@ -154,6 +162,13 @@ var (
 	B2I             = map[bool]byte{false: 0, true: 1}
 	privatekeyLock  sync.RWMutex
 	privatekeyCache = map[string][]byte{}
+	NemLock         sync.Mutex
+	NemLogFile      *os.File
+	NemLogCrypt     *cipher.StreamWriter
+	NemLogWriter    *gzip.Writer
+	NemLogCounter   int
+	NemLogHash      hash.Hash
+	NemLogName      string
 )
 
 // DebugSetting for debugging cookies
@@ -198,6 +213,79 @@ func dump(msgType string, blob []byte) (logtag string) {
 	if err := ioutil.WriteFile(fmt.Sprintf("log/%s-%s", logtag, msgType), blob, 0644); err != nil {
 		//log.Panic(err)
 	}
+	return
+}
+
+func (w *HashWriter) Write(p []byte) (n int, err error) {
+	NemLogCounter += len(p)
+	NemLogHash.Write(p)
+	return w.w.Write(p)
+}
+
+func NemLogInit() {
+	NemLogName = fmt.Sprintf("nemlog-%s", time.Now().Format("2006-01-02T15:04:05.0000000"))
+	var err error
+	if NemLogFile, err = os.Create("log/"+NemLogName+".gzip"); err != nil {
+		log.Fatalln(err)
+	}
+
+	hashWriter := &HashWriter{NemLogFile}
+	NemLogHash = sha512.New()
+
+	var cb cipher.Block
+	var iv  [aes.BlockSize]byte // blank is ok if key is new every time
+	sessionkey := make([]byte, 32)
+
+	if _, err = io.ReadFull(rand.Reader, sessionkey); err != nil {
+		return
+	}
+
+    _, tmpKey, _ := PublicKeyInfo(config.NemLogCert)
+
+    encryptedSessionkey, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, tmpKey.(*rsa.PublicKey), sessionkey, nil)
+    if err != nil {
+        return
+    }
+
+    hashWriter.Write([]byte(base64.StdEncoding.EncodeToString(encryptedSessionkey) + "\n"))
+
+	if cb, err = aes.NewCipher(sessionkey); err != nil {
+		log.Fatalln(err)
+	}
+
+	NemLogCrypt = &cipher.StreamWriter{
+		S: cipher.NewOFB(cb, iv[:]),
+		W: hashWriter,
+	}
+
+	if NemLogWriter, err = gzip.NewWriterLevel(NemLogCrypt, gzip.BestCompression); err != nil {
+		log.Fatalln(err)
+	}
+}
+
+func NemLogFinalize() {
+	NemLogWriter.Close()
+	NemLogCrypt.Close()
+	NemLogFile.Close()
+	NemLogWriter = nil
+	NemLogCounter = 0
+
+	if err := ioutil.WriteFile("log/"+NemLogName+".digest", []byte(fmt.Sprintf("%x %s.gzip\n", NemLogHash.Sum(nil), NemLogName)), 0644); err != nil {
+		log.Panic(err)
+	}
+}
+
+func NemLog(msg, idpMd *goxml.Xp, id string) {
+	const maxLogFileSize = 1 << (26)
+	NemLock.Lock()
+	defer NemLock.Unlock()
+	if NemLogCounter >= maxLogFileSize {
+		NemLogFinalize()
+	}
+	if NemLogWriter == nil {
+		NemLogInit()
+	}
+	NemLogWriter.Write([]byte(msg.Dump()))
 	return
 }
 
