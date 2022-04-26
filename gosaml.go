@@ -218,8 +218,6 @@ func dump(msgType string, blob []byte) (logtag string) {
 	return
 }
 
-
-
 func (l *nemLog) Write(p []byte) (n int, err error) {
 	l.counter += len(p)
 	l.hash.Write(p)
@@ -358,8 +356,8 @@ func GetPrivateKeyByMethod(md *goxml.Xp, path string, keyType x509.PublicKeyAlgo
 	certs := md.QueryMulti(nil, path)
 	names, crts, _, _ := PublicKeyInfoByMethod(certs, keyType)
 	if len(names) == 0 {
-	    err = fmt.Errorf("No keys found: %d", keyType)
-	    return
+		err = fmt.Errorf("No keys found: %d", keyType)
+		return
 	}
 	privatekey, err = getPrivateKeyByName(names[0])
 	cert = crts[0]
@@ -908,7 +906,7 @@ func checkDestinationAndACS(message, issuerMd, destinationMd *goxml.Xp, role int
 		acs := message.Query1(nil, "@AssertionConsumerServiceURL") // either index or ACSURL + Binding
 		binding := message.Query1(nil, "@ProtocolBinding")
 		if binding == "" {
-		    binding = POST
+			binding = POST
 		}
 		if acs == "" {
 			acsIndex := message.Query1(nil, "@AssertionConsumerServiceIndex")
@@ -920,9 +918,9 @@ func checkDestinationAndACS(message, issuerMd, destinationMd *goxml.Xp, role int
 
 		checkedAcs := issuerMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding=`+strconv.Quote(binding)+` and @Location=`+strconv.Quote(acs)+`]/@index`)
 		if checkedAcs == "" {
-    		checkedAcs = issuerMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding=`+strconv.Quote(POST)+` and @Location=`+strconv.Quote(acs)+`]/@index`)
-    		if checkedAcs == "" {
-    			return nil, goxml.Wrap(ErrorACS, "acs:"+acs, "acsindex:"+acsIndex, "binding:"+binding)
+			checkedAcs = issuerMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding=`+strconv.Quote(POST)+` and @Location=`+strconv.Quote(acs)+`]/@index`)
+			if checkedAcs == "" {
+				return nil, goxml.Wrap(ErrorACS, "acs:"+acs, "acsindex:"+acsIndex, "binding:"+binding)
 			}
 		}
 
@@ -1307,11 +1305,11 @@ func (sil *SLOInfoList) Find(response *goxml.Xp) (slo *SLOInfo, ok bool) {
 func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp, signingMethod string, signFor int) (err error) {
 	privatekey, cert, err := GetPrivateKeyByMethod(md, "md:IDPSSODescriptor"+SigningCertQuery, config.CryptoMethods[signingMethod].Type)
 	if err != nil {
-	    signingMethod = config.DefaultCryptoMethod // try again with default signingMethod
-	    privatekey, cert, err = GetPrivateKeyByMethod(md, "md:IDPSSODescriptor"+SigningCertQuery, config.CryptoMethods[signingMethod].Type)
-	    if err != nil {
-    		return
-    	}
+		signingMethod = config.DefaultCryptoMethod // try again with default signingMethod
+		privatekey, cert, err = GetPrivateKeyByMethod(md, "md:IDPSSODescriptor"+SigningCertQuery, config.CryptoMethods[signingMethod].Type)
+		if err != nil {
+			return
+		}
 	}
 	element := response.Query(nil, elementQuery)
 	if len(element) != 1 {
@@ -1383,9 +1381,9 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDPID string
 		acsIndex = originalRequest.Query1(nil, "./@AssertionConsumerServiceIndex")
 
 		for _, attr := range []string{"./@ForceAuthn", "./@IsPassive"} {
-		    if val := originalRequest.Query1(nil, attr); val != "" {
-    			request.QueryDashP(nil, attr, val, nil)
-    		}
+			if val := originalRequest.Query1(nil, attr); val != "" {
+				request.QueryDashP(nil, attr, val, nil)
+			}
 		}
 
 		for _, rac := range originalRequest.QueryMulti(nil, `./saml:AttributeStatement/saml:Attribute[@Name="RequestedAuthnContextClassRef"]/saml:AttributeValue`) {
@@ -1407,7 +1405,7 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDPID string
 		virtualIDPID = IDHash(virtualIDPID)
 	}
 
-    for _, providerID := range idPList {
+	for _, providerID := range idPList {
 		if providerID != "" {
 			request.QueryDashP(nil, "./samlp:Scoping/samlp:IDPList/samlp:IDPEntry[0]/@ProviderID", providerID, nil)
 		}
