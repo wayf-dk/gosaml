@@ -42,6 +42,7 @@ import (
 
 	"github.com/wayf-dk/go-libxml2/types"
 	"github.com/wayf-dk/goxml"
+	"golang.org/x/crypto/curve25519"
 	"x.config"
 )
 
@@ -133,8 +134,15 @@ type (
 		Key  []byte
 	}
 
-	HashWriter struct {
-		w io.Writer
+	nemLog struct {
+		lock    sync.Mutex
+		file    *os.File
+		crypt   *cipher.StreamWriter
+		writer  *gzip.Writer
+		hash    hash.Hash
+		name    string
+		counter int
+		slot    int64
 	}
 )
 
@@ -162,13 +170,7 @@ var (
 	B2I             = map[bool]byte{false: 0, true: 1}
 	privatekeyLock  sync.RWMutex
 	privatekeyCache = map[string][]byte{}
-	NemLock         sync.Mutex
-	NemLogFile      *os.File
-	NemLogCrypt     *cipher.StreamWriter
-	NemLogWriter    *gzip.Writer
-	NemLogCounter   int
-	NemLogHash      hash.Hash
-	NemLogName      string
+	NemLog          = &nemLog{}
 )
 
 // DebugSetting for debugging cookies
@@ -216,76 +218,87 @@ func dump(msgType string, blob []byte) (logtag string) {
 	return
 }
 
-func (w *HashWriter) Write(p []byte) (n int, err error) {
-	NemLogCounter += len(p)
-	NemLogHash.Write(p)
-	return w.w.Write(p)
+
+
+func (l *nemLog) Write(p []byte) (n int, err error) {
+	l.counter += len(p)
+	l.hash.Write(p)
+	return l.file.Write(p)
 }
 
-func NemLogInit() {
-	NemLogName = fmt.Sprintf("nemlog-%s", time.Now().Format("2006-01-02T15:04:05.0000000"))
+func (l *nemLog) init(slot int64) {
+	l.slot = slot
+	l.name = fmt.Sprintf(config.NemLogNameFormat, time.Now().Format("2006-01-02T15:04:05.0000000"))
 	var err error
-	if NemLogFile, err = os.Create("log/"+NemLogName+".gzip"); err != nil {
+	if l.file, err = os.Create(config.NemLogPath + l.name + ".gzip"); err != nil {
 		log.Fatalln(err)
 	}
 
-	hashWriter := &HashWriter{NemLogFile}
-	NemLogHash = sha512.New()
+	l.hash = sha512.New()
 
 	var cb cipher.Block
-	var iv  [aes.BlockSize]byte // blank is ok if key is new every time
-	sessionkey := make([]byte, 32)
+	var iv [aes.BlockSize]byte // blank is ok if key is new every time
 
-	if _, err = io.ReadFull(rand.Reader, sessionkey); err != nil {
+	ephemeralPriv := make([]byte, 32)
+	_, err = io.ReadFull(rand.Reader, ephemeralPriv[:])
+	if err != nil {
+		return
+	}
+	ephemeralPub, err := curve25519.X25519(ephemeralPriv, curve25519.Basepoint)
+	if err != nil {
 		return
 	}
 
-    _, tmpKey, _ := PublicKeyInfo(config.NemLogCert)
+	peerPublic, err := base64.StdEncoding.DecodeString(config.NemlogPublic)
+	if err != nil {
+		return
+	}
 
-    encryptedSessionkey, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, tmpKey.(*rsa.PublicKey), sessionkey, nil)
-    if err != nil {
-        return
-    }
+	sessionkey, err := curve25519.X25519(ephemeralPriv, peerPublic)
+	if err != nil {
+		return
+	}
 
-    hashWriter.Write([]byte(base64.StdEncoding.EncodeToString(encryptedSessionkey) + "\n"))
+	l.Write([]byte(base64.StdEncoding.EncodeToString(ephemeralPub[:]) + "\n"))
 
-	if cb, err = aes.NewCipher(sessionkey); err != nil {
+	if cb, err = aes.NewCipher(sessionkey[:]); err != nil {
 		log.Fatalln(err)
 	}
 
-	NemLogCrypt = &cipher.StreamWriter{
+	l.crypt = &cipher.StreamWriter{
 		S: cipher.NewOFB(cb, iv[:]),
-		W: hashWriter,
+		W: l,
 	}
 
-	if NemLogWriter, err = gzip.NewWriterLevel(NemLogCrypt, gzip.BestCompression); err != nil {
+	if l.writer, err = gzip.NewWriterLevel(l.crypt, gzip.BestCompression); err != nil {
 		log.Fatalln(err)
 	}
 }
 
-func NemLogFinalize() {
-	NemLogWriter.Close()
-	NemLogCrypt.Close()
-	NemLogFile.Close()
-	NemLogWriter = nil
-	NemLogCounter = 0
+func (l *nemLog) Finalize() {
+	l.writer.Close()
+	l.crypt.Close()
+	l.file.Close()
+	l.writer = nil
+	l.counter = 0
 
-	if err := ioutil.WriteFile("log/"+NemLogName+".digest", []byte(fmt.Sprintf("%x %s.gzip\n", NemLogHash.Sum(nil), NemLogName)), 0644); err != nil {
+	if err := ioutil.WriteFile(config.NemLogPath+l.name+".digest", []byte(fmt.Sprintf("%x %s.gzip\n", l.hash.Sum(nil), l.name)), 0644); err != nil {
 		log.Panic(err)
 	}
 }
 
-func NemLog(msg, idpMd *goxml.Xp, id string) {
-	const maxLogFileSize = 1 << (26)
-	NemLock.Lock()
-	defer NemLock.Unlock()
-	if NemLogCounter >= maxLogFileSize {
-		NemLogFinalize()
+func (l *nemLog) Log(msg, idpMd *goxml.Xp, id string) {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+	slot := time.Now().Unix() / config.NemLogSlotGranularity
+	if l.counter >= config.NemLogMaxSize || (l.slot != slot && l.slot != 0) {
+		l.Finalize()
 	}
-	if NemLogWriter == nil {
-		NemLogInit()
+	if l.writer == nil {
+		l.init(slot)
 	}
-	NemLogWriter.Write([]byte(msg.Dump()))
+	l.writer.Write([]byte("\n" + id + "\n"))
+	l.writer.Write([]byte(msg.Dump()))
 	return
 }
 
