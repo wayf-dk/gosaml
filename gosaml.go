@@ -1388,13 +1388,15 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDPID string
     		}
 		}
 
-        for _, rac := range originalRequest.QueryMulti(nil, `./saml:AttributeStatement/saml:Attribute[@Name="RequestedAuthnContextClassRef"]/saml:AttributeValue`) {
-            request.QueryDashP(nil, "./samlp:RequestedAuthnContext/saml:AuthnContextClassRef[0]", rac, nil)
-        }
+		for _, rac := range originalRequest.QueryMulti(nil, `./saml:AttributeStatement/saml:Attribute[@Name="RequestedAuthnContextClassRef"]/saml:AttributeValue`) {
+			if rac != "*" {
+				request.QueryDashP(nil, "./samlp:RequestedAuthnContext/saml:AuthnContextClassRef[0]", rac, nil)
+			}
+		}
 
-        if comparison := originalRequest.Query1(nil, `./saml:AttributeStatement/saml:Attribute[@Name="RequestedAuthnContextComparison"]`); comparison != "" {
-           request.QueryDashP(nil, "./samlp:RequestedAuthnContext/@Comparison", comparison, nil)
-        }
+		if comparison := originalRequest.Query1(nil, `./saml:AttributeStatement/saml:Attribute[@Name="RequestedAuthnContextComparison"]`); comparison != "" && comparison != "*" {
+			request.QueryDashP(nil, "./samlp:RequestedAuthnContext/@Comparison", comparison, nil)
+		}
 
 		if wantRequesterID {
 			request.QueryDashP(nil, "./samlp:Scoping/samlp:RequesterID", issuer, nil)
