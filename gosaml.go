@@ -1708,7 +1708,7 @@ func Jwt2saml(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 			cert := spMd.Query1(nil, "./md:SPSSODescriptor"+EncryptionCertQuery) // actual encryption key is always first
 			_, publicKey, _ := PublicKeyInfo(cert)
 			assertion := response.Query(nil, "saml:Assertion[1]")[0]
-			err = response.Encrypt(assertion, "saml:EncryptedAssertion", publicKey.(*rsa.PublicKey))
+			err = response.Encrypt(assertion, "saml:EncryptedAssertion", publicKey.(*rsa.PublicKey), []string{})
 			if err != nil {
 				return err
 			}
