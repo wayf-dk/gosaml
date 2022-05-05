@@ -274,14 +274,16 @@ func (l *nemLog) init(slot int64) {
 }
 
 func (l *nemLog) Finalize() {
-	l.writer.Close()
-	l.crypt.Close()
-	l.file.Close()
-	l.writer = nil
-	l.counter = 0
+    if l.writer != nil  {
+        l.writer.Close()
+        l.crypt.Close()
+        l.file.Close()
+        l.writer = nil
+        l.counter = 0
 
-	if err := ioutil.WriteFile(config.NemLogPath+l.name+".digest", []byte(fmt.Sprintf("%x %s.gzip\n", l.hash.Sum(nil), l.name)), 0644); err != nil {
-		log.Panic(err)
+        if err := ioutil.WriteFile(config.NemLogPath+l.name+".digest", []byte(fmt.Sprintf("%x %s.gzip\n", l.hash.Sum(nil), l.name)), 0644); err != nil {
+            log.Panic(err)
+        }
 	}
 }
 
