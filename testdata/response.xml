@@ -1,48 +1,243 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Version="2.0" ID="_670b0c92c2acc9202b6ad5cc1370b579bf7d46b936" IssueInstant="2017-11-29T12:37:11Z" InResponseTo="_4099d6da09c9a1d9fad7fa9446568f4144596a5245" Destination="https://wayfsp.wayf.dk/ss/module.php/saml/sp/saml2-acs.php/default-sp">
-	<saml:Issuer>https://wayf.wayf.dk</saml:Issuer>
-	<samlp:Status>
-		<samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
-	</samlp:Status>
-	<saml:Assertion Version="2.0" ID="_578c0223765e3f269f35c3dc0e24d1238d8f3e9505" IssueInstant="2017-11-29T12:37:11Z">
-		<saml:Issuer>https://wayf.wayf.dk</saml:Issuer>
-		<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:SignedInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:CanonicalizationMethod xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/><ds:SignatureMethod xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"/><ds:Reference xmlns:ds="http://www.w3.org/2000/09/xmldsig#" URI="#_578c0223765e3f269f35c3dc0e24d1238d8f3e9505"><ds:Transforms xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:Transform xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/><ds:Transform xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/></ds:Transforms><ds:DigestMethod xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/><ds:DigestValue xmlns:ds="http://www.w3.org/2000/09/xmldsig#">FbWR8JxhU6BW+mz0ncNRqH73l1E=</ds:DigestValue></ds:Reference></ds:SignedInfo><ds:SignatureValue xmlns:ds="http://www.w3.org/2000/09/xmldsig#">Un6OMoYmBsj9TLuq0GQOQWrZs5LGPjZjEO5T6qOG4MZAqn31degRnaxAWky/TiZkY/HvWhmoqaiKY9m1F3N0R7oj0UOH5vUN3QqwpPQENsA1p9dUC6CpRXEGTNzLfsCpUQeFROtc6YQPBgitAuZ9en0hZJj/QfjIE5zchSmTP+QW+ezBtzssHJbwnM26Da4JwaLB1devxn6TDJ8/wosdpuS6fFYy4idYA5WXdrLSL6HVOyZQcuImRQlbMSkjHf1TuwdxyHnoACV1uv52xbuEDDmADF+ci+gD32mrWiHhn76DEjc4BNkx8TyCd7b9HzHYeP77Fidibt3YGVnWGQ+QSg==</ds:SignatureValue><ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:X509Data xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:X509Certificate xmlns:ds="http://www.w3.org/2000/09/xmldsig#">MIIDNjCCAh4CCQDsE0eLyC+FjDANBgkqhkiG9w0BAQUFADCBiDELMAkGA1UEBhMC
-REsxEDAOBgNVBAgTB0Rlbm1hcmsxEzARBgNVBAcUCkvDuGJlbmhhdm4xFzAVBgNV
-BAoTDnRlc3QgV0FZRiB0ZXN0MRswGQYDVQQDExJ0ZXN0IFdBWUYgdGVzdC5sYW4x
-HDAaBgkqhkiG9w0BCQEWDWZpbm5kQHdheWYuZGswHhcNMTUwNjEwMDc1NjEwWhcN
-MjAwNTE0MDc1NjEwWjAxMQswCQYDVQQGEwJESzENMAsGA1UEChMEV0FZRjETMBEG
-A1UEAxQKKi50ZXN0LmxhbjCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEB
-AJ9r4J63EYXKSQC1lPSVF+ykXq8iJG3ud3UySxR+WoqxFjTDHOqo2zy64/ygk3T0
-K5NRj7KyuJ8dZ57ktjsWkLOOMF591W2Udo8KjXWMu8w+VovVq811tzYMFxSOmpoS
-jdtjpIjXXZTuaIgVf8obw/7WkFGShEjlIa4hU04Ou2ffpUQ3OLMbEI/JSPXyVaSz
-Wt40WLj1YvIIUUlxGaCMGUXa3xd1SAmLYt78Qm4eJul7J1BHyXchZQh9mV9DLhAI
-Wm4dIRGHjYGPhECes/TvFrDNHbccenItD8sybdfvsdIkDGTMPLfCoMDdVeI4mt+2
-x8P5ljmSu6WhJxfYKT5yId0CAwEAATANBgkqhkiG9w0BAQUFAAOCAQEAeVWElKLi
-aIkX2SYpxoePn2Atxb/mKIV1ttm4hZLJWAhMwUk9xYRQCim9X1aO8OMpMI346omr
-ED/wTbPjAC4wG0M0K/n+7GVC+xFbyup+N8D5P1fIlbB+hs/hQih1W3N7WAtcRCHc
-kBhYOnUtNYZTgKbilXFLYIRRCmFNGN2vRU9KfYoQ19AYHuK5+vGVzeYqRFY6EJx0
-ttXZVVH8Yc7FYjue6rheNaE4ZGOMSjVMoeqps7q6jqrbw1eMdhdFZnD7HzrRndpq
-zjvT0OgSAWqrjznERRb5hu/2410d0N1nGqLOHfgSm5otnltg+/3WvuaqxTfMnkgL
-/qJPaVd8ZDeWBg==
-</ds:X509Certificate></ds:X509Data></ds:KeyInfo></ds:Signature><saml:Subject>
-			<saml:NameID SPNameQualifier="https://wayfsp.wayf.dk" Format="urn:oasis:names:tc:SAML:2.0:nameid-format:persistent">WAYF-DK-c5bc7e16bb6d28cb5a20b6aad84d1cba2df5c48f</saml:NameID>
-			<saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
-				<saml:SubjectConfirmationData NotOnOrAfter="2017-11-29T12:41:11Z" Recipient="https://wayfsp.wayf.dk/ss/module.php/saml/sp/saml2-acs.php/default-sp" InResponseTo="_4099d6da09c9a1d9fad7fa9446568f4144596a5245"/>
-			</saml:SubjectConfirmation>
-		</saml:Subject>
-		<saml:Conditions NotBefore="2017-11-29T12:37:11Z" NotOnOrAfter="2017-11-29T12:41:11Z">
-			<saml:AudienceRestriction>
-				<saml:Audience>https://wayfsp.wayf.dk</saml:Audience>
-			</saml:AudienceRestriction>
-		</saml:Conditions>
-		<saml:AuthnStatement AuthnInstant="2017-11-29T12:37:11Z" SessionNotOnOrAfter="2017-11-29T16:37:11Z">
-			<saml:AuthnContext>
-				<saml:AuthnContextClassRef>
-					urn:oasis:names:tc:SAML:2.0:ac:classes:Password
-				</saml:AuthnContextClassRef>
-			<saml:AuthenticatingAuthority>https://orphanage.wayf.dk</saml:AuthenticatingAuthority></saml:AuthnContext>
-		</saml:AuthnStatement>
-		<saml:AttributeStatement>
-		<saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="cn" FriendlyName="cn" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">Mads Freek Petersen</saml:AttributeValue></saml:Attribute><saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="eduPersonAssurance" FriendlyName="eduPersonAssurance" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">1</saml:AttributeValue></saml:Attribute><saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="eduPersonEntitlement" FriendlyName="eduPersonEntitlement" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">https://wayf.dk/feedback/view</saml:AttributeValue><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">https://wayf.dk/kanja/admin</saml:AttributeValue><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">https://wayf.dk/orphanage/admin</saml:AttributeValue><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">https://wayf.dk/vo/admin</saml:AttributeValue></saml:Attribute><saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="eduPersonPrimaryAffiliation" FriendlyName="eduPersonPrimaryAffiliation" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">member</saml:AttributeValue></saml:Attribute><saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="eduPersonPrincipalName" FriendlyName="eduPersonPrincipalName" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">gikcaswid@orphanage.wayf.dk</saml:AttributeValue></saml:Attribute><saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="eduPersonTargetedID" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic" FriendlyName="eduPersonTargetedID"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">WAYF-DK-c5bc7e16bb6d28cb5a20b6aad84d1cba2df5c48f</saml:AttributeValue></saml:Attribute><saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="gn" FriendlyName="gn" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">Mads Freek</saml:AttributeValue></saml:Attribute><saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="mail" FriendlyName="mail" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">freek@wayf.dk</saml:AttributeValue></saml:Attribute><saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="organizationName" FriendlyName="organizationName" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">WAYF Where Are You From</saml:AttributeValue></saml:Attribute><saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="preferredLanguage" FriendlyName="preferredLanguage" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">da</saml:AttributeValue></saml:Attribute><saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="schacHomeOrganization" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic" FriendlyName="schacHomeOrganization"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">orphanage.wayf.dk</saml:AttributeValue></saml:Attribute><saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="sn" FriendlyName="sn" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">Petersen</saml:AttributeValue></saml:Attribute><saml:Attribute xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" Name="schacHomeOrganizationType" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic" FriendlyName="schacHomeOrganizationType"><saml:AttributeValue xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">urn:mace:terena.org:schac:homeOrganizationType:int:NRENAffiliate</saml:AttributeValue></saml:Attribute></saml:AttributeStatement>
-	</saml:Assertion>
+<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
+                xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
+                xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                Version="2.0"
+                ID="_KRiRsIAzohWB_xUsZrvb34lN_cVb"
+                IssueInstant="2022-05-05T11:06:40Z"
+                InResponseTo="_zt3YzD9GBdKulkroIqDZMUFXBgFU"
+                Destination="https://wayfsp.wayf.dk/ACS"
+                >
+    <saml:Issuer>https://wayf.wayf.dk</saml:Issuer>
+    <samlp:Status>
+        <samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success" />
+    </samlp:Status>
+    <saml:Assertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
+                    Version="2.0"
+                    ID="_jTmnULxrXkoA-rwnnJBmiZ33vwh3"
+                    IssueInstant="2022-05-05T11:06:40Z"
+                    >
+        <saml:Issuer>https://wayf.wayf.dk</saml:Issuer>
+        <ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+            <ds:SignedInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+                <ds:CanonicalizationMethod xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+                                           Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"
+                                           />
+                <ds:SignatureMethod xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+                                    Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"
+                                    />
+                <ds:Reference xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+                              URI="#_jTmnULxrXkoA-rwnnJBmiZ33vwh3"
+                              >
+                    <ds:Transforms xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+                        <ds:Transform xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+                                      Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"
+                                      />
+                        <ds:Transform xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+                                      Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"
+                                      />
+                    </ds:Transforms>
+                    <ds:DigestMethod xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+                                     Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"
+                                     />
+                    <ds:DigestValue xmlns:ds="http://www.w3.org/2000/09/xmldsig#">Z+UjwJK576YSLsL7FD9/WJFjZh9zRbDmhF3NEwkOyiM=</ds:DigestValue>
+                </ds:Reference>
+            </ds:SignedInfo>
+            <ds:SignatureValue xmlns:ds="http://www.w3.org/2000/09/xmldsig#">UtpNTYtNQacRoxCAuc2Ep2EcaOVZPaT1BgwDEH0cs4zXndSoUWF/kr/amSsbk5ktGdjAqM1SC8j2WWNN4QptkNwEx8w955rJ4ba6cS7D+SfsXyK4Vn01mYCpXUvBzIrzIMO5/2+1AMtm413MUXFcmAK2UMvMo0+VLeQnMzI66NbgwlrXvVTatuZPh8fsmLrFB01kfc9AnIU/oBklVVl19v5nbEXwTQew+OVBiZipQLrURFR2SJPz+UmJ8nbMNDXBHothwQ08fVmdeSG/GaRx4YYc4F+/ZYMJROlN/peP7qq9PIGfxsuCg3rn6Be/A1fUeEz4IKq0WtE/lfvQzKf/5Q==</ds:SignatureValue>
+            <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+                <ds:X509Data xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+                    <ds:X509Certificate xmlns:ds="http://www.w3.org/2000/09/xmldsig#">MIIC7TCCAdWgAwIBAgIBBzANBgkqhkiG9w0BAQsFADAwMQswCQYDVQQGEwJESzEN
+MAsGA1UEChMEV0FZRjESMBAGA1UEAxMJd2F5Zi4yMDE2MB4XDTE1MDEwMTAwMDAw
+MFoXDTI1MTIzMTAwMDAwMFowMDELMAkGA1UEBhMCREsxDTALBgNVBAoTBFdBWUYx
+EjAQBgNVBAMTCXdheWYuMjAxNjCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoC
+ggEBAOeCt61E+O909jreVUV1tFHQe9m3h612W38OauWftVVrwH0CJpYCFGAMUBcD
+FkPgocA+XpB2qadF+/dnErIDbTVgxqyewB0TOWmMoqMknrkmS0x0AiRHIBtkzIWF
+am+EwGtFGA5Hw3sjGPoDXg4cGT731uoCktsH5ELt+eFDXSBOUgxyKzZf8NTXRbLk
+sIdPxNgZ04e5JawFo1cnYbTVYQcleMqOYY3rIDXxA8BTm4ZYCNkxLO0v7YK7+mfF
+5T1Q5C7FXivoQI+A2mi/qGlwLt+oD81jdYki/v7ApXZi0sdcRovA9H4yFCv4tT5f
+/Plu8YJ8aXSGpJ8gATPtkY9ul9cCAwEAAaMSMBAwDgYDVR0PAQH/BAQDAgIEMA0G
+CSqGSIb3DQEBCwUAA4IBAQCaDrkKvC9mc8cOmjFhPd/4UgZxol7K0U7GwBY92MXz
+dE/o4Dd+u3Dw0+O3UsK2kxExFlT3qXuG9XF987xUoGBy+Ip6A14nmKfW9a1hLS7z
+ZoTVpxHebmms8n5voKLPBWowiMwb8jLdVaPzAx7bMnOfXrV3g0L8inPsqgYOgqku
+9//8I7YnV/r8z0V0uLgi2n9eYDyqvktsL37tIw6RTX/l9J8KQlHy0eWMs9CXDaK1
+gYdif1EsaHW4xLpjZsohIoovXMtQNTN+jIybXdEDScdLzwT9j9+BU9uHJRx3f3bf
+wX9QINsDkafDOtBNAnW762LHylOBiXgV2s954JAVY3O+</ds:X509Certificate>
+                </ds:X509Data>
+            </ds:KeyInfo>
+        </ds:Signature>
+        <saml:Subject>
+            <saml:NameID SPNameQualifier="https://wayfsp.wayf.dk"
+                         Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
+                         >__XeyPM1aN1dQJZStha76bug5Tqgn</saml:NameID>
+            <saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
+                <saml:SubjectConfirmationData NotOnOrAfter="2022-05-05T11:10:40Z"
+                                              Recipient="https://wayfsp.wayf.dk/ACS"
+                                              InResponseTo="_zt3YzD9GBdKulkroIqDZMUFXBgFU"
+                                              />
+            </saml:SubjectConfirmation>
+        </saml:Subject>
+        <saml:Conditions NotBefore="2022-05-05T11:06:40Z"
+                         NotOnOrAfter="2022-05-05T12:06:40Z"
+                         >
+            <saml:AudienceRestriction>
+                <saml:Audience>https://wayfsp.wayf.dk</saml:Audience>
+            </saml:AudienceRestriction>
+        </saml:Conditions>
+        <saml:AuthnStatement AuthnInstant="2022-05-05T11:06:40Z"
+                             SessionIndex="_X3qZtZ0VB9QyZMLKZ1iP2rUBtLCR"
+                             SessionNotOnOrAfter="2022-05-05T15:06:40Z"
+                             >
+            <saml:AuthnContext>
+                <saml:AuthnContextClassRef>urn:oasis:names:tc:SAML:2.0:ac:classes:Password</saml:AuthnContextClassRef>
+                <saml:AuthenticatingAuthority>https://orphanage.wayf.dk</saml:AuthenticatingAuthority>
+            </saml:AuthnContext>
+        </saml:AuthnStatement>
+        <saml:AttributeStatement>
+            <saml:Attribute Name="cn"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            FriendlyName="cn"
+                            >
+                <saml:AttributeValue>Mads Freek Petersen</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="eduPersonAssurance"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            FriendlyName="eduPersonAssurance"
+                            >
+                <saml:AttributeValue>1</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="eduPersonEntitlement"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            FriendlyName="eduPersonEntitlement"
+                            >
+                <saml:AttributeValue>https://wayf.dk/feedback/view</saml:AttributeValue>
+                <saml:AttributeValue>https://wayf.dk/kanja/admin</saml:AttributeValue>
+                <saml:AttributeValue>https://wayf.dk/orphanage/admin</saml:AttributeValue>
+                <saml:AttributeValue>https://wayf.dk/vo/admin</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="eduPersonPrimaryAffiliation"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            FriendlyName="eduPersonPrimaryAffiliation"
+                            >
+                <saml:AttributeValue>member</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="eduPersonPrincipalName"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            FriendlyName="eduPersonPrincipalName"
+                            >
+                <saml:AttributeValue>gikcaswid@orphanage.wayf.dk</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="eduPersonScopedAffiliation"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            FriendlyName="eduPersonScopedAffiliation"
+                            >
+                <saml:AttributeValue>member@orphanage.wayf.dk</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="eduPersonTargetedID"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            FriendlyName="eduPersonTargetedID"
+                            >
+                <saml:AttributeValue>WAYF-DK-a462971438f09f28b0cf806965a5b5461376815b</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="gn"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            FriendlyName="gn"
+                            >
+                <saml:AttributeValue>Mads Freek</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="mail"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            FriendlyName="mail"
+                            >
+                <saml:AttributeValue>freek@wayf.dk</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="norEduPersonNIN"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            FriendlyName="norEduPersonNIN"
+                            >
+                <saml:AttributeValue>2408590123</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="organizationName"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            FriendlyName="organizationName"
+                            >
+                <saml:AttributeValue>WAYF Where Are You From</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="preferredLanguage"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            FriendlyName="preferredLanguage"
+                            >
+                <saml:AttributeValue>da</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="schacDateOfBirth"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            FriendlyName="schacDateOfBirth"
+                            >
+                <saml:AttributeValue>19590824</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="schacHomeOrganization"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            FriendlyName="schacHomeOrganization"
+                            >
+                <saml:AttributeValue>orphanage.wayf.dk</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="schacPersonalUniqueID"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            FriendlyName="schacPersonalUniqueID"
+                            >
+                <saml:AttributeValue>urn:mace:terena.org:schac:personalUniqueID:dk:CPR:2408590123</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="schacYearOfBirth"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            FriendlyName="schacYearOfBirth"
+                            >
+                <saml:AttributeValue>1959</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="sn"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            FriendlyName="sn"
+                            >
+                <saml:AttributeValue>Petersenx</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="schacHomeOrganizationType"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            FriendlyName="schacHomeOrganizationType"
+                            >
+                <saml:AttributeValue>urn:mace:terena.org:schac:homeOrganizationType:int:NRENAffiliate</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="eduPersonAffiliation"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            FriendlyName="eduPersonAffiliation"
+                            >
+                <saml:AttributeValue>member</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="entryUUID"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            FriendlyName="entryUUID"
+                            >
+                <saml:AttributeValue>123-456-789</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="NameStandIn"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            FriendlyName="sn"
+                            >
+                <saml:AttributeValue>Petersenx</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="isMemberOf"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            FriendlyName="isMemberOf"
+                            >
+                <saml:AttributeValue>prefix:1:abc:infix:2:def:infix:3::hij:postfix:4</saml:AttributeValue>
+                <saml:AttributeValue>role1:idp:example.com</saml:AttributeValue>
+                <saml:AttributeValue>role1:idp:example.net</saml:AttributeValue>
+                <saml:AttributeValue>role1:req:example.net</saml:AttributeValue>
+                <saml:AttributeValue>role1:sp:</saml:AttributeValue>
+                <saml:AttributeValue>role1:xxx:xxexample.net</saml:AttributeValue>
+            </saml:Attribute>
+            <saml:Attribute Name="schacPersonalUniqueCode"
+                            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+                            FriendlyName="schacPersonalUniqueCode"
+                            >
+                <saml:AttributeValue>urn:schac:personalUniqueCode:int:esi:wayf.dk:99924678</saml:AttributeValue>
+            </saml:Attribute>
+        </saml:AttributeStatement>
+    </saml:Assertion>
 </samlp:Response>
