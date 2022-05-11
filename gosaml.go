@@ -148,7 +148,7 @@ type (
 
 var (
 	// TestTime refers to global testing time
-	TestTime time.Time
+	TestTime, ZeroTime time.Time
 	// TestID for testing
 	TestID string
 	// TestAssertionID for testing
@@ -2035,7 +2035,12 @@ func (h *Hm) innerValidate(id string, signedMsg []byte) (msg []byte, err error) 
 		return
 	}
 	if hmac.Equal(signedMsg[:24], []byte(computed)[:24]) {
-		diff := time.Now().Unix() - ts
+    	// secure cookie timeout has to be testable
+    	now := TestTime
+        if now.IsZero() {
+            now = time.Now()
+        }
+		diff := now.Unix() - ts
 		if diff >= 0 && diff < h.TTL {
 			return msg, nil
 		}
