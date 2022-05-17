@@ -2036,11 +2036,11 @@ func (h *Hm) innerValidate(id string, signedMsg []byte) (msg []byte, err error) 
 		return
 	}
 	if hmac.Equal(signedMsg[:24], []byte(computed)[:24]) {
-    	// secure cookie timeout has to be testable
-    	now := TestTime
-        if now.IsZero() {
-            now = time.Now()
-        }
+		// secure cookie timeout has to be testable
+		now := TestTime
+		if now.IsZero() {
+			now = time.Now()
+		}
 		diff := now.Unix() - ts
 		if diff >= 0 && diff < h.TTL {
 			return msg, nil
