@@ -246,7 +246,9 @@ func (l *nemLog) Init(ephemeralPriv []byte) {
 		log.Fatalln(err)
 	}
 
-	l.Write([]byte(base64.StdEncoding.EncodeToString(ephemeralPub[:]) + "\n"))
+	if _, err = l.Write([]byte(base64.StdEncoding.EncodeToString(ephemeralPub[:]) + "\n")); err != nil {
+		log.Fatalln(err)
+	}
 
 	if cb, err = aes.NewCipher(sessionkey[:]); err != nil {
 		log.Fatalln(err)
@@ -299,8 +301,12 @@ func (l *nemLog) Log(msg, idpMd *goxml.Xp, id string) {
 		}
 		l.Init(ephemeralPriv)
 	}
-	l.writer.Write([]byte("\n" + id + "\n"))
-	l.writer.Write([]byte(msg.Dump()))
+	if _, err := l.writer.Write([]byte("\n" + id + "\n")); err != nil {
+		log.Fatalln(err)
+	}
+	if _, err := l.writer.Write([]byte(msg.Dump())); err != nil {
+		log.Fatalln(err)
+	}
 	return
 }
 
