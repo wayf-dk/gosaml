@@ -135,14 +135,15 @@ type (
 	}
 
 	nemLog struct {
-		lock    sync.Mutex
-		file    *os.File
-		crypt   *cipher.StreamWriter
-		writer  *gzip.Writer
-		hash    hash.Hash
-		name    string
-		counter int
-		slot    int64
+		lock       sync.Mutex
+		file       *os.File
+		crypt      *cipher.StreamWriter
+		writer     *gzip.Writer
+		hash       hash.Hash
+		name       string
+		counter    int
+		slot       int64
+		peerPublic []byte
 	}
 )
 
@@ -224,11 +225,9 @@ func (l *nemLog) Write(p []byte) (n int, err error) {
 	return l.file.Write(p)
 }
 
-func (l *nemLog) init(slot int64) {
-	l.slot = slot
-	l.name = fmt.Sprintf(config.NemLogNameFormat, time.Now().Format("2006-01-02T15:04:05.0000000"))
+func (l *nemLog) Init(ephemeralPriv []byte) {
 	var err error
-	if l.file, err = os.Create(config.NemLogPath + l.name + ".gzip"); err != nil {
+	if l.file, err = os.Create(l.name + ".gzip"); err != nil {
 		log.Fatalln(err)
 	}
 
@@ -237,24 +236,14 @@ func (l *nemLog) init(slot int64) {
 	var cb cipher.Block
 	var iv [aes.BlockSize]byte // blank is ok if key is new every time
 
-	ephemeralPriv := make([]byte, 32)
-	_, err = io.ReadFull(rand.Reader, ephemeralPriv[:])
-	if err != nil {
-		return
-	}
 	ephemeralPub, err := curve25519.X25519(ephemeralPriv, curve25519.Basepoint)
 	if err != nil {
-		return
+		log.Fatalln(err)
 	}
 
-	peerPublic, err := base64.StdEncoding.DecodeString(config.NemlogPublic)
+	sessionkey, err := curve25519.X25519(ephemeralPriv, l.peerPublic)
 	if err != nil {
-		return
-	}
-
-	sessionkey, err := curve25519.X25519(ephemeralPriv, peerPublic)
-	if err != nil {
-		return
+		log.Fatalln(err)
 	}
 
 	l.Write([]byte(base64.StdEncoding.EncodeToString(ephemeralPub[:]) + "\n"))
@@ -274,21 +263,21 @@ func (l *nemLog) init(slot int64) {
 }
 
 func (l *nemLog) Finalize() {
-    if l.writer != nil  {
-        l.writer.Close()
-        l.crypt.Close()
-        l.file.Close()
-        l.writer = nil
-        l.counter = 0
+	if l.writer != nil {
+		l.writer.Close()
+		l.crypt.Close()
+		l.file.Close()
+		l.writer = nil
+		l.counter = 0
 
-        if err := ioutil.WriteFile(config.NemLogPath+l.name+".digest", []byte(fmt.Sprintf("%x %s.gzip\n", l.hash.Sum(nil), l.name)), 0644); err != nil {
-            log.Panic(err)
-        }
+		if err := ioutil.WriteFile(l.name+".digest", []byte(fmt.Sprintf("%x %s.gzip\n", l.hash.Sum(nil), l.name)), 0644); err != nil {
+			log.Panic(err)
+		}
 	}
 }
 
 func (l *nemLog) Log(msg, idpMd *goxml.Xp, id string) {
-    return
+	//return
 	l.lock.Lock()
 	defer l.lock.Unlock()
 	slot := time.Now().Unix() / config.NemLogSlotGranularity
@@ -296,7 +285,19 @@ func (l *nemLog) Log(msg, idpMd *goxml.Xp, id string) {
 		l.Finalize()
 	}
 	if l.writer == nil {
-		l.init(slot)
+		var err error
+		l.slot = slot
+		l.name = fmt.Sprintf(config.NemLogNameFormat, time.Now().Format("2006-01-02T15:04:05.0000000"))
+		l.peerPublic, err = base64.StdEncoding.DecodeString(config.NemlogPublic)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		ephemeralPriv := make([]byte, 32)
+		_, err = io.ReadFull(rand.Reader, ephemeralPriv[:])
+		if err != nil {
+			log.Fatalln(err)
+		}
+		l.Init(ephemeralPriv)
 	}
 	l.writer.Write([]byte("\n" + id + "\n"))
 	l.writer.Write([]byte(msg.Dump()))
