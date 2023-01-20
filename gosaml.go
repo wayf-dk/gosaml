@@ -1339,11 +1339,11 @@ func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp, signing
 }
 
 // NewAuthnRequest - create an AuthnRequest using the supplied metadata for setting the fields according to the following rules:
-//  - The Destination is the 1st SingleSignOnService with a redirect binding in the idpmetadata
-//  - The AssertionConsumerServiceURL is the Location of the 1st ACS with a post binding in the spmetadata
-//  - The ProtocolBinding is post
-//  - The Issuer is the entityID in the idpmetadata
-//  - The NameID defaults to transient
+//   - The Destination is the 1st SingleSignOnService with a redirect binding in the idpmetadata
+//   - The AssertionConsumerServiceURL is the Location of the 1st ACS with a post binding in the spmetadata
+//   - The ProtocolBinding is post
+//   - The Issuer is the entityID in the idpmetadata
+//   - The NameID defaults to transient
 func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDPID string, idPList []string, acs string, wantRequesterID bool, spIndex, hubBirkIndex uint8) (request *goxml.Xp, sRequest SamlRequest, err error) {
 	template := `<samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
                     xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
