@@ -1658,11 +1658,10 @@ func Jwt2saml(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 	msgType := msg.QueryString(nil, "local-name(/*)")
 	switch msgType {
 	case "AuthnRequest":
-		pl, err := jwtVerify(jwt, idpMd.QueryMulti(nil, "./md:IDPSSODescriptor"+SigningCertQuery))
+		payload, err := JwtVerify(jwt, idpMd.QueryMulti(nil, "./md:IDPSSODescriptor"+SigningCertQuery))
 		if err != nil {
 			return err
 		}
-		payload, _ := base64.RawURLEncoding.DecodeString(pl)
 		var attrs map[string]interface{}
 		err = json.Unmarshal(payload, &attrs)
 		if err != nil {
