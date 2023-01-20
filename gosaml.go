@@ -1538,10 +1538,8 @@ func request2samlRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 		protocol := samlrequest.QueryDashP(nil, "./samlp:Extensions/wayf:protocol", "", nil)
 		if r.Form.Get("wa") == "wsignin1.0" {
 			samlrequest.QueryDashP(protocol, ".", "wsfed", nil)
-		} else if r.Form.Get("response_type") != "" {
-			samlrequest.QueryDashP(protocol, ".", "oauth", nil)
-			samlrequest.QueryDashP(nil, "./@ID", r.Form.Get("nonce"), nil)
-			relayState = r.Form.Get("state")
+		} else if r.Form.Get("response_type") == "id_token" {
+			samlrequest.QueryDashP(protocol, ".", "oidc", nil)
 		}
 		return
 	} else if r.Form.Get("wa") == "wsignout1.0" {
