@@ -1927,17 +1927,22 @@ func JwtSign(payload []byte, privatekey []byte, alg string) (jwt, atHash string,
 	return
 }
 
-func jwtVerify(jwt string, certs []string) (payload string, err error) {
+func JwtVerify(jwt string, certs []string) ([]byte, error) {
 	if len(certs) == 0 {
-		return payload, errors.New("No certs/keys found")
+		return nil, errors.New("No certs/keys found")
 	}
 	hps := strings.SplitN(jwt, ".", 3)
+	payload, err := base64.RawURLEncoding.DecodeString(hps[1])
+	if err != nil {
+		return nil, err
+	}
+
 	hp := []byte(strings.Join(hps[:2], "."))
 	headerJSON, _ := base64.RawURLEncoding.DecodeString(hps[0])
 	header := struct{ Alg string }{}
 	err = json.Unmarshal(headerJSON, &header)
 	if err != nil {
-		return
+		return nil, err
 	}
 	var hh crypto.Hash
 	var digest []byte
@@ -1966,23 +1971,23 @@ func jwtVerify(jwt string, certs []string) (payload string, err error) {
 		for _, pub := range pubs {
 			err = rsa.VerifyPKCS1v15(pub.(*rsa.PublicKey), hh, digest, signature)
 			if err == nil {
-				return hps[1], err
+				return payload, err
 			}
 		}
-		return "", fmt.Errorf("jwtVerify failed")
+		return nil, fmt.Errorf("jwtVerify failed")
 
 	case "HS256":
 		checked := hmac.New(sha256.New, []byte(certs[0])).Sum([]byte(hps[1]))
 		if hmac.Equal(checked, signature) {
-			return hps[1], nil
+			return payload, nil
 		}
 	case "HS512":
 		checked := hmac.New(sha512.New, []byte(certs[0])).Sum([]byte(hps[1]))
 		if hmac.Equal(checked, signature) {
-			return hps[1], nil
+			return payload, nil
 		}
 	}
-	return
+	return nil, errors.New("jwtVerifyi failed")
 }
 
 // CheckDigestAndSignatureAlgorithms -
