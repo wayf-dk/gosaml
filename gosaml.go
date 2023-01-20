@@ -1793,21 +1793,8 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 			if _, err = requestHandler(response, idpMd, spMd); err != nil {
 				return err
 			}
-			attrs := map[string]interface{}{}
 
-			assertion := response.Query(nil, "/samlp:Response/saml:Assertion")[0]
-			names := response.QueryMulti(assertion, "saml:AttributeStatement/saml:Attribute/@Name")
-			for _, name := range names {
-				attrs[name] = response.QueryMulti(assertion, "saml:AttributeStatement/saml:Attribute[@Name="+strconv.Quote(name)+"]/saml:AttributeValue")
-			}
-
-			attrs["iss"] = response.Query1(assertion, "./saml:Issuer")
-			attrs["aud"] = response.Query1(assertion, "./saml:Conditions/saml:AudienceRestriction/saml:Audience")
-			attrs["nbf"] = SamlTime2JwtTime(response.Query1(assertion, "./saml:Conditions/@NotBefore"))
-			attrs["exp"] = SamlTime2JwtTime(response.Query1(assertion, "./saml:Conditions/@NotOnOrAfter"))
-			attrs["iat"] = SamlTime2JwtTime(response.Query1(assertion, "@IssueInstant"))
-			attrs["saml:AuthenticatingAuthority"] = response.QueryMulti(assertion, "./saml:AuthnStatement/saml:AuthnContext/saml:AuthenticatingAuthority")
-			//attrs["saml:AuthenticatingAuthority"] = append(attrs["saml:AuthenticatingAuthority"].([]string), attrs["iss"].(string))
+			attrs := Saml2map(response)
 
 			json, err := json.Marshal(&attrs)
 			if err != nil {
