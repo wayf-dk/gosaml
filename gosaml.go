@@ -1733,6 +1733,27 @@ func Jwt2saml(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 	return
 }
 
+func Saml2map(response *goxml.Xp) (attrs map[string]interface{}) {
+	attrs = map[string]interface{}{}
+	assertion := response.Query(nil, "/samlp:Response/saml:Assertion")[0]
+	names := response.QueryMulti(assertion, "saml:AttributeStatement/saml:Attribute/@Name")
+	for _, name := range names {
+		attrs[name] = response.QueryMulti(assertion, "saml:AttributeStatement/saml:Attribute[@Name="+strconv.Quote(name)+"]/saml:AttributeValue")
+	}
+
+	attrs["iss"] = response.Query1(assertion, "./saml:Issuer")
+	attrs["aud"] = response.Query1(assertion, "./saml:Conditions/saml:AudienceRestriction/saml:Audience")
+	attrs["nbf"] = SamlTime2JwtTime(response.Query1(assertion, "./saml:Conditions/@NotBefore"))
+	attrs["exp"] = SamlTime2JwtTime(response.Query1(assertion, "./saml:Conditions/@NotOnOrAfter"))
+	attrs["iat"] = SamlTime2JwtTime(response.Query1(assertion, "@IssueInstant"))
+	attrs["_cc_"] = response.Query1(nil, "./@InResponseTo")
+	attrs["sub"] = attrs["eduPersonPrincipalName"].([]string)[0]
+
+	attrs["saml:AuthenticatingAuthority"] = response.QueryMulti(assertion, "./saml:AuthnStatement/saml:AuthnContext/saml:AuthenticatingAuthority")
+	//attrs["saml:AuthenticatingAuthority"] = append(attrs["saml:AuthenticatingAuthority"].([]string), attrs["iss"].(string))
+	return
+}
+
 // Saml2jwt - JSON based SP interface
 func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExternalIDP, mdExternalSP Md, requestHandler func(*goxml.Xp, *goxml.Xp, *goxml.Xp) (map[string][]string, error), defaultIdpentityid string) (err error) {
 	defer r.Body.Close()
