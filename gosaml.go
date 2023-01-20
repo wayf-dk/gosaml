@@ -118,13 +118,13 @@ type (
 
 	// Formdata for passing parameters to display template
 	Formdata struct {
-		AcsURL                         template.URL
-		Acs, Samlresponse, Samlrequest string
-		RelayState, SigAlg, Signature  string
-		WsFed                          bool
-		SLOStatus                      string
-		Ard                            template.JS
-		Initial                        bool
+		AcsURL                                   template.URL
+		Acs, Samlresponse, Samlrequest, Id_token string
+		RelayState, SigAlg, Signature            string
+		Protocol                                 string
+		SLOStatus                                string
+		Ard                                      template.JS
+		Initial                                  bool
 	}
 
 	// Hm - HMac struct
