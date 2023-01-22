@@ -1749,7 +1749,6 @@ func Saml2map(response *goxml.Xp) (attrs map[string]interface{}) {
 	attrs["nbf"] = SamlTime2JwtTime(response.Query1(assertion, "./saml:Conditions/@NotBefore"))
 	attrs["exp"] = SamlTime2JwtTime(response.Query1(assertion, "./saml:Conditions/@NotOnOrAfter"))
 	attrs["iat"] = SamlTime2JwtTime(response.Query1(assertion, "@IssueInstant"))
-	attrs["_cc_"] = response.Query1(nil, "./@InResponseTo")
 	attrs["sub"] = attrs["eduPersonPrincipalName"].([]string)[0]
 
 	attrs["saml:AuthenticatingAuthority"] = response.QueryMulti(assertion, "./saml:AuthnStatement/saml:AuthnContext/saml:AuthenticatingAuthority")
