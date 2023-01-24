@@ -1963,7 +1963,7 @@ func JwtVerify(jwt string, certs []string) ([]byte, error) {
 		hh = crypto.SHA512
 	case "HS256", "HS512":
 	default:
-		return payload, fmt.Errorf("Unsupported alg: %s", header.Alg)
+		return nil, fmt.Errorf("Unsupported alg: %s", header.Alg)
 	}
 	//EdDSA
 	signature, _ := base64.RawURLEncoding.DecodeString(hps[2])
@@ -1989,7 +1989,7 @@ func JwtVerify(jwt string, certs []string) ([]byte, error) {
 			return payload, nil
 		}
 	}
-	return nil, errors.New("jwtVerifyi failed")
+	return nil, errors.New("jwtVerify failed")
 }
 
 // CheckDigestAndSignatureAlgorithms -
