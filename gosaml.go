@@ -1620,9 +1620,20 @@ func NewWsFedResponse(idpMd, spMd, sourceResponse *goxml.Xp) (response *goxml.Xp
 		response.QueryDashP(stmt, "saml1:SubjectConfirmation/saml1:ConfirmationMethod", "urn:oasis:names:tc:SAML:1.0:cm:bearer", nil)
 	}
 
+	attributeStmt := response.Query(assertion, "./saml1:AttributeStatement")[0]
+	sourceAttributes := sourceResponse.Query(nil, "./saml:Assertion/saml:AttributeStatement/saml:Attribute")
+	for _, stmt := range sourceAttributes {
+	    attr := response.QueryDashP(attributeStmt, "saml1:Attribute[0]", "", nil)
+	    for saml2Name, saml1Name := range map[string]string{"Name": "AttributeName", "NameFormat": "AttributeNamespace", "FriendlyName": "FriendlyName"} {
+	        response.QueryDashP(attr, "@"+saml1Name , sourceResponse.Query1(stmt, "@"+saml2Name), nil)
+	    }
+        for _, value := range sourceResponse.QueryMulti(stmt, "saml:AttributeValue") {
+            response.QueryDashP(attr, "saml1:AttributeValue[0]", value, nil)
+        }
+	}
+
 	authContext := sourceResponse.Query1(nil, "./saml:Assertion/saml:AuthnStatement/saml:AuthnContext/saml:AuthnContextClassRef")
 	response.QueryDashP(authStmt, "./@AuthenticationMethod", authContext, nil)
-
 	return
 }
 
