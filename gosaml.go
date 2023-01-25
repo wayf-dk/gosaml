@@ -1908,12 +1908,6 @@ func JwtSign(payload []byte, privatekey []byte, alg string) (jwt, atHash string,
 		dgst = sha512.New()
 		dg := sha512.Sum512(payload)
 		signature, err = goxml.Sign(dg[:], privatekey, []byte("-"), "rsa512")
-	case "HS256":
-		dgst = sha256.New()
-		signature = hmac.New(sha256.New, privatekey).Sum(payload)
-	case "HS512":
-		dgst = sha512.New()
-		signature = hmac.New(sha512.New, privatekey).Sum(payload)
 	default:
 		return jwt, atHash, fmt.Errorf("Unsupported alg: %s", alg)
 	}
@@ -1961,7 +1955,6 @@ func JwtVerify(jwt string, certs []string) ([]byte, error) {
 		dg := sha512.Sum512(hp)
 		digest = dg[:]
 		hh = crypto.SHA512
-	case "HS256", "HS512":
 	default:
 		return nil, fmt.Errorf("Unsupported alg: %s", header.Alg)
 	}
@@ -1977,17 +1970,6 @@ func JwtVerify(jwt string, certs []string) ([]byte, error) {
 			}
 		}
 		return nil, fmt.Errorf("jwtVerify failed")
-
-	case "HS256":
-		checked := hmac.New(sha256.New, []byte(certs[0])).Sum([]byte(hps[1]))
-		if hmac.Equal(checked, signature) {
-			return payload, nil
-		}
-	case "HS512":
-		checked := hmac.New(sha512.New, []byte(certs[0])).Sum([]byte(hps[1]))
-		if hmac.Equal(checked, signature) {
-			return payload, nil
-		}
 	}
 	return nil, errors.New("jwtVerify failed")
 }
