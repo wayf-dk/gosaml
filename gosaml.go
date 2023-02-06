@@ -2143,12 +2143,3 @@ func (sil *SLOInfoList) Unmarshal(msg []byte) {
 	}
 	return
 }
-
-// PP - super simple Pretty Print - using JSON
-func PP(i ...interface{}) {
-	for _, e := range i {
-		s, _ := json.MarshalIndent(e, "", "    ")
-		config.Logger.Println(string(s))
-	}
-	return
-}
