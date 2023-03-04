@@ -290,8 +290,9 @@ func (l *nemLog) Log(msg, idpMd *goxml.Xp, id string) {
 	}
 	if l.writer == nil {
 		var err error
+		hostname, _ := os.Hostname()
 		l.slot = slot
-		l.name = fmt.Sprintf(config.NemLogNameFormat, time.Now().Format("2006-01-02T15:04:05.0000000"))
+		l.name = fmt.Sprintf(config.NemLogNameFormat, hostname, time.Now().Format("2006-01-02T15:04:05.0000000"))
 		l.peerPublic, err = base64.StdEncoding.DecodeString(config.NemlogPublic)
 		if err != nil {
 			config.Logger.Fatalln(err)
