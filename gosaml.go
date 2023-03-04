@@ -279,6 +279,9 @@ func (l *nemLog) Finalize() {
 }
 
 func (l *nemLog) Log(msg, idpMd *goxml.Xp, id string) {
+    if !config.NemLoginRelated[idpMd.Query1(nil, `/md:EntityDescriptor/@entityID`)] {
+        return
+    }
 	l.lock.Lock()
 	defer l.lock.Unlock()
 	slot := time.Now().Unix() / config.NemLogSlotGranularity
