@@ -280,7 +280,7 @@ func (l *nemLog) Finalize() {
 
 func (l *nemLog) Log(msg, idpMd *goxml.Xp, id string) {
     entityID := idpMd.Query1(nil, `/md:EntityDescriptor/@entityID`)
-    fmt.Println("entityID:", entityID)
+    log.Println("entityID:", entityID)
     if !config.NemLoginRelated[idpMd.Query1(nil, `/md:EntityDescriptor/@entityID`)] {
         return
     }
@@ -1660,7 +1660,7 @@ func Jwt2saml(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 	}
 
     entityID := idpMd.Query1(nil, `/md:EntityDescriptor/@entityID`)
-    fmt.Println("jwt2saml:", entityID)
+    log.Println("jwt2saml:", entityID)
 
 	jwt := r.Form.Get("jwt")
 	if jwt == "" {
@@ -1785,7 +1785,7 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 
 	// backward compatible - use either or
 	entityID := r.Header.Get("X-Issuer") + r.Form.Get("issuer")
-	fmt.Println("saml2jwt:", entityID)
+	log.Println("saml2jwt:", entityID)
 
 	spMd, _, err := FindInMetadataSets(MdSets{mdInternal, mdExternalSP}, entityID)
 	if err != nil {
