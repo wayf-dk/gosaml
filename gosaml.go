@@ -225,8 +225,22 @@ func (l *nemLog) Write(p []byte) (n int, err error) {
 	return l.file.Write(p)
 }
 
-func (l *nemLog) Init(ephemeralPriv []byte) {
+func (l *nemLog) Init(slot int64) {
 	var err error
+
+    hostname, _ := os.Hostname()
+    l.slot = slot
+    l.name = fmt.Sprintf(config.NemLogNameFormat, hostname, time.Now().Format("2006-01-02T15:04:05.0000000"))
+    l.peerPublic, err = base64.StdEncoding.DecodeString(config.NemlogPublic)
+    if err != nil {
+        config.Logger.Fatalln(err)
+    }
+    ephemeralPriv := make([]byte, 32)
+    _, err = io.ReadFull(rand.Reader, ephemeralPriv[:])
+    if err != nil {
+        config.Logger.Fatalln(err)
+    }
+
 	if l.file, err = os.Create(l.name + ".gzip"); err != nil {
 		config.Logger.Fatalln(err)
 	}
@@ -280,8 +294,7 @@ func (l *nemLog) Finalize() {
 
 func (l *nemLog) Log(msg, idpMd *goxml.Xp, id string) {
     entityID := idpMd.Query1(nil, `/md:EntityDescriptor/@entityID`)
-    log.Println("entityID:", entityID)
-    if !config.NemLoginRelated[idpMd.Query1(nil, `/md:EntityDescriptor/@entityID`)] {
+    if !config.NemLoginRelated[entityID] {
         return
     }
 	l.lock.Lock()
@@ -291,25 +304,12 @@ func (l *nemLog) Log(msg, idpMd *goxml.Xp, id string) {
 		l.Finalize()
 	}
 	if l.writer == nil {
-		var err error
-		hostname, _ := os.Hostname()
-		l.slot = slot
-		l.name = fmt.Sprintf(config.NemLogNameFormat, hostname, time.Now().Format("2006-01-02T15:04:05.0000000"))
-		l.peerPublic, err = base64.StdEncoding.DecodeString(config.NemlogPublic)
-		if err != nil {
-			config.Logger.Fatalln(err)
-		}
-		ephemeralPriv := make([]byte, 32)
-		_, err = io.ReadFull(rand.Reader, ephemeralPriv[:])
-		if err != nil {
-			config.Logger.Fatalln(err)
-		}
-		l.Init(ephemeralPriv)
+		l.Init(slot)
 	}
 	if _, err := l.writer.Write([]byte("\n" + id + "\n")); err != nil {
 		config.Logger.Fatalln(err)
 	}
-	if _, err := l.writer.Write([]byte(msg.Dump())); err != nil {
+	if _, err := l.writer.Write([]byte(msg.PP())); err != nil {
 		config.Logger.Fatalln(err)
 	}
 	return
