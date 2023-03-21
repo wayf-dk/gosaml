@@ -321,11 +321,16 @@ func PublicKeyInfo(cert string) (keyname string, publickey crypto.PublicKey, err
 	// no pem so no pem.Decode
 	key, err := base64.StdEncoding.DecodeString(whitespace.ReplaceAllString(cert, ""))
 	crt, err := x509.ParseCertificate(key)
-	if err != nil {
-		err = goxml.Wrap(err)
-		return
+	if err == nil {
+	    publickey = crt.PublicKey
+	} else {
+	    publickey, err = x509.ParsePKIXPublicKey(key)
+        if err != nil {
+    		err = goxml.Wrap(err)
+            return
+        }
 	}
-	switch pk := crt.PublicKey.(type) {
+	switch pk := publickey.(type) {
 	case *rsa.PublicKey:
 		keyname = fmt.Sprintf("%x", sha1.Sum([]byte(fmt.Sprintf("Modulus=%X\n", pk.N))))
 	case ed25519.PublicKey:
@@ -333,7 +338,6 @@ func PublicKeyInfo(cert string) (keyname string, publickey crypto.PublicKey, err
 	default:
 		panic("unknown type of public key")
 	}
-	publickey = crt.PublicKey
 	return
 }
 
