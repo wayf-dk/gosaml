@@ -228,18 +228,18 @@ func (l *nemLog) Write(p []byte) (n int, err error) {
 func (l *nemLog) Init(slot int64) {
 	var err error
 
-    hostname, _ := os.Hostname()
-    l.slot = slot
-    l.name = fmt.Sprintf(config.NemLogNameFormat, hostname, time.Now().Format("2006-01-02T15:04:05.0000000"))
-    l.peerPublic, err = base64.StdEncoding.DecodeString(config.NemlogPublic)
-    if err != nil {
-        config.Logger.Fatalln(err)
-    }
-    ephemeralPriv := make([]byte, 32)
-    _, err = io.ReadFull(rand.Reader, ephemeralPriv[:])
-    if err != nil {
-        config.Logger.Fatalln(err)
-    }
+	hostname, _ := os.Hostname()
+	l.slot = slot
+	l.name = fmt.Sprintf(config.NemLogNameFormat, hostname, time.Now().Format("2006-01-02T15:04:05.0000000"))
+	l.peerPublic, err = base64.StdEncoding.DecodeString(config.NemlogPublic)
+	if err != nil {
+		config.Logger.Fatalln(err)
+	}
+	ephemeralPriv := make([]byte, 32)
+	_, err = io.ReadFull(rand.Reader, ephemeralPriv[:])
+	if err != nil {
+		config.Logger.Fatalln(err)
+	}
 
 	if l.file, err = os.Create(l.name + ".gzip"); err != nil {
 		config.Logger.Fatalln(err)
@@ -293,10 +293,10 @@ func (l *nemLog) Finalize() {
 }
 
 func (l *nemLog) Log(msg, idpMd *goxml.Xp, id string) {
-    entityID := idpMd.Query1(nil, `/md:EntityDescriptor/@entityID`)
-    if !config.NemLoginRelated[entityID] {
-        return
-    }
+	entityID := idpMd.Query1(nil, `/md:EntityDescriptor/@entityID`)
+	if !config.NemLoginRelated[entityID] {
+		return
+	}
 	l.lock.Lock()
 	defer l.lock.Unlock()
 	slot := time.Now().Unix() / config.NemLogSlotGranularity
@@ -322,13 +322,13 @@ func PublicKeyInfo(cert string) (keyname string, publickey crypto.PublicKey, err
 	key, err := base64.StdEncoding.DecodeString(whitespace.ReplaceAllString(cert, ""))
 	crt, err := x509.ParseCertificate(key)
 	if err == nil {
-	    publickey = crt.PublicKey
+		publickey = crt.PublicKey
 	} else {
-	    publickey, err = x509.ParsePKIXPublicKey(key)
-        if err != nil {
-    		err = goxml.Wrap(err)
-            return
-        }
+		publickey, err = x509.ParsePKIXPublicKey(key)
+		if err != nil {
+			err = goxml.Wrap(err)
+			return
+		}
 	}
 	switch pk := publickey.(type) {
 	case *rsa.PublicKey:
@@ -1633,13 +1633,13 @@ func NewWsFedResponse(idpMd, spMd, sourceResponse *goxml.Xp) (response *goxml.Xp
 	attributeStmt := response.Query(assertion, "./saml1:AttributeStatement")[0]
 	sourceAttributes := sourceResponse.Query(nil, "./saml:Assertion/saml:AttributeStatement/saml:Attribute")
 	for _, stmt := range sourceAttributes {
-	    attr := response.QueryDashP(attributeStmt, "saml1:Attribute[0]", "", nil)
-	    for saml2Name, saml1Name := range map[string]string{"Name": "AttributeName", "NameFormat": "AttributeNamespace", "FriendlyName": "FriendlyName"} {
-	        response.QueryDashP(attr, "@"+saml1Name , sourceResponse.Query1(stmt, "@"+saml2Name), nil)
-	    }
-        for _, value := range sourceResponse.QueryMulti(stmt, "saml:AttributeValue") {
-            response.QueryDashP(attr, "saml1:AttributeValue[0]", value, nil)
-        }
+		attr := response.QueryDashP(attributeStmt, "saml1:Attribute[0]", "", nil)
+		for saml2Name, saml1Name := range map[string]string{"Name": "AttributeName", "NameFormat": "AttributeNamespace", "FriendlyName": "FriendlyName"} {
+			response.QueryDashP(attr, "@"+saml1Name, sourceResponse.Query1(stmt, "@"+saml2Name), nil)
+		}
+		for _, value := range sourceResponse.QueryMulti(stmt, "saml:AttributeValue") {
+			response.QueryDashP(attr, "saml1:AttributeValue[0]", value, nil)
+		}
 	}
 
 	authContext := sourceResponse.Query1(nil, "./saml:Assertion/saml:AuthnStatement/saml:AuthnContext/saml:AuthnContextClassRef")
@@ -1663,8 +1663,8 @@ func Jwt2saml(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 		return err
 	}
 
-    entityID := idpMd.Query1(nil, `/md:EntityDescriptor/@entityID`)
-    log.Println("jwt2saml:", entityID)
+	entityID := idpMd.Query1(nil, `/md:EntityDescriptor/@entityID`)
+	log.Println("jwt2saml:", entityID)
 
 	jwt := r.Form.Get("jwt")
 	if jwt == "" {
@@ -1774,8 +1774,8 @@ func Saml2map(response *goxml.Xp) (attrs map[string]interface{}) {
 	attrs["exp"] = SamlTime2JwtTime(response.Query1(assertion, "./saml:Conditions/@NotOnOrAfter"))
 	attrs["iat"] = SamlTime2JwtTime(response.Query1(assertion, "@IssueInstant"))
 	if tmp, ok := attrs["eduPersonPrincipalName"]; ok {
-    	attrs["sub"] = tmp.([]string)[0]
-    }
+		attrs["sub"] = tmp.([]string)[0]
+	}
 
 	attrs["saml:AuthenticatingAuthority"] = response.QueryMulti(assertion, "./saml:AuthnStatement/saml:AuthnContext/saml:AuthenticatingAuthority")
 	//attrs["saml:AuthenticatingAuthority"] = append(attrs["saml:AuthenticatingAuthority"].([]string), attrs["iss"].(string))
