@@ -1936,7 +1936,7 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 			return err
 		}
 
-		u, err := SAMLRequest2URL(request, relayState, "", "", config.DefaultCryptoMethod)
+		u, err := SAMLRequest2URL(request, relayState, nil, config.DefaultCryptoMethod)
 		if err != nil {
 			return err
 		}
