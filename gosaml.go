@@ -20,6 +20,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
+	"encoding/pem"
 	"encoding/xml"
 	"errors"
 	"fmt"
@@ -29,7 +30,6 @@ import (
 	"io/fs"
 	"io/ioutil"
 	"log"
-	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -170,7 +170,7 @@ var (
 	// B2I map for marshalling bool to uint
 	B2I             = map[bool]byte{false: 0, true: 1}
 	privatekeyLock  sync.RWMutex
-	privatekeyCache = map[string][]byte{}
+	privatekeyCache = map[string]crypto.PrivateKey{}
 	NemLog          = &nemLog{}
 )
 
@@ -361,44 +361,76 @@ func PublicKeyInfoByMethod(certs []string, keyType x509.PublicKeyAlgorithm) (key
 }
 
 // GetPrivateKey extract the key from Metadata and builds a name and reads the key
-func GetPrivateKey(md *goxml.Xp, path string) (privatekey []byte, cert string, err error) {
+func GetPrivateKey(md *goxml.Xp, path string) (privatekey crypto.PrivateKey, cert string, err error) {
 	cert = md.Query1(nil, path)
 	keyname, _, err := PublicKeyInfo(cert)
 	if err != nil {
 		return
 	}
-	privatekey, err = getPrivateKeyByName(keyname)
+	privatekey, err = getPrivateKeyByName(keyname, "")
 	return
 }
 
-func GetPrivateKeyByMethod(md *goxml.Xp, path string, keyType x509.PublicKeyAlgorithm) (privatekey []byte, cert string, err error) {
+func GetPrivateKeyByMethodWithPW(md *goxml.Xp, path string, keyType x509.PublicKeyAlgorithm, pw string) (privatekey crypto.PrivateKey, cert string, err error) {
 	certs := md.QueryMulti(nil, path)
 	names, crts, _, _ := PublicKeyInfoByMethod(certs, keyType)
 	if len(names) == 0 {
 		err = fmt.Errorf("No keys found: %d", keyType)
 		return
 	}
-	privatekey, err = getPrivateKeyByName(names[0])
+
+	privatekey, err = getPrivateKeyByName(names[0], pw)
 	cert = crts[0]
 	return
 }
 
-func getPrivateKeyByName(keyname string) (privatekey []byte, err error) {
+func GetPrivateKeyByMethod(md *goxml.Xp, path string, keyType x509.PublicKeyAlgorithm) (privatekey crypto.PrivateKey, cert string, err error) {
+	return GetPrivateKeyByMethodWithPW(md, path, keyType, "")
+}
+
+func getPrivateKeyByName(keyname, pw string) (privatekey crypto.PrivateKey, err error) {
 	privatekeyLock.RLock()
-	privatekey = privatekeyCache[keyname]
+	privatekey, ok := privatekeyCache[keyname]
 	privatekeyLock.RUnlock()
-	if len(privatekey) != 0 {
+	if ok {
 		return
 	}
 
-	privatekey, err = fs.ReadFile(config.PrivateKeys, keyname+".key")
+	pkpem, err := fs.ReadFile(config.PrivateKeys, keyname+".key")
 	if err != nil {
 		err = goxml.Wrap(err)
 		return
 	}
+
+    if bytes.HasPrefix(pkpem, []byte("hsm:")) {
+        privatekey = goxml.HSMKey(pkpem)
+    } else {
+    	privatekey, err = Pem2PrivateKey(pkpem, pw)
+        if err != nil {
+            return nil, goxml.Wrap(err)
+        }
+    }
+
 	privatekeyLock.Lock()
 	privatekeyCache[keyname] = privatekey
 	privatekeyLock.Unlock()
+	return
+}
+
+// Pem2PrivateKey converts a PEM encoded private key with an optional password to a *rsa.PrivateKey
+func Pem2PrivateKey(privatekeypem []byte, pw string) (pk crypto.PrivateKey, err error) {
+	block, _ := pem.Decode(privatekeypem) // not used rest
+	derbytes := block.Bytes
+	if pw != "" {
+		if derbytes, err = x509.DecryptPEMBlock(block, []byte(pw)); err != nil {
+			return nil, goxml.Wrap(err)
+		}
+	}
+	if pk, err = x509.ParsePKCS1PrivateKey(derbytes); err != nil {
+		if pk, err = x509.ParsePKCS8PrivateKey(derbytes); err != nil {
+			return nil, goxml.Wrap(err)
+		}
+	}
 	return
 }
 
@@ -462,7 +494,7 @@ func URL2SAMLRequest(url *url.URL, err error) (samlrequest *goxml.Xp, relayState
 }
 
 // SAMLRequest2URL creates a redirect URL from a saml request
-func SAMLRequest2URL(samlrequest *goxml.Xp, relayState, privatekey, pw, algo string) (destination *url.URL, err error) {
+func SAMLRequest2URL(samlrequest *goxml.Xp, relayState string, privatekey crypto.PrivateKey, algo string) (destination *url.URL, err error) {
 	var paramName string
 	switch samlrequest.QueryString(nil, "local-name(/*)") {
 	case "LogoutResponse":
@@ -479,13 +511,13 @@ func SAMLRequest2URL(samlrequest *goxml.Xp, relayState, privatekey, pw, algo str
 		q += "&RelayState=" + url.QueryEscape(relayState)
 	}
 
-	if privatekey != "" {
+	if privatekey != nil {
 		q += "&SigAlg=" + url.QueryEscape(config.CryptoMethods[algo].SigningMethod)
 
 		digest := goxml.Hash(config.CryptoMethods[algo].Hash, q)
 
 		var signaturevalue []byte
-		signaturevalue, err = goxml.Sign(digest, []byte(privatekey), []byte(pw), algo)
+		signaturevalue, err = goxml.Sign(digest, privatekey, algo)
 		if err != nil {
 			return
 		}
@@ -1192,14 +1224,14 @@ func NewLogoutResponseWithBinding(issuer string, destination *goxml.Xp, inRespon
 }
 
 // SloRequest generates a single logout request
-func SloRequest(w http.ResponseWriter, r *http.Request, response, spMd, IdpMd *goxml.Xp, pk string, protocol string) {
+func SloRequest(w http.ResponseWriter, r *http.Request, response, spMd, IdpMd *goxml.Xp, pk crypto.PrivateKey, protocol string) {
 	context := response.Query(nil, "/samlp:Response/saml:Assertion")[0]
 	sloinfo := NewSLOInfo(response, context, spMd.Query1(nil, "@entityID"), false, SPRole, protocol)
 	request, binding, _ := NewLogoutRequest(IdpMd, sloinfo, spMd.Query1(nil, "@entityID"), false)
 	request.QueryDashP(nil, "@ID", ID(), nil)
 	switch binding {
 	case REDIRECT:
-		u, _ := SAMLRequest2URL(request, "", pk, "-", config.DefaultCryptoMethod)
+		u, _ := SAMLRequest2URL(request, "", pk, config.DefaultCryptoMethod)
 		http.Redirect(w, r, u.String(), http.StatusFound)
 	case POST:
 		data := Formdata{Acs: request.Query1(nil, "./@Destination"), Samlrequest: base64.StdEncoding.EncodeToString(request.Dump())}
@@ -1208,7 +1240,7 @@ func SloRequest(w http.ResponseWriter, r *http.Request, response, spMd, IdpMd *g
 }
 
 // SloResponse generates a single logout reponse
-func SloResponse(w http.ResponseWriter, r *http.Request, request, issuer, destination *goxml.Xp, pk string, role uint8) (err error) {
+func SloResponse(w http.ResponseWriter, r *http.Request, request, issuer, destination *goxml.Xp, pk crypto.PrivateKey, role uint8) (err error) {
 	response, binding, err := NewLogoutResponse(issuer.Query1(nil, `./@entityID`), destination, request.Query1(nil, "@ID"), role)
 	if err != nil {
 		return
@@ -1216,7 +1248,7 @@ func SloResponse(w http.ResponseWriter, r *http.Request, request, issuer, destin
 
 	switch binding {
 	case REDIRECT:
-		u, _ := SAMLRequest2URL(response, "", pk, "-", config.DefaultCryptoMethod)
+		u, _ := SAMLRequest2URL(response, "", pk, config.DefaultCryptoMethod)
 		http.Redirect(w, r, u.String(), http.StatusFound)
 	case POST:
 		data := Formdata{Acs: response.Query1(nil, "./@Destination"), Samlresponse: base64.StdEncoding.EncodeToString(response.Dump())}
@@ -1344,7 +1376,7 @@ func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp, signing
 		before = nil
 	}
 
-	err = response.Sign(element[0].(types.Element), before, privatekey, []byte("-"), cert, signingMethod)
+	err = response.Sign(element[0].(types.Element), before, privatekey, cert, signingMethod)
 	return
 }
 
@@ -1916,7 +1948,7 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 }
 
 // JwtSign - sign a json payload, return jwt and at_atHash
-func JwtSign(payload []byte, privatekey []byte, alg string) (jwt, atHash string, err error) {
+func JwtSign(payload []byte, privatekey crypto.PrivateKey, alg string) (jwt, atHash string, err error) {
 	hd, _ := json.Marshal(map[string]interface{}{"typ": "JWT", "alg": alg})
 	header := base64.RawURLEncoding.EncodeToString(hd) + "."
 	payload = append([]byte(header), base64.RawURLEncoding.EncodeToString(payload)...)
@@ -1926,15 +1958,15 @@ func JwtSign(payload []byte, privatekey []byte, alg string) (jwt, atHash string,
 	case "EdDSA":
 		dgst = sha512.New()
 		dg := sha512.Sum512(payload)
-		signature, err = goxml.Sign(dg[:], privatekey, []byte("-"), "ed25519")
+		signature, err = goxml.Sign(dg[:], privatekey, "ed25519")
 	case "RS256":
 		dgst = sha256.New()
 		dg := sha256.Sum256(payload)
-		signature, err = goxml.Sign(dg[:], privatekey, []byte("-"), "rsa256")
+		signature, err = goxml.Sign(dg[:], privatekey, "rsa256")
 	case "RS512":
 		dgst = sha512.New()
 		dg := sha512.Sum512(payload)
-		signature, err = goxml.Sign(dg[:], privatekey, []byte("-"), "rsa512")
+		signature, err = goxml.Sign(dg[:], privatekey, "rsa512")
 	default:
 		return jwt, atHash, fmt.Errorf("Unsupported alg: %s", alg)
 	}
