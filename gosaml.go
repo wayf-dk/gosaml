@@ -750,10 +750,17 @@ func CheckSAMLMessage(r *http.Request, xp, issuerMd, destinationMd *goxml.Xp, ro
 		signatureElements []string
 		checks            []string
 	}
+
+	protocol := xp.QueryString(nil, "local-name(/*)")
+	authnRequestChecks := 0
+	if protocol == "AuthnRequest" && (destinationMd.QueryXMLBool(nil, "./md:IDPSSODescriptor/@WantAuthnRequestsSigned") || issuerMd.QueryXMLBool(nil, "./md:SPSSODescriptor/@AuthnRequestsSigned")) {
+    	authnRequestChecks = 0
+	}
+
 	// add checks for xtra element on top level in tests - does schema checks handle that or should we do it here???
 	protoChecks := map[string]protoCheckInfoStruct{
 		"AuthnRequest": {
-			minSignatures:     map[bool]int{true: 1, false: 0}[destinationMd.QueryXMLBool(nil, "./md:IDPSSODescriptor/@WantAuthnRequestsSigned")],
+			minSignatures:     authnRequestChecks,
 			service:           "md:SingleSignOnService",
 			signatureElements: []string{"/samlp:AuthnRequest[1]/ds:Signature[1]/..]", ""}},
 		"Response": {
@@ -770,8 +777,6 @@ func CheckSAMLMessage(r *http.Request, xp, issuerMd, destinationMd *goxml.Xp, ro
 			service:           "md:SingleLogoutService",
 			signatureElements: []string{"/samlp:LogoutResponse[1]/ds:Signature[1]/..", ""}},
 	}
-
-	protocol := xp.QueryString(nil, "local-name(/*)")
 
 	bindings := map[string][]string{
 		"GET":  {REDIRECT},
@@ -797,7 +802,8 @@ findbinding:
 		return
 	}
 
-	if protoChecks[protocol].minSignatures <= 0 {
+    // the check for SigAlg is mostly for testing. If checking is not enforced by metadata the Signature and SigAlg can just be removed
+	if protoChecks[protocol].minSignatures <= 0 && r.Form.Get("SigAlg") == ""  {
 		return xp, false, nil
 	}
 
@@ -908,8 +914,9 @@ func checkRedirectOrSimpleSign(params url.Values, certificates []string, forSimp
 		}
 	}
 
-	signature, _ := base64.RawURLEncoding.DecodeString(params["Signature"][0])
-	sigAlg := params["SigAlg"][0]
+    sig, _ := url.QueryUnescape(params.Get("Signature"))
+	signature, _ := base64.StdEncoding.DecodeString(sig)
+	sigAlg, _ := url.QueryUnescape(params.Get("SigAlg")) // need to unescape here because the signature uses the escaped value
 
 	if _, ok := goxml.SigningMethods[sigAlg]; !ok {
 		return goxml.NewWerror("unsupported SigAlg", sigAlg)
