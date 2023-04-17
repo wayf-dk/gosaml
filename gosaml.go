@@ -845,7 +845,7 @@ findbinding:
 					}
 
 					encryptedAssertion := encryptedAssertions[0]
-					err = xp.Decrypt(encryptedAssertion.(types.Element), privatekey, []byte("-"))
+					err = xp.Decrypt(encryptedAssertion.(types.Element), privatekey)
 					if err != nil {
 						err = goxml.Wrap(err)
 						err = goxml.PublicError(err.(goxml.Werror), "cause:encryption error") // hide the real problem from attacker
@@ -1906,7 +1906,7 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 			return err
 		}
 		request.QueryDashP(nil, "@ID", ID(), nil)
-		u, err := SAMLRequest2URL(request, "", "", "", config.DefaultCryptoMethod)
+		u, err := SAMLRequest2URL(request, "", "",  config.DefaultCryptoMethod)
 		if err != nil {
 			return err
 		}
