@@ -404,14 +404,14 @@ func getPrivateKeyByName(keyname, pw string) (privatekey crypto.PrivateKey, err 
 		return
 	}
 
-    if bytes.HasPrefix(pkpem, []byte("hsm:")) {
-        privatekey = goxml.HSMKey(pkpem)
-    } else {
-    	privatekey, err = Pem2PrivateKey(pkpem, pw)
-        if err != nil {
-            return nil, goxml.Wrap(err)
-        }
-    }
+	if bytes.HasPrefix(pkpem, []byte("hsm:")) {
+		privatekey = goxml.HSMKey(pkpem)
+	} else {
+		privatekey, err = Pem2PrivateKey(pkpem, pw)
+		if err != nil {
+			return nil, goxml.Wrap(err)
+		}
+	}
 
 	privatekeyLock.Lock()
 	privatekeyCache[keyname] = privatekey
@@ -531,18 +531,34 @@ func SAMLRequest2URL(samlrequest *goxml.Xp, relayState string, privatekey crypto
 	return
 }
 
-func SAMLRequest2OIDCRequest(samlrequest *goxml.Xp, RelayState string) (destination *url.URL, err error) {
+func SAMLRequest2OIDCRequest(samlrequest *goxml.Xp, relayState, flow string, idpMD *goxml.Xp) (destination *url.URL, err error) {
 	destination, err = url.Parse(samlrequest.Query1(nil, "@Destination"))
 	if err != nil {
 		return
 	}
+
+	if flow == "code" {
+		json, err := json.Marshal(&[]string{relayState, idpMD.Query1(nil, "@entityID")})
+		if err != nil {
+			return nil, err
+		}
+		relayState, err = AuthnRequestCookie.Encode("oidc", json)
+		if err != nil {
+			return nil, err
+		}
+
+	}
+
+	client_id := samlrequest.Query1(nil, "./saml:Issuer")
 	params := url.Values{}
 	params.Set("scope", "openid")
-	params.Set("response_type", "id_token")
-	params.Set("client_id", samlrequest.Query1(nil, "./saml:Issuer"))
+	params.Set("response_type", flow) // code id_token
+	params.Set("client_id", client_id)
 	params.Set("redirect_uri", samlrequest.Query1(nil, "@AssertionConsumerServiceURL"))
 	params.Set("response_mode", "form_post")
+	params.Set("audience", client_id)
 	params.Set("nonce", samlrequest.Query1(nil, "@ID"))
+	params.Set("state", relayState)
 	//    params.Set("acr_values", "")
 	destination.RawQuery = params.Encode()
 	return
@@ -731,7 +747,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSets, destinationMdSets MdSets, role
 		return
 	}
 
-    signed := false
+	signed := false
 	if verified_id_token {
 		xp = tmpXp
 		signed = true
@@ -780,7 +796,7 @@ func CheckSAMLMessage(r *http.Request, xp, issuerMd, destinationMd *goxml.Xp, ro
 	protocol := xp.QueryString(nil, "local-name(/*)")
 	authnRequestChecks := 0
 	if protocol == "AuthnRequest" && (destinationMd.QueryXMLBool(nil, "./md:IDPSSODescriptor/@WantAuthnRequestsSigned") || issuerMd.QueryXMLBool(nil, "./md:SPSSODescriptor/@AuthnRequestsSigned")) {
-    	authnRequestChecks = 0
+		authnRequestChecks = 0
 	}
 
 	// add checks for xtra element on top level in tests - does schema checks handle that or should we do it here???
@@ -828,8 +844,8 @@ findbinding:
 		return
 	}
 
-    // the check for SigAlg is mostly for testing. If checking is not enforced by metadata the Signature and SigAlg can just be removed
-	if protoChecks[protocol].minSignatures <= 0 && r.Form.Get("SigAlg") == ""  {
+	// the check for SigAlg is mostly for testing. If checking is not enforced by metadata the Signature and SigAlg can just be removed
+	if protoChecks[protocol].minSignatures <= 0 && r.Form.Get("SigAlg") == "" {
 		return xp, false, nil
 	}
 
@@ -940,7 +956,7 @@ func checkRedirectOrSimpleSign(params url.Values, certificates []string, forSimp
 		}
 	}
 
-    sig, _ := url.QueryUnescape(params.Get("Signature"))
+	sig, _ := url.QueryUnescape(params.Get("Signature"))
 	signature, _ := base64.StdEncoding.DecodeString(sig)
 	sigAlg, _ := url.QueryUnescape(params.Get("SigAlg")) // need to unescape here because the signature uses the escaped value
 
@@ -1603,8 +1619,10 @@ func request2samlRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 	issuer := r.Form.Get("wtrealm") + r.Form.Get("client_id")
 	acs := r.Form.Get("wreply") + r.Form.Get("redirect_uri")
 	id_token := r.Form.Get("id_token")
+	code := r.Form.Get("code")
 
-	if r.Form.Get("wa") == "wsignin1.0" || r.Form.Get("response_type") != "" {
+	switch {
+	case r.Form.Get("wa") == "wsignin1.0", r.Form.Get("response_type") != "":
 		samlmessage = goxml.NewXpFromString(`<samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" Version="2.0"/>`)
 		issueInstant, msgID, _, _, _ := IDAndTiming()
 		samlmessage.QueryDashP(nil, "./@ID", msgID, nil)
@@ -1621,53 +1639,78 @@ func request2samlRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 			samlmessage.QueryDashP(protocol, ".", "oidc", nil)
 		}
 		return
-	} else if r.Form.Get("wa") == "wsignout1.0" {
+	case r.Form.Get("wa") == "wsignout1.0":
 		samlmessage = logoutRequest(&SLOInfo{ID: "dummy", NameID: "dummy"}, issuer, location, false)
 		samlmessage.QueryDashP(nil, "./samlp:Extensions/wayf:protocol", "wsfed", samlmessage.Query(nil, "saml:NameID")[0])
 		return
-	} else if r.Form.Get("wa") == "wsignoutcleanup1.0" {
-
-	} else if id_token != "" {
-		spMd, _, err := FindInMetadataSets(destinationMdSets, location)
-		if err != nil {
-			return nil, "", false, err
-		}
-
-		privatekey, _, err := GetPrivateKeyByMethod(spMd, "md:SPSSODescriptor"+EncryptionCertQuery, x509.RSA)
-		if err != nil {
-			return nil, "", false, goxml.Wrap(err)
-		}
-
-		id_token, err = goxml.DeJwe(id_token, privatekey)
-		if err != nil {
-			return nil, "", false, err
-		}
-
-		payload, idpMd, err := JwtVerify(id_token, issuerMdSets)
-		if err != nil {
-			return nil, "", false, goxml.Wrap(err)
-		}
-
-		attrs := map[string]interface{}{}
-		err = json.Unmarshal(payload, &attrs)
-		if err != nil {
-			return nil, "", false, goxml.Wrap(err)
-		}
-        // fake an authnRequest with @ACS and @ID
-    	request := goxml.NewXpFromString(`<pseudo/>`)
-    	nonce, _ := attrs["nonce"].(string)
-    	request.QueryDashP(nil, "@ID", nonce, nil)
-    	request.QueryDashP(nil, "@AssertionConsumerServiceURL", location, nil)
-
-
-		samlmessage = NewResponse(idpMd, spMd, request, nil)
-		if err = Map2saml(samlmessage, attrs); err != nil {
-			return nil, "", false, err
-		}
-		return samlmessage, relayState, true, nil
+	case id_token != "", code != "":
+	case r.Form.Get("wa") == "wsignoutcleanup1.0":
+		return handleOIDCResponse(r, issuerMdSets, destinationMdSets, location, id_token, code)
 	}
 	err = fmt.Errorf("no SAMLRequest/SAMLResponse found")
 	return
+}
+
+func handleOIDCResponse(r *http.Request, issuerMdSets, destinationMdSets MdSets, location, id_token, code string) (samlmessage *goxml.Xp, relayState string, verified_id_token bool, err error) {
+	spMd, _, err := FindInMetadataSets(destinationMdSets, location)
+	if err != nil {
+		return nil, "", false, err
+	}
+	relayState = r.Form.Get("state")
+	if code != "" {
+		jjson, err := AuthnRequestCookie.Decode("oidc", relayState)
+		if err != nil {
+			return nil, "", false, err
+		}
+		stateOPpair := []string{}
+		err = json.Unmarshal(jjson, &stateOPpair)
+		if err != nil {
+			return nil, "", false, err
+		}
+		relayState = stateOPpair[0]
+
+		idpMd, _, err := FindInMetadataSets(issuerMdSets, stateOPpair[1])
+		if err != nil {
+			return nil, "", false, err
+		}
+
+		tokenEndpoint := idpMd.Query1(nil, `//md:SingleSignOnService[@binding="token"]/@Location`)
+
+		query := url.Values{}
+		query.Set("grant_type", "authorization_code")
+		query.Set("client_id", spMd.Query1(nil, "@entityID"))
+		query.Set("client_secret", config.ClientSecret)
+		query.Set("code", code)
+		query.Set("redirect_url", spMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`"]/@Location`))
+
+		req, _ := http.NewRequest("POST", tokenEndpoint, strings.NewReader(query.Encode()))
+		req.Header.Add("content-type", "application/x-www-form-urlencoded")
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return nil, "", false, err
+		}
+
+		defer res.Body.Close()
+		body, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			return nil, "", false, err
+		}
+		id_token = string(body)
+	}
+	attrs, idpMd, err := JwtVerify(id_token, issuerMdSets, spMd, SPEnc)
+	if err != nil {
+		return nil, "", false, goxml.Wrap(err)
+	}
+	// fake an authnRequest with @ACS and @ID
+	request := goxml.NewXpFromString(`<pseudo/>`)
+	nonce, _ := attrs["nonce"].(string)
+	request.QueryDashP(nil, "@ID", nonce, nil)
+	request.QueryDashP(nil, "@AssertionConsumerServiceURL", location, nil)
+	samlmessage = NewResponse(idpMd, spMd, request, nil)
+	if err = Map2saml(samlmessage, attrs); err != nil {
+		return nil, "", false, err
+	}
+	return samlmessage, relayState, true, nil
 }
 
 // NewWsFedResponse generates a Ws-fed response
@@ -1992,7 +2035,7 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 			return err
 		}
 		request.QueryDashP(nil, "@ID", ID(), nil)
-		u, err := SAMLRequest2URL(request, "", "",  config.DefaultCryptoMethod)
+		u, err := SAMLRequest2URL(request, "", "", config.DefaultCryptoMethod)
 		if err != nil {
 			return err
 		}
