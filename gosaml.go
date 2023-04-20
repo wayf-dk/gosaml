@@ -71,6 +71,8 @@ const (
 	SigningCertQuery = `/md:KeyDescriptor[@use="signing" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
 	// EncryptionCertQuery refers to encryption key
 	EncryptionCertQuery = `/md:KeyDescriptor[@use="encryption" or not(@use)]/ds:KeyInfo/ds:X509Data/ds:X509Certificate`
+	SPEnc               = "md:SPSSODescriptor" + EncryptionCertQuery
+	IdPEnc              = "md:IDPSODescriptor" + EncryptionCertQuery
 	// Transient refers to nameid format
 	Transient = "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
 	// Persistent refers to nameid format
@@ -1787,12 +1789,7 @@ func Jwt2saml(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 	msgType := msg.QueryString(nil, "local-name(/*)")
 	switch msgType {
 	case "AuthnRequest":
-		payload, _, err := JwtVerify(jwt, MdSets{mdInternal, mdExternalIDP})
-		if err != nil {
-			return err
-		}
-		var attrs map[string]interface{}
-		err = json.Unmarshal(payload, &attrs)
+		attrs, _, err := JwtVerify(jwt, MdSets{mdInternal, mdExternalIDP}, spMd, SPEnc)
 		if err != nil {
 			return err
 		}
@@ -2071,9 +2068,21 @@ func JwtSign(payload []byte, privatekey crypto.PrivateKey, alg string) (jwt, atH
 	return
 }
 
-func JwtVerify(jwt string, issuerMdSets MdSets) (payload []byte, idpMd *goxml.Xp, err error) {
+func JwtVerify(jwt string, issuerMdSets MdSets, md *goxml.Xp, path string) (attrs map[string]interface{}, idpMd *goxml.Xp, err error) {
+	peica := strings.Split(jwt, ".")
+	if len(peica) == 5 {
+		privatekey, _, err := GetPrivateKeyByMethod(md, path, x509.RSA)
+		if err != nil {
+			return nil, nil, err
+		}
+		jwt, err = goxml.DeJwe(peica, privatekey)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
 	hps := strings.SplitN(jwt, ".", 3)
-	payload, err = base64.RawURLEncoding.DecodeString(hps[1])
+	payload, err := base64.RawURLEncoding.DecodeString(hps[1])
 	if err != nil {
 		return
 	}
@@ -2104,7 +2113,6 @@ func JwtVerify(jwt string, issuerMdSets MdSets) (payload []byte, idpMd *goxml.Xp
 		return nil, nil, fmt.Errorf("Unsupported alg: %s", header.Alg)
 	}
 
-	var attrs map[string]interface{}
 	err = json.Unmarshal(payload, &attrs)
 	if err != nil {
 		return
@@ -2123,7 +2131,10 @@ func JwtVerify(jwt string, issuerMdSets MdSets) (payload []byte, idpMd *goxml.Xp
 		for _, pub := range pubs {
 			err = rsa.VerifyPKCS1v15(pub.(*rsa.PublicKey), hh, digest, signature)
 			if err == nil {
-				return payload, idpMd, err
+				err = json.Unmarshal(payload, &attrs)
+				if err == nil {
+					return attrs, idpMd, err
+				}
 			}
 		}
 		return nil, nil, fmt.Errorf("jwtVerify failed")
