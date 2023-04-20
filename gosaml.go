@@ -16,6 +16,7 @@ import (
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/sha512"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/binary"
@@ -174,6 +175,7 @@ var (
 	privatekeyLock  sync.RWMutex
 	privatekeyCache = map[string]crypto.PrivateKey{}
 	NemLog          = &nemLog{}
+	scoped = regexp.MustCompile(`^([^\@]+)\@([a-zA-Z0-9][a-zA-Z0-9\.-]+[a-zA-Z0-9])$`)
 )
 
 // DebugSetting for debugging cookies
@@ -1644,8 +1646,8 @@ func request2samlRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 		samlmessage.QueryDashP(nil, "./samlp:Extensions/wayf:protocol", "wsfed", samlmessage.Query(nil, "saml:NameID")[0])
 		return
 	case id_token != "", code != "":
-	case r.Form.Get("wa") == "wsignoutcleanup1.0":
 		return handleOIDCResponse(r, issuerMdSets, destinationMdSets, location, id_token, code)
+	case r.Form.Get("wa") == "wsignoutcleanup1.0":
 	}
 	err = fmt.Errorf("no SAMLRequest/SAMLResponse found")
 	return
@@ -1674,28 +1676,38 @@ func handleOIDCResponse(r *http.Request, issuerMdSets, destinationMdSets MdSets,
 			return nil, "", false, err
 		}
 
-		tokenEndpoint := idpMd.Query1(nil, `//md:SingleSignOnService[@binding="token"]/@Location`)
-
+		tokenEndpoint := idpMd.Query1(nil, `//md:SingleSignOnService[@Binding="token"]/@Location`)
 		query := url.Values{}
 		query.Set("grant_type", "authorization_code")
 		query.Set("client_id", spMd.Query1(nil, "@entityID"))
-		query.Set("client_secret", config.ClientSecret)
+		query.Set("client_secret", config.Clientsecret)
 		query.Set("code", code)
-		query.Set("redirect_url", spMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`"]/@Location`))
+		query.Set("redirect_uri", spMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`"]/@Location`))
 
 		req, _ := http.NewRequest("POST", tokenEndpoint, strings.NewReader(query.Encode()))
 		req.Header.Add("content-type", "application/x-www-form-urlencoded")
-		res, err := http.DefaultClient.Do(req)
+
+        client := &http.Client{
+            Transport: &http.Transport{
+                TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+            },
+        }
+
+		res, err := client.Do(req)
 		if err != nil {
 			return nil, "", false, err
 		}
-
 		defer res.Body.Close()
 		body, err := ioutil.ReadAll(res.Body)
 		if err != nil {
 			return nil, "", false, err
 		}
-		id_token = string(body)
+        token := map[string]interface{}{}
+        err = json.Unmarshal(body, &token)
+        if err != nil {
+			return nil, "", false, err
+        }
+		id_token, _ = token["id_token"].(string)
 	}
 	attrs, idpMd, err := JwtVerify(id_token, issuerMdSets, spMd, SPEnc)
 	if err != nil {
@@ -1707,6 +1719,11 @@ func handleOIDCResponse(r *http.Request, issuerMdSets, destinationMdSets MdSets,
 	request.QueryDashP(nil, "@ID", nonce, nil)
 	request.QueryDashP(nil, "@AssertionConsumerServiceURL", location, nil)
 	samlmessage = NewResponse(idpMd, spMd, request, nil)
+	// tmp fix
+    eppn := attrs["eduPersonPrincipalName"].([]interface{})[0].(string)
+    attrs["eduPersonPrincipalName"] = []interface{}{ scoped.FindStringSubmatch(eppn)[1]+"@hackmanit.de" }
+
+    config.PP(eppn, attrs)
 	if err = Map2saml(samlmessage, attrs); err != nil {
 		return nil, "", false, err
 	}
@@ -1995,7 +2012,7 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 				return err
 			}
 
-			//w.Header().Set("Authorization", "Bearer "+jwt)
+			w.Header().Set("Authorization", "Bearer "+jwt)
 
 			if relayState != "" {
 				app, err := AuthnRequestCookie.Decode("app", relayState)
