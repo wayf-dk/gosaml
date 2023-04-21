@@ -1709,7 +1709,7 @@ func handleOIDCResponse(r *http.Request, issuerMdSets, destinationMdSets MdSets,
         }
 		id_token, _ = token["id_token"].(string)
 	}
-	attrs, idpMd, err := JwtVerify(id_token, issuerMdSets, spMd, SPEnc)
+	attrs, idpMd, err := JwtVerify(id_token, issuerMdSets, spMd, SPEnc, "")
 	if err != nil {
 		return nil, "", false, goxml.Wrap(err)
 	}
@@ -1849,7 +1849,7 @@ func Jwt2saml(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 	msgType := msg.QueryString(nil, "local-name(/*)")
 	switch msgType {
 	case "AuthnRequest":
-		attrs, _, err := JwtVerify(jwt, MdSets{mdInternal, mdExternalIDP}, spMd, SPEnc)
+		attrs, _, err := JwtVerify(jwt, MdSets{mdInternal, mdExternalIDP}, spMd, SPEnc, entityID)
 		if err != nil {
 			return err
 		}
@@ -2128,7 +2128,7 @@ func JwtSign(payload []byte, privatekey crypto.PrivateKey, alg string) (jwt, atH
 	return
 }
 
-func JwtVerify(jwt string, issuerMdSets MdSets, md *goxml.Xp, path string) (attrs map[string]interface{}, idpMd *goxml.Xp, err error) {
+func JwtVerify(jwt string, issuerMdSets MdSets, md *goxml.Xp, path, iss string) (attrs map[string]interface{}, idpMd *goxml.Xp, err error) {
 	peica := strings.Split(jwt, ".")
 	if len(peica) == 5 {
 		privatekey, _, err := GetPrivateKeyByMethod(md, path, x509.RSA)
@@ -2177,7 +2177,9 @@ func JwtVerify(jwt string, issuerMdSets MdSets, md *goxml.Xp, path string) (attr
 	if err != nil {
 		return
 	}
-	iss, _ := attrs["iss"].(string) // no reason to error already - we won't find any md later
+    if iss == "" {
+    	iss, _ = attrs["iss"].(string) // no reason to error already - we won't find any md later
+    }
 	idpMd, _, err = FindInMetadataSets(issuerMdSets, iss)
 	if err != nil {
 		return
