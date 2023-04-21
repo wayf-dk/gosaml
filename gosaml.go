@@ -1910,7 +1910,7 @@ func Map2saml(response *goxml.Xp, attrs map[string]interface{}) (err error) {
 
 	times := []claimType{
 		{"iat", "@IssueInstant", true},
-		{"exp", "./saml:Assertion/saml:Conditions/@NotOnOrAfter", true},
+		{"exp", "./saml:Assertion/saml:Conditions/@NotOnOrAfter", false},
 		{"nbf", "./saml:Assertion/saml:Conditions/@NotBefore", false},
 	}
 
