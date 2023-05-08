@@ -699,18 +699,29 @@ func ReceiveLogoutMessage(r *http.Request, issuerMdSets, destinationMdSets MdSet
 func DecodeSAMLMsg(r *http.Request, issuerMdSets, destinationMdSets MdSets, role int, protocols []string, location string, xtraCerts []string) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, issuerIndex, destinationIndex uint8, err error) {
 	defer r.Body.Close()
 	r.ParseForm()
-	method := r.Method
 
+	destinationMd, destinationIndex, err = FindInMetadataSets(destinationMdSets, location)
+	if err != nil {
+		return
+	}
+
+	var signed bool
+	switch {
+	case r.Form.Get("id_token") != "", r.Form.Get("code") != "":
+		xp, relayState, issuerMd, issuerIndex, signed, err = handleOIDCResponse(r, issuerMdSets, destinationMd, location)
+		if err != nil {
+			return
+		}
+	default:
+		method := r.Method
 	if ok := method == "GET" || method == "POST"; !ok {
 		err = fmt.Errorf("unsupported http method used '%s'", method)
 		return
 	}
 
-	verified_id_token := false
 	relayState = r.Form.Get("RelayState")
 
 	var bmsg []byte
-	var tmpXp *goxml.Xp
 	msg := r.Form.Get("SAMLRequest") + r.Form.Get("SAMLResponse") // never both at the same time
 	if msg != "" {
 		bmsg, err = base64.StdEncoding.DecodeString(msg)
@@ -720,24 +731,23 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSets, destinationMdSets MdSets, role
 		if method == "GET" {
 			bmsg = Inflate(bmsg)
 		}
-		tmpXp = goxml.NewXp(bmsg)
+			xp = goxml.NewXp(bmsg)
 	} else {
-		tmpXp, relayState, verified_id_token, err = request2samlRequest(r, issuerMdSets, destinationMdSets, location)
+			xp, relayState, err = request2samlRequest(r, issuerMdSets, destinationMdSets, location)
 		if err != nil {
 			return
 		}
 	}
-
-	DumpFileIfTracing(r, tmpXp)
+		DumpFileIfTracing(r, xp)
 	//log.Println("stack", goxml.New().Stack(1))
-	err = tmpXp.SchemaValidate()
+		err = xp.SchemaValidate()
 	if err != nil {
 		dump("raw", bmsg)
 		err = goxml.Wrap(err)
 		return
 	}
 
-	protocol := tmpXp.QueryString(nil, "local-name(/*)")
+		protocol := xp.QueryString(nil, "local-name(/*)")
 	var protocolOK bool
 	for _, expectedProtocol := range protocols {
 		protocolOK = protocolOK || protocol == expectedProtocol
@@ -748,7 +758,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSets, destinationMdSets MdSets, role
 		return
 	}
 
-	issuer := tmpXp.Query1(nil, "./saml:Issuer")
+		issuer := xp.Query1(nil, "./saml:Issuer")
 	if issuer == "" {
 		err = fmt.Errorf("no issuer found in SAMLRequest/SAMLResponse")
 		return
@@ -759,21 +769,12 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSets, destinationMdSets MdSets, role
 		return
 	}
 
-	destinationMd, destinationIndex, err = FindInMetadataSets(destinationMdSets, location)
-	if err != nil {
-		return
-	}
-
-	signed := false
-	if verified_id_token {
-		xp = tmpXp
-		signed = true
-	} else {
-		xp, signed, err = CheckSAMLMessage(r, tmpXp, issuerMd, destinationMd, role, location, xtraCerts)
+		xp, signed, err = CheckSAMLMessage(r, xp, issuerMd, destinationMd, role, location, xtraCerts)
 		if err != nil {
 			err = goxml.Wrap(err)
 			return
 		}
+
 	}
 
 	if signed { // Bindings 3.4.5.2 Security Considerations and 3.5.5.2 Security Considerations
