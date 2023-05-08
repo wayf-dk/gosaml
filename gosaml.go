@@ -539,8 +539,11 @@ func SAMLRequest2OIDCRequest(samlrequest *goxml.Xp, relayState, flow string, idp
 		return
 	}
 
-	if flow == "code" {
-		json, err := json.Marshal(&[]string{relayState, idpMD.Query1(nil, "@entityID")})
+	code_verifier := ID()
+	cc := sha256.Sum256([]byte(code_verifier))
+	code_challenge := base64.RawURLEncoding.EncodeToString(cc[:])
+
+	json, err := json.Marshal(&[]string{relayState, idpMD.Query1(nil, "@entityID"), code_verifier, flow})
 		if err != nil {
 			return nil, err
 		}
@@ -549,18 +552,30 @@ func SAMLRequest2OIDCRequest(samlrequest *goxml.Xp, relayState, flow string, idp
 			return nil, err
 		}
 
+	flows := map[string]string{
+		"id_token": "id_token",
+		"code":     "code",
+		"codePKCE": "code",
+		"PKCE":     "code",
 	}
 
 	client_id := samlrequest.Query1(nil, "./saml:Issuer")
 	params := url.Values{}
 	params.Set("scope", "openid")
-	params.Set("response_type", flow) // code id_token
+	params.Set("response_type", flows[flow]) // code id_token
 	params.Set("client_id", client_id)
 	params.Set("redirect_uri", samlrequest.Query1(nil, "@AssertionConsumerServiceURL"))
 	params.Set("response_mode", "form_post")
 	params.Set("audience", client_id)
 	params.Set("nonce", samlrequest.Query1(nil, "@ID"))
 	params.Set("state", relayState)
+	switch flow {
+	case "codePKCE", "PKCE":
+		params.Set("code_challenge", code_challenge)
+	}
+	if samlrequest.QueryXMLBool(nil, "@ForceAuthn") {
+		params.Set("prompt", "login")
+	}
 	//    params.Set("acr_values", "")
 	destination.RawQuery = params.Encode()
 	return
