@@ -98,7 +98,7 @@ const (
 type (
 	// SamlRequest - compact representation of a request across the hub
 	SamlRequest struct {
-		Nonce, RequestID, SP, VirtualIDPID, AssertionConsumerIndex, Protocol, OidcNonce string
+		Nonce, RequestID, SP, VirtualIDPID, AssertionConsumerIndex, Protocol string
 		NameIDFormat, SPIndex, HubBirkIndex                                             uint8
 	}
 
@@ -1461,7 +1461,7 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDPID string
 <samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" AllowCreate="true" />
 </samlp:AuthnRequest>`
 	issueInstant, msgID, _, _, _ := IDAndTiming()
-	var ID, issuer, nameIDFormat, protocol, oidcNonce string
+	var ID, issuer, nameIDFormat, protocol string
 
 	request = goxml.NewXpFromString(template)
 	request.QueryDashP(nil, "./@ID", msgID, nil)
@@ -1497,7 +1497,6 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDPID string
 		nameIDFormat = originalRequest.Query1(nil, "./samlp:NameIDPolicy/@Format")
 		protocol = originalRequest.Query1(nil, "./samlp:Extensions/wayf:protocol")
 		acsIndex = originalRequest.Query1(nil, "./@AssertionConsumerServiceIndex")
-		oidcNonce = originalRequest.Query1(nil, "./samlp:Extensions/wayf:oidcnonce")
 
 		for _, attr := range []string{"./@ForceAuthn", "./@IsPassive"} {
 			if val := originalRequest.Query1(nil, attr); val != "" {
@@ -1540,7 +1539,6 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDPID string
 		SPIndex:                spIndex,
 		HubBirkIndex:           hubBirkIndex,
 		Protocol:               protocol,
-		OidcNonce:              oidcNonce,
 	}
 	return
 }
@@ -1653,7 +1651,7 @@ func request2samlRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 		if r.Form.Get("wa") == "wsignin1.0" {
 			samlmessage.QueryDashP(protocol, ".", "wsfed", nil)
 		} else if r.Form.Get("response_type") == "id_token" {
-			samlmessage.QueryDashP(nil, "./samlp:Extensions/wayf:oidcnonce", r.Form.Get("nonce"), nil)
+			samlmessage.QueryDashPForce(nil, "@ID", r.Form.Get("nonce"), nil) // force overwriting - even if blank
 			samlmessage.QueryDashP(protocol, ".", "oidc", nil)
 		}
 		return
@@ -1661,89 +1659,119 @@ func request2samlRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 		samlmessage = logoutRequest(&SLOInfo{ID: "dummy", NameID: "dummy"}, issuer, location, false)
 		samlmessage.QueryDashP(nil, "./samlp:Extensions/wayf:protocol", "wsfed", samlmessage.Query(nil, "saml:NameID")[0])
 		return
-	case id_token != "", code != "":
-		return handleOIDCResponse(r, issuerMdSets, destinationMdSets, location, id_token, code)
 	case r.Form.Get("wa") == "wsignoutcleanup1.0":
 	}
 	err = fmt.Errorf("no SAMLRequest/SAMLResponse found")
 	return
 }
 
-func handleOIDCResponse(r *http.Request, issuerMdSets, destinationMdSets MdSets, location, id_token, code string) (samlmessage *goxml.Xp, relayState string, verified_id_token bool, err error) {
-	spMd, _, err := FindInMetadataSets(destinationMdSets, location)
-	if err != nil {
-		return nil, "", false, err
-	}
+func handleOIDCResponse(r *http.Request, issuerMdSets MdSets, spMd *goxml.Xp, location string) (samlmessage *goxml.Xp, relayState string, opMd *goxml.Xp, opIndex uint8, signed bool, err error) {
+	defer r.Body.Close()
+	r.ParseForm()
+	id_token := r.Form.Get("id_token")
+	code := r.Form.Get("code")
 	relayState = r.Form.Get("state")
+
+	var jjson []byte
+	jjson, err = AuthnRequestCookie.Decode("oidc", relayState)
+		if err != nil {
+		return
+		}
+	state := [4]string{}
+	err = json.Unmarshal(jjson, &state)
+		if err != nil {
+		return
+		}
+
+	relayState, op, code_verifier, flow := state[0], state[1], state[2], state[3]
+	opMd, opIndex, err = FindInMetadataSets(issuerMdSets, op)
+		if err != nil {
+		return
+		}
+
 	if code != "" {
-		jjson, err := AuthnRequestCookie.Decode("oidc", relayState)
-		if err != nil {
-			return nil, "", false, err
-		}
-		stateOPpair := []string{}
-		err = json.Unmarshal(jjson, &stateOPpair)
-		if err != nil {
-			return nil, "", false, err
-		}
-		relayState = stateOPpair[0]
-
-		idpMd, _, err := FindInMetadataSets(issuerMdSets, stateOPpair[1])
-		if err != nil {
-			return nil, "", false, err
-		}
-
-		tokenEndpoint := idpMd.Query1(nil, `//md:SingleSignOnService[@Binding="token"]/@Location`)
+		tokenEndpoint := opMd.Query1(nil, `//md:SingleSignOnService[@Binding="token"]/@Location`)
+		client_id := spMd.Query1(nil, "@entityID")
 		query := url.Values{}
 		query.Set("grant_type", "authorization_code")
-		query.Set("client_id", spMd.Query1(nil, "@entityID"))
-		query.Set("client_secret", config.Clientsecret)
+		query.Set("client_id", client_id)
+		//query.Set("client_secret", config.Clientsecret)
 		query.Set("code", code)
 		query.Set("redirect_uri", spMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`"]/@Location`))
-
+		switch flow {
+		case "codePKCE", "PKCE":
+			query.Set("code_verifier", code_verifier)
+		}
 		req, _ := http.NewRequest("POST", tokenEndpoint, strings.NewReader(query.Encode()))
 		req.Header.Add("content-type", "application/x-www-form-urlencoded")
+		switch flow {
+		case "code", "codePKCE":
+			req.Header.Add("authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(url.QueryEscape(client_id)+":"+url.QueryEscape(config.Clientsecret))))
+		}
 
         client := &http.Client{
             Transport: &http.Transport{
                 TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
             },
         }
-
-		res, err := client.Do(req)
-		if err != nil {
-			return nil, "", false, err
+		var res *http.Response
+		if res, err = client.Do(req); err != nil {
+			return
 		}
 		defer res.Body.Close()
-		body, err := ioutil.ReadAll(res.Body)
-		if err != nil {
-			return nil, "", false, err
+		var body []byte
+		if body, err = ioutil.ReadAll(res.Body); err != nil {
+			return
+		}
+
+		if res.StatusCode != 200 {
+			err = goxml.Wrap(fmt.Errorf("error: %s", bytes.TrimSpace(body)))
+			return
 		}
         token := map[string]interface{}{}
         err = json.Unmarshal(body, &token)
         if err != nil {
-			return nil, "", false, err
+			return
         }
+		config.PP(token)
 		id_token, _ = token["id_token"].(string)
 	}
-	attrs, idpMd, err := JwtVerify(id_token, issuerMdSets, spMd, SPEnc, "")
+
+	var attrs map[string]interface{}
+	attrs, opMd, err = JwtVerify(id_token, issuerMdSets, spMd, SPEnc, "")
 	if err != nil {
-		return nil, "", false, goxml.Wrap(err)
+		err = goxml.Wrap(err)
+		return
 	}
 	// fake an authnRequest with @ACS and @ID
 	request := goxml.NewXpFromString(`<pseudo/>`)
 	nonce, _ := attrs["nonce"].(string)
 	request.QueryDashP(nil, "@ID", nonce, nil)
 	request.QueryDashP(nil, "@AssertionConsumerServiceURL", location, nil)
-	samlmessage = NewResponse(idpMd, spMd, request, nil)
+	samlmessage = NewResponse(opMd, spMd, request, nil)
 	// tmp fix
-    eppn := attrs["eduPersonPrincipalName"].([]interface{})[0].(string)
-    attrs["eduPersonPrincipalName"] = []interface{}{ scoped.FindStringSubmatch(eppn)[1]+"@hackmanit.de" }
 
-    config.PP(eppn, attrs)
-	if err = Map2saml(samlmessage, attrs); err != nil {
-		return nil, "", false, err
+	oidciss2scope := map[string]string{
+		"https://idp.tuxed.net": "tuxed.net",
+		"https://ec2-13-53-188-80.eu-north-1.compute.amazonaws.com/realms/IdP-OIDC": "hackmanit.de",
 	}
-	return samlmessage, relayState, true, nil
+
+	scope := "@" + oidciss2scope[attrs["iss"].(string)]
+	eppn := ""
+
+	if eppni, ok := attrs["eduPersonPrincipalName"]; ok {
+		eppn, _ = eppni.([]interface{})[0].(string)
+	}
+	if eppn == "" {
+		eppn, _ = attrs["sub"].(string)
+	}
+	attrs["eduPersonPrincipalName"] = []interface{}{scoped.FindStringSubmatch(eppn)[1] + scope}
+
+	if err = Map2saml(samlmessage, attrs); err != nil {
+		return
+	}
+	signed = true
+	return
 }
 
 // NewWsFedResponse generates a Ws-fed response
@@ -2297,7 +2325,7 @@ func (h *Hm) innerValidate(id string, signedMsg []byte) (msg []byte, err error) 
 // Marshal hand-held marshal SamlRequest
 func (r SamlRequest) Marshal() (msg []byte) {
 	prefix := []byte{}
-	for _, str := range []string{r.Nonce, r.RequestID, r.SP, r.VirtualIDPID, r.AssertionConsumerIndex, r.Protocol, r.OidcNonce} {
+	for _, str := range []string{r.Nonce, r.RequestID, r.SP, r.VirtualIDPID, r.AssertionConsumerIndex, r.Protocol} {
 		prefix = append(prefix, uint8(len(str))) // if over 255 we are in trouble
 		msg = append(msg, str...)
 	}
@@ -2310,7 +2338,7 @@ func (r SamlRequest) Marshal() (msg []byte) {
 // Unmarshal - hand held unmarshal for SamlRequest
 func (r *SamlRequest) Unmarshal(msg []byte) {
 	i := int((msg[0]-97)*(msg[1]-97)) + 2 // num records and number of b64 encoded string lengths
-	for j, x := range []*string{&r.Nonce, &r.RequestID, &r.SP, &r.VirtualIDPID, &r.AssertionConsumerIndex, &r.Protocol, &r.OidcNonce} {
+	for j, x := range []*string{&r.Nonce, &r.RequestID, &r.SP, &r.VirtualIDPID, &r.AssertionConsumerIndex, &r.Protocol} {
 		l := int(msg[j+2])
 		*x = string(msg[i : i+l])
 		i = i + l
