@@ -1949,7 +1949,6 @@ func Map2saml(response *goxml.Xp, attrs map[string]interface{}) (err error) {
 		if claim.mandatory || ok {
 			response.QueryDashP(nil, claim.xpath, s, nil)
 		}
-		delete(attrs, claim.name)
 	}
 
 	times := []claimType{
@@ -1965,7 +1964,6 @@ func Map2saml(response *goxml.Xp, attrs map[string]interface{}) (err error) {
 		if claim.mandatory || ok {
 			response.QueryDashP(nil, claim.xpath, time.Unix(int64(t), 0).Format(XsDateTime), nil)
 		}
-		delete(attrs, claim.name)
 	}
 
 	destinationAttributes := response.QueryDashP(nil, `/saml:Assertion/saml:AttributeStatement[1]`, "", nil)
