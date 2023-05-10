@@ -1631,12 +1631,10 @@ func NewResponse(idpMd, spMd, authnrequest, sourceResponse *goxml.Xp) (response 
 }
 
 // request2samlRequest does the protocol translation from ws-fed to saml
-func request2samlRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets, location string) (samlmessage *goxml.Xp, relayState string, verified_id_token bool, err error) {
+func request2samlRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets, location string) (samlmessage *goxml.Xp, relayState string, err error) {
 	relayState = r.Form.Get("wctx") + r.Form.Get("state")
 	issuer := r.Form.Get("wtrealm") + r.Form.Get("client_id")
 	acs := r.Form.Get("wreply") + r.Form.Get("redirect_uri")
-	id_token := r.Form.Get("id_token")
-	code := r.Form.Get("code")
 
 	switch {
 	case r.Form.Get("wa") == "wsignin1.0", r.Form.Get("response_type") != "":
