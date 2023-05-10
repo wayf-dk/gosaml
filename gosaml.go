@@ -99,7 +99,7 @@ type (
 	// SamlRequest - compact representation of a request across the hub
 	SamlRequest struct {
 		Nonce, RequestID, SP, VirtualIDPID, AssertionConsumerIndex, Protocol string
-		NameIDFormat, SPIndex, HubBirkIndex                                             uint8
+		NameIDFormat, SPIndex, HubBirkIndex                                  uint8
 	}
 
 	// Md Interface for metadata provider
@@ -544,13 +544,13 @@ func SAMLRequest2OIDCRequest(samlrequest *goxml.Xp, relayState, flow string, idp
 	code_challenge := base64.RawURLEncoding.EncodeToString(cc[:])
 
 	json, err := json.Marshal(&[]string{relayState, idpMD.Query1(nil, "@entityID"), code_verifier, flow})
-		if err != nil {
-			return nil, err
-		}
-		relayState, err = AuthnRequestCookie.Encode("oidc", json)
-		if err != nil {
-			return nil, err
-		}
+	if err != nil {
+		return nil, err
+	}
+	relayState, err = AuthnRequestCookie.Encode("oidc", json)
+	if err != nil {
+		return nil, err
+	}
 
 	flows := map[string]string{
 		"id_token": "id_token",
@@ -714,60 +714,60 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSets, destinationMdSets MdSets, role
 		}
 	default:
 		method := r.Method
-	if ok := method == "GET" || method == "POST"; !ok {
-		err = fmt.Errorf("unsupported http method used '%s'", method)
-		return
-	}
-
-	relayState = r.Form.Get("RelayState")
-
-	var bmsg []byte
-	msg := r.Form.Get("SAMLRequest") + r.Form.Get("SAMLResponse") // never both at the same time
-	if msg != "" {
-		bmsg, err = base64.StdEncoding.DecodeString(msg)
-		if err != nil {
+		if ok := method == "GET" || method == "POST"; !ok {
+			err = fmt.Errorf("unsupported http method used '%s'", method)
 			return
 		}
-		if method == "GET" {
-			bmsg = Inflate(bmsg)
-		}
+
+		relayState = r.Form.Get("RelayState")
+
+		var bmsg []byte
+		msg := r.Form.Get("SAMLRequest") + r.Form.Get("SAMLResponse") // never both at the same time
+		if msg != "" {
+			bmsg, err = base64.StdEncoding.DecodeString(msg)
+			if err != nil {
+				return
+			}
+			if method == "GET" {
+				bmsg = Inflate(bmsg)
+			}
 			xp = goxml.NewXp(bmsg)
-	} else {
+		} else {
 			xp, relayState, err = request2samlRequest(r, issuerMdSets, destinationMdSets, location)
+			if err != nil {
+				return
+			}
+		}
+		DumpFileIfTracing(r, xp)
+		//log.Println("stack", goxml.New().Stack(1))
+		err = xp.SchemaValidate()
 		if err != nil {
+			dump("raw", bmsg)
+			err = goxml.Wrap(err)
 			return
 		}
-	}
-		DumpFileIfTracing(r, xp)
-	//log.Println("stack", goxml.New().Stack(1))
-		err = xp.SchemaValidate()
-	if err != nil {
-		dump("raw", bmsg)
-		err = goxml.Wrap(err)
-		return
-	}
 
 		protocol := xp.QueryString(nil, "local-name(/*)")
-	var protocolOK bool
-	for _, expectedProtocol := range protocols {
-		protocolOK = protocolOK || protocol == expectedProtocol
-	}
+		var protocolOK bool
+		for _, expectedProtocol := range protocols {
+			protocolOK = protocolOK || protocol == expectedProtocol
+		}
 
-	if !protocolOK {
-		err = fmt.Errorf("expected protocol(s) %v not found, got %s", protocols, protocol)
-		return
-	}
+		if !protocolOK {
+			err = fmt.Errorf("expected protocol(s) %v not found, got %s", protocols, protocol)
+			return
+		}
 
 		issuer := xp.Query1(nil, "./saml:Issuer")
-	if issuer == "" {
-		err = fmt.Errorf("no issuer found in SAMLRequest/SAMLResponse")
-		return
-	}
+		if issuer == "" {
+			err = fmt.Errorf("no issuer found in SAMLRequest/SAMLResponse")
+			return
+		}
 
-	issuerMd, issuerIndex, err = FindInMetadataSets(issuerMdSets, issuer)
-	if err != nil {
-		return
-	}
+		issuerMd, issuerIndex, err = FindInMetadataSets(issuerMdSets, issuer)
+		if err != nil {
+			return
+		}
 
 		xp, signed, err = CheckSAMLMessage(r, xp, issuerMd, destinationMd, role, location, xtraCerts)
 		if err != nil {
@@ -1673,20 +1673,20 @@ func handleOIDCResponse(r *http.Request, issuerMdSets MdSets, spMd *goxml.Xp, lo
 
 	var jjson []byte
 	jjson, err = AuthnRequestCookie.Decode("oidc", relayState)
-		if err != nil {
+	if err != nil {
 		return
-		}
+	}
 	state := [4]string{}
 	err = json.Unmarshal(jjson, &state)
-		if err != nil {
+	if err != nil {
 		return
-		}
+	}
 
 	relayState, op, code_verifier, flow := state[0], state[1], state[2], state[3]
 	opMd, opIndex, err = FindInMetadataSets(issuerMdSets, op)
-		if err != nil {
+	if err != nil {
 		return
-		}
+	}
 
 	if code != "" {
 		tokenEndpoint := opMd.Query1(nil, `//md:SingleSignOnService[@Binding="token"]/@Location`)
@@ -1708,11 +1708,11 @@ func handleOIDCResponse(r *http.Request, issuerMdSets MdSets, spMd *goxml.Xp, lo
 			req.Header.Add("authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(url.QueryEscape(client_id)+":"+url.QueryEscape(config.Clientsecret))))
 		}
 
-        client := &http.Client{
-            Transport: &http.Transport{
-                TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-            },
-        }
+		client := &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			},
+		}
 		var res *http.Response
 		if res, err = client.Do(req); err != nil {
 			return
@@ -1727,11 +1727,11 @@ func handleOIDCResponse(r *http.Request, issuerMdSets MdSets, spMd *goxml.Xp, lo
 			err = goxml.Wrap(fmt.Errorf("error: %s", bytes.TrimSpace(body)))
 			return
 		}
-        token := map[string]interface{}{}
-        err = json.Unmarshal(body, &token)
-        if err != nil {
+		token := map[string]interface{}{}
+		err = json.Unmarshal(body, &token)
+		if err != nil {
 			return
-        }
+		}
 		config.PP(token)
 		id_token, _ = token["id_token"].(string)
 	}
@@ -2220,9 +2220,9 @@ func JwtVerify(jwt string, issuerMdSets MdSets, md *goxml.Xp, path, iss string) 
 	if err != nil {
 		return
 	}
-    if iss == "" {
-    	iss, _ = attrs["iss"].(string) // no reason to error already - we won't find any md later
-    }
+	if iss == "" {
+		iss, _ = attrs["iss"].(string) // no reason to error already - we won't find any md later
+	}
 	idpMd, _, err = FindInMetadataSets(issuerMdSets, iss)
 	if err != nil {
 		return
