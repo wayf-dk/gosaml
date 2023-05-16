@@ -16,7 +16,6 @@ import (
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/sha512"
-	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/binary"
@@ -539,11 +538,7 @@ func SAMLRequest2OIDCRequest(samlrequest *goxml.Xp, relayState, flow string, idp
 		return
 	}
 
-	code_verifier := ID()
-	cc := sha256.Sum256([]byte(code_verifier))
-	code_challenge := base64.RawURLEncoding.EncodeToString(cc[:])
-
-	json, err := json.Marshal(&[]string{relayState, idpMD.Query1(nil, "@entityID"), code_verifier, flow})
+	json, err := json.Marshal(&[]string{relayState, idpMD.Query1(nil, "@entityID")})
 	if err != nil {
 		return nil, err
 	}
@@ -552,27 +547,16 @@ func SAMLRequest2OIDCRequest(samlrequest *goxml.Xp, relayState, flow string, idp
 		return nil, err
 	}
 
-	flows := map[string]string{
-		"id_token": "id_token",
-		"code":     "code",
-		"codePKCE": "code",
-		"PKCE":     "code",
-	}
-
 	client_id := samlrequest.Query1(nil, "./saml:Issuer")
 	params := url.Values{}
 	params.Set("scope", "openid")
-	params.Set("response_type", flows[flow]) // code id_token
+	params.Set("response_type", flow) // code id_token
 	params.Set("client_id", client_id)
 	params.Set("redirect_uri", samlrequest.Query1(nil, "@AssertionConsumerServiceURL"))
 	params.Set("response_mode", "form_post")
 	params.Set("audience", client_id)
 	params.Set("nonce", samlrequest.Query1(nil, "@ID"))
 	params.Set("state", relayState)
-	switch flow {
-	case "codePKCE", "PKCE":
-		params.Set("code_challenge", code_challenge)
-	}
 	if samlrequest.QueryXMLBool(nil, "@ForceAuthn") {
 		params.Set("prompt", "login")
 	}
@@ -1668,7 +1652,6 @@ func handleOIDCResponse(r *http.Request, issuerMdSets MdSets, spMd *goxml.Xp, lo
 	defer r.Body.Close()
 	r.ParseForm()
 	id_token := r.Form.Get("id_token")
-	code := r.Form.Get("code")
 	relayState = r.Form.Get("state")
 
 	var jjson []byte
@@ -1682,58 +1665,10 @@ func handleOIDCResponse(r *http.Request, issuerMdSets MdSets, spMd *goxml.Xp, lo
 		return
 	}
 
-	relayState, op, code_verifier, flow := state[0], state[1], state[2], state[3]
+	relayState, op := state[0], state[1]
 	opMd, opIndex, err = FindInMetadataSets(issuerMdSets, op)
 	if err != nil {
 		return
-	}
-
-	if code != "" {
-		tokenEndpoint := opMd.Query1(nil, `//md:SingleSignOnService[@Binding="token"]/@Location`)
-		client_id := spMd.Query1(nil, "@entityID")
-		query := url.Values{}
-		query.Set("grant_type", "authorization_code")
-		query.Set("client_id", client_id)
-		//query.Set("client_secret", config.Clientsecret)
-		query.Set("code", code)
-		query.Set("redirect_uri", spMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`"]/@Location`))
-		switch flow {
-		case "codePKCE", "PKCE":
-			query.Set("code_verifier", code_verifier)
-		}
-		req, _ := http.NewRequest("POST", tokenEndpoint, strings.NewReader(query.Encode()))
-		req.Header.Add("content-type", "application/x-www-form-urlencoded")
-		switch flow {
-		case "code", "codePKCE":
-			req.Header.Add("authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(url.QueryEscape(client_id)+":"+url.QueryEscape(config.Clientsecret))))
-		}
-
-		client := &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-			},
-		}
-		var res *http.Response
-		if res, err = client.Do(req); err != nil {
-			return
-		}
-		defer res.Body.Close()
-		var body []byte
-		if body, err = ioutil.ReadAll(res.Body); err != nil {
-			return
-		}
-
-		if res.StatusCode != 200 {
-			err = goxml.Wrap(fmt.Errorf("error: %s", bytes.TrimSpace(body)))
-			return
-		}
-		token := map[string]interface{}{}
-		err = json.Unmarshal(body, &token)
-		if err != nil {
-			return
-		}
-		config.PP(token)
-		id_token, _ = token["id_token"].(string)
 	}
 
 	var attrs map[string]interface{}
@@ -1748,23 +1683,6 @@ func handleOIDCResponse(r *http.Request, issuerMdSets MdSets, spMd *goxml.Xp, lo
 	request.QueryDashP(nil, "@ID", nonce, nil)
 	request.QueryDashP(nil, "@AssertionConsumerServiceURL", location, nil)
 	samlmessage = NewResponse(opMd, spMd, request, nil)
-	// tmp fix
-
-	oidciss2scope := map[string]string{
-		"https://idp.tuxed.net": "tuxed.net",
-		"https://ec2-13-53-188-80.eu-north-1.compute.amazonaws.com/realms/IdP-OIDC": "hackmanit.de",
-	}
-
-	scope := "@" + oidciss2scope[attrs["iss"].(string)]
-	eppn := ""
-
-	if eppni, ok := attrs["eduPersonPrincipalName"]; ok {
-		eppn, _ = eppni.([]interface{})[0].(string)
-	}
-	if eppn == "" {
-		eppn, _ = attrs["sub"].(string)
-	}
-	attrs["eduPersonPrincipalName"] = []interface{}{scoped.FindStringSubmatch(eppn)[1] + scope}
 
 	if err = Map2saml(samlmessage, attrs); err != nil {
 		return
@@ -2185,6 +2103,9 @@ func JwtVerify(jwt string, issuerMdSets MdSets, md *goxml.Xp, path, iss string) 
 	}
 
 	hps := strings.SplitN(jwt, ".", 3)
+	if len(hps) != 3 {
+	    return nil, nil, fmt.Errorf("Not a valid jws")
+	}
 	payload, err := base64.RawURLEncoding.DecodeString(hps[1])
 	if err != nil {
 		return
