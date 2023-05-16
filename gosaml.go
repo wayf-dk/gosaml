@@ -814,7 +814,7 @@ func CheckSAMLMessage(r *http.Request, xp, issuerMd, destinationMd *goxml.Xp, ro
 	protocol := xp.QueryString(nil, "local-name(/*)")
 	authnRequestChecks := 0
 	if protocol == "AuthnRequest" && (destinationMd.QueryXMLBool(nil, "./md:IDPSSODescriptor/@WantAuthnRequestsSigned") || issuerMd.QueryXMLBool(nil, "./md:SPSSODescriptor/@AuthnRequestsSigned")) {
-		authnRequestChecks = 0
+		authnRequestChecks = 1
 	}
 
 	// add checks for xtra element on top level in tests - does schema checks handle that or should we do it here???
@@ -878,7 +878,7 @@ findbinding:
 	switch usedBinding {
 	case REDIRECT, SIMPLESIGN:
 		{
-			if r.Form.Get("SigAlg") == "" && protoChecks[protocol].minSignatures <= 0 {
+			if protoChecks[protocol].minSignatures <= 0 {
 				return xp, false, nil
 			}
 			params := r.Form
