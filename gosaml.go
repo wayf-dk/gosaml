@@ -847,7 +847,7 @@ findbinding:
 	}
 
 	// the check for SigAlg is mostly for testing. If checking is not enforced by metadata the Signature and SigAlg can just be removed
-	if protoChecks[protocol].minSignatures <= 0 && r.Form.Get("SigAlg") == "" {
+	if protoChecks[protocol].minSignatures <= 0 {
 		return xp, false, nil
 	}
 
@@ -862,9 +862,6 @@ findbinding:
 	switch usedBinding {
 	case REDIRECT, SIMPLESIGN:
 		{
-			if protoChecks[protocol].minSignatures <= 0 {
-				return xp, false, nil
-			}
 			params := r.Form
 			if usedBinding == REDIRECT {
 				params = parseQueryRaw(r.URL.RawQuery)
