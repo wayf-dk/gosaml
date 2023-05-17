@@ -797,7 +797,7 @@ func CheckSAMLMessage(r *http.Request, xp, issuerMd, destinationMd *goxml.Xp, ro
 
 	protocol := xp.QueryString(nil, "local-name(/*)")
 	authnRequestChecks := 0
-	if protocol == "AuthnRequest" && (destinationMd.QueryXMLBool(nil, "./md:IDPSSODescriptor/@WantAuthnRequestsSigned") || issuerMd.QueryXMLBool(nil, "./md:SPSSODescriptor/@AuthnRequestsSigned")) {
+	if protocol == "AuthnRequest" && destinationMd.QueryXMLBool(nil, "./md:IDPSSODescriptor/@WantAuthnRequestsSigned") {
 		authnRequestChecks = 1
 	}
 
