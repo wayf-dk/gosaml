@@ -1631,7 +1631,7 @@ func request2samlRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 		if r.Form.Get("wa") == "wsignin1.0" {
 			samlmessage.QueryDashP(protocol, ".", "wsfed", nil)
 		} else if r.Form.Get("response_type") == "id_token" {
-			samlmessage.QueryDashPForce(nil, "@ID", r.Form.Get("nonce"), nil) // force overwriting - even if blank
+			samlmessage.QueryDashPForce(nil, "@ID", "_"+r.Form.Get("nonce"), nil) // force overwriting - even if blank - always start with a _
 			samlmessage.QueryDashP(protocol, ".", "oidc", nil)
 		}
 		return
@@ -1677,7 +1677,7 @@ func handleOIDCResponse(r *http.Request, issuerMdSets MdSets, spMd *goxml.Xp, lo
 	// fake an authnRequest with @ACS and @ID
 	request := goxml.NewXpFromString(`<pseudo/>`)
 	nonce, _ := attrs["nonce"].(string)
-	request.QueryDashP(nil, "@ID", nonce, nil)
+	request.QueryDashP(nil, "@ID", nonce[1:], nil) // we added a _, now remove it
 	request.QueryDashP(nil, "@AssertionConsumerServiceURL", location, nil)
 	samlmessage = NewResponse(opMd, spMd, request, nil)
 
