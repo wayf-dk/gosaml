@@ -95,7 +95,7 @@ const (
 type (
 	// SamlRequest - compact representation of a request across the hub
 	SamlRequest struct {
-		Nonce, RequestID, SP, VirtualIDPID, AssertionConsumerIndex, Protocol string
+		Nonce, RequestID, SP, IDP, VirtualIDP, AssertionConsumerIndex, Protocol string
 		NameIDFormat, SPIndex, HubBirkIndex                                  uint8
 	}
 
@@ -1411,13 +1411,14 @@ func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp, signing
 //   - The ProtocolBinding is post
 //   - The Issuer is the entityID in the idpmetadata
 //   - The NameID defaults to transient
-func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDPID string, idPList []string, acs string, wantRequesterID bool, spIndex, hubBirkIndex uint8) (request *goxml.Xp, sRequest SamlRequest, err error) {
+func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDP string, idPList []string, acs string, wantRequesterID bool, spIndex, hubBirkIndex uint8) (request *goxml.Xp, sRequest SamlRequest, err error) {
 	template := `<samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
                     xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
                     Version="2.0">
 <saml:Issuer>Issuer</saml:Issuer>
 <samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" AllowCreate="true" />
 </samlp:AuthnRequest>`
+    idp := idpMd.Query1(nil, "@entityID")
 	issueInstant, msgID, _, _, _ := IDAndTiming()
 	var ID, issuer, nameIDFormat, protocol string
 
@@ -1468,11 +1469,10 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDPID string
 
 		if wantRequesterID {
 			request.QueryDashP(nil, "./samlp:Scoping/samlp:RequesterID", issuer, nil)
-			if virtualIDPID != idpMd.Query1(nil, "@entityID") { // add virtual idp to wayf extension if mapped
-				request.QueryDashP(nil, "./samlp:Scoping/samlp:RequesterID[0]", virtualIDPID, nil)
+			if virtualIDP != idp { // add virtual idp to wayf extension if mapped
+				request.QueryDashP(nil, "./samlp:Scoping/samlp:RequesterID[0]", virtualIDP, nil)
 			}
 		}
-		virtualIDPID = IDHash(virtualIDPID)
 	}
 
 	for _, providerID := range idPList {
@@ -1485,7 +1485,8 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDPID string
 		Nonce:                  msgID,
 		RequestID:              ID,
 		SP:                     IDHash(issuer),
-		VirtualIDPID:           virtualIDPID,
+		IDP:                    IDHash(idp),
+		VirtualIDP:             IDHash(virtualIDP),
 		NameIDFormat:           NameIDMap[nameIDFormat],
 		AssertionConsumerIndex: acsIndex,
 		SPIndex:                spIndex,
@@ -2196,7 +2197,7 @@ func (h *Hm) innerValidate(id string, signedMsg []byte) (msg []byte, err error) 
 // Marshal hand-held marshal SamlRequest
 func (r SamlRequest) Marshal() (msg []byte) {
 	prefix := []byte{}
-	for _, str := range []string{r.Nonce, r.RequestID, r.SP, r.VirtualIDPID, r.AssertionConsumerIndex, r.Protocol} {
+	for _, str := range []string{r.Nonce, r.RequestID, r.SP, r.IDP, r.VirtualIDP, r.AssertionConsumerIndex, r.Protocol} {
 		prefix = append(prefix, uint8(len(str))) // if over 255 we are in trouble
 		msg = append(msg, str...)
 	}
@@ -2209,7 +2210,7 @@ func (r SamlRequest) Marshal() (msg []byte) {
 // Unmarshal - hand held unmarshal for SamlRequest
 func (r *SamlRequest) Unmarshal(msg []byte) {
 	i := int((msg[0]-97)*(msg[1]-97)) + 2 // num records and number of b64 encoded string lengths
-	for j, x := range []*string{&r.Nonce, &r.RequestID, &r.SP, &r.VirtualIDPID, &r.AssertionConsumerIndex, &r.Protocol} {
+	for j, x := range []*string{&r.Nonce, &r.RequestID, &r.SP, &r.IDP, &r.VirtualIDP, &r.AssertionConsumerIndex, &r.Protocol} {
 		l := int(msg[j+2])
 		*x = string(msg[i : i+l])
 		i = i + l
