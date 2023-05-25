@@ -1588,9 +1588,11 @@ func request2samlRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 	relayState = r.Form.Get("wctx") + r.Form.Get("state")
 	issuer := r.Form.Get("wtrealm") + r.Form.Get("client_id")
 	acs := r.Form.Get("wreply") + r.Form.Get("redirect_uri")
+	wa := r.Form.Get("wa")
+	response_type := r.Form.Get("response_type")
 
 	switch {
-	case r.Form.Get("wa") == "wsignin1.0", r.Form.Get("response_type") != "":
+	case wa == "wsignin1.0", response_type == "id_token":
 		samlmessage = goxml.NewXpFromString(`<samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" Version="2.0"/>`)
 		issueInstant, msgID, _, _, _ := IDAndTiming()
 		samlmessage.QueryDashP(nil, "./@ID", msgID, nil)
@@ -1600,20 +1602,20 @@ func request2samlRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 		samlmessage.QueryDashP(nil, "./@ProtocolBinding", POST, nil)
 		samlmessage.QueryDashP(nil, "./saml:Issuer", issuer, nil)
 		protocol := samlmessage.QueryDashP(nil, "./samlp:Extensions/wayf:protocol", "", nil)
-		if r.Form.Get("wa") == "wsignin1.0" {
+		if wa == "wsignin1.0" {
 			samlmessage.QueryDashP(protocol, ".", "wsfed", nil)
-		} else if r.Form.Get("response_type") == "id_token" {
+		} else if response_type == "id_token" {
 			samlmessage.QueryDashPForce(nil, "@ID", "_"+r.Form.Get("nonce"), nil) // force overwriting - even if blank - always start with a _
 			samlmessage.QueryDashP(protocol, ".", "oidc", nil)
 		}
 		return
-	case r.Form.Get("wa") == "wsignout1.0":
+	case wa == "wsignout1.0":
 		samlmessage = logoutRequest(&SLOInfo{ID: "dummy", NameID: "dummy"}, issuer, location, false)
 		samlmessage.QueryDashP(nil, "./samlp:Extensions/wayf:protocol", "wsfed", samlmessage.Query(nil, "saml:NameID")[0])
 		return
-	case r.Form.Get("wa") == "wsignoutcleanup1.0":
+	case wa == "wsignoutcleanup1.0":
 	}
-	err = fmt.Errorf("no SAMLRequest/SAMLResponse found")
+	err = fmt.Errorf("No valid SAML, OIDC, WS-fed* request/response found")
 	return
 }
 
