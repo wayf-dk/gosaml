@@ -88,8 +88,6 @@ const (
 	REDIRECT = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
 	// POST refers to HTTP-POST
 	POST = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
-	// SIMPLESIGN refers to HTTP-POST-SimpleSign
-	SIMPLESIGN = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST-SimpleSign"
 	// Allowed slack for timingchecks
 	timeskew = 90
 )
@@ -824,17 +822,16 @@ func CheckSAMLMessage(r *http.Request, xp, issuerMd, destinationMd *goxml.Xp, ro
 
 	bindings := map[string][]string{
 		"GET":  {REDIRECT},
-		"POST": {POST, SIMPLESIGN},
+		"POST": {POST},
 	}
 
 	var usedBinding string
 	validBinding := false
-	postSignature := r.PostFormValue("Signature") != "" // only from POST - used to check for SimpleSign
 
 findbinding:
 	for _, usedBinding = range bindings[r.Method] {
 		for _, v := range destinationMd.QueryMulti(nil, `./`+Roles[role]+`/`+protoChecks[protocol].service+`[@Location=`+strconv.Quote(location)+`]/@Binding`) {
-			validBinding = v == usedBinding && ((usedBinding == SIMPLESIGN) == postSignature)
+			validBinding = v == usedBinding
 			if validBinding {
 				break findbinding
 			}
@@ -860,18 +857,13 @@ findbinding:
 	}
 
 	switch usedBinding {
-	case REDIRECT, SIMPLESIGN:
+	case REDIRECT:
 		{
-			params := r.Form
-			if usedBinding == REDIRECT {
-				params = parseQueryRaw(r.URL.RawQuery)
-			}
-			if err = checkRedirectOrSimpleSign(params, certificates, usedBinding == SIMPLESIGN); err != nil {
+			if err = checkRedirect(parseQueryRaw(r.URL.RawQuery), certificates); err != nil {
 				return
 			}
 			validatedMessage = xp
 		}
-
 	case POST:
 		{
 			if query := protoChecks[protocol].signatureElements[0]; query != "" {
@@ -939,17 +931,12 @@ findbinding:
 	return
 }
 
-func checkRedirectOrSimpleSign(params url.Values, certificates []string, forSimpleSign bool) (err error) {
+func checkRedirect(params url.Values, certificates []string) (err error) {
 	signed, delim := "", ""
 
-	for _, key := range []string{"SAMLRequest", "SAMLResponse", "RelayState", "SigAlg"} {
+	for _, key := range []string{"SAMLRequest", "RelayState", "SigAlg"} {
 		if rw, ok := params[key]; ok {
 			val := rw[0]
-			if forSimpleSign && (key == "SAMLRequest" || key == "SAMLResponse") {
-				p, _ := base64.StdEncoding.DecodeString(val)
-				val = string(p)
-
-			}
 			signed += delim + key + "=" + val
 			delim = "&"
 		}
@@ -1451,16 +1438,10 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDPID string
 	var protocolBinding string
 	if acs != "" {
 		protocolBinding = spMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Location=`+strconv.Quote(acs)+`]/@Binding`)
-	} else {
-		if config.EnableSimpleSign {
-			acs = spMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+SIMPLESIGN+`"]/@Location`)
-			protocolBinding = SIMPLESIGN
-		}
-		if acs == "" {
+	} else if acs == "" {
 			acs = spMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`"]/@Location`)
 			protocolBinding = POST
 		}
-	}
 	if protocolBinding == "" {
 		err = goxml.NewWerror("cause:no @Binding found for acs", "acs:"+acs)
 		return
