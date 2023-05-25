@@ -172,7 +172,6 @@ var (
 	privatekeyLock  sync.RWMutex
 	privatekeyCache = map[string]crypto.PrivateKey{}
 	NemLog          = &nemLog{}
-	scoped          = regexp.MustCompile(`^([^\@]+)(\@([a-zA-Z0-9][a-zA-Z0-9\.-]+[a-zA-Z0-9]))?$`)
 )
 
 // DebugSetting for debugging cookies
