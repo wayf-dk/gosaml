@@ -96,7 +96,7 @@ type (
 	// SamlRequest - compact representation of a request across the hub
 	SamlRequest struct {
 		Nonce, RequestID, SP, IDP, VirtualIDP, AssertionConsumerIndex, Protocol string
-		NameIDFormat, SPIndex, HubBirkIndex                                  uint8
+		NameIDFormat, SPIndex, HubBirkIndex                                         uint8
 	}
 
 	// Md Interface for metadata provider
@@ -1430,9 +1430,9 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDP string, 
 	if acs != "" {
 		protocolBinding = spMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Location=`+strconv.Quote(acs)+`]/@Binding`)
 	} else if acs == "" {
-			acs = spMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`"]/@Location`)
-			protocolBinding = POST
-		}
+        acs = spMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`"]/@Location`)
+        protocolBinding = POST
+	}
 	if protocolBinding == "" {
 		err = goxml.NewWerror("cause:no @Binding found for acs", "acs:"+acs)
 		return
@@ -2058,7 +2058,7 @@ func JwtVerify(jwt string, issuerMdSets MdSets, md *goxml.Xp, path, iss string) 
 
 	hps := strings.SplitN(jwt, ".", 3)
 	if len(hps) != 3 {
-	    return nil, nil, fmt.Errorf("Not a valid jws")
+		return nil, nil, fmt.Errorf("Not a valid jws")
 	}
 	payload, err := base64.RawURLEncoding.DecodeString(hps[1])
 	if err != nil {
