@@ -535,15 +535,6 @@ func SAMLRequest2OIDCRequest(samlrequest *goxml.Xp, relayState, flow string, idp
 		return
 	}
 
-	json, err := json.Marshal(&[]string{relayState, idpMD.Query1(nil, "@entityID")})
-	if err != nil {
-		return nil, err
-	}
-	relayState, err = AuthnRequestCookie.Encode("oidc", json)
-	if err != nil {
-		return nil, err
-	}
-
 	client_id := samlrequest.Query1(nil, "./saml:Issuer")
 	params := url.Values{}
 	params.Set("scope", "openid")
@@ -688,7 +679,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSets, destinationMdSets MdSets, role
 
 	var signed bool
 	switch {
-	case r.Form.Get("id_token") != "", r.Form.Get("code") != "":
+	case r.Form.Get("id_token") != "":
 		xp, relayState, issuerMd, issuerIndex, signed, err = handleOIDCResponse(r, issuerMdSets, destinationMd, location)
 		if err != nil {
 			return
@@ -1630,23 +1621,6 @@ func handleOIDCResponse(r *http.Request, issuerMdSets MdSets, spMd *goxml.Xp, lo
 	r.ParseForm()
 	id_token := r.Form.Get("id_token")
 	relayState = r.Form.Get("state")
-
-	var jjson []byte
-	jjson, err = AuthnRequestCookie.Decode("oidc", relayState)
-	if err != nil {
-		return
-	}
-	state := [4]string{}
-	err = json.Unmarshal(jjson, &state)
-	if err != nil {
-		return
-	}
-
-	relayState, op := state[0], state[1]
-	opMd, opIndex, err = FindInMetadataSets(issuerMdSets, op)
-	if err != nil {
-		return
-	}
 
 	var attrs map[string]interface{}
 	attrs, opMd, err = JwtVerify(id_token, issuerMdSets, spMd, SPEnc, "")
