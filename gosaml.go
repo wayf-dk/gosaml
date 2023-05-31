@@ -1812,7 +1812,8 @@ func Map2saml(response *goxml.Xp, attrs map[string]interface{}) (err error) {
 		{"iss", "./saml:Issuer", true},
 		{"iss", "./saml:Assertion/saml:Issuer", true},
 		{"aud", "./saml:Assertion//saml:Conditions/saml:AudienceRestriction/saml:Audience", true},
-		// {"nonce", "./@InResponseTo", true }, // set by newResponse
+		{"nonce", "./@InResponseTo", true }, // override what is set by newresponse
+		{"nonce", "./saml:Assertion/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@InResponseTo", true }, // override what is set by newresponse
 	}
 
 	for _, claim := range elems {
