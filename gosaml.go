@@ -95,8 +95,8 @@ const (
 type (
 	// SamlRequest - compact representation of a request across the hub
 	SamlRequest struct {
-		Nonce, RequestID, SP, IDP, VirtualIDP, AssertionConsumerIndex, Protocol string
-		NameIDFormat, SPIndex, HubBirkIndex                                         uint8
+		Nonce, RequestID, SP, IDP, VirtualIDP, WAYFSP, AssertionConsumerIndex, Protocol, IDPProtocol string
+		NameIDFormat, SPIndex, HubBirkIndex                                                          uint8
 	}
 
 	// Md Interface for metadata provider
@@ -684,6 +684,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSets, destinationMdSets MdSets, role
 		if err != nil {
 			return
 		}
+		xp.QueryDashP(nil, "@Flow", "id_token", nil)
 	default:
 		method := r.Method
 		if ok := method == "GET" || method == "POST"; !ok {
@@ -1418,7 +1419,7 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDP string, 
 <saml:Issuer>Issuer</saml:Issuer>
 <samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" AllowCreate="true" />
 </samlp:AuthnRequest>`
-    idp := idpMd.Query1(nil, "@entityID")
+	idp := idpMd.Query1(nil, "@entityID")
 	issueInstant, msgID, _, _, _ := IDAndTiming()
 	var ID, issuer, nameIDFormat, protocol string
 
@@ -1430,8 +1431,8 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDP string, 
 	if acs != "" {
 		protocolBinding = spMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Location=`+strconv.Quote(acs)+`]/@Binding`)
 	} else if acs == "" {
-        acs = spMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`"]/@Location`)
-        protocolBinding = POST
+		acs = spMd.Query1(nil, `./md:SPSSODescriptor/md:AssertionConsumerService[@Binding="`+POST+`"]/@Location`)
+		protocolBinding = POST
 	}
 	if protocolBinding == "" {
 		err = goxml.NewWerror("cause:no @Binding found for acs", "acs:"+acs)
@@ -1439,8 +1440,8 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDP string, 
 	}
 	request.QueryDashP(nil, "./@ProtocolBinding", protocolBinding, nil)
 	request.QueryDashP(nil, "./@AssertionConsumerServiceURL", acs, nil)
-	issuer = spMd.Query1(nil, `./@entityID`) // we save the issueing SP in the sRequest for edge request - will be overwritten later if an originalRequest is given
-	request.QueryDashP(nil, "./saml:Issuer", issuer, nil)
+	wayfsp := spMd.Query1(nil, `./@entityID`) // we save the issueing SP in the sRequest for edge request - will be overwritten later if an originalRequest is given
+	request.QueryDashP(nil, "./saml:Issuer", wayfsp, nil)
 	request.QueryDashP(nil, "./samlp:NameIDPolicy/@Format", spMd.Query1(nil, `./md:SPSSODescriptor/md:NameIDFormat`), nil)
 
 	acsIndex := ""
@@ -1487,6 +1488,7 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDP string, 
 		SP:                     IDHash(issuer),
 		IDP:                    IDHash(idp),
 		VirtualIDP:             IDHash(virtualIDP),
+		WAYFSP:                 IDHash(wayfsp),
 		NameIDFormat:           NameIDMap[nameIDFormat],
 		AssertionConsumerIndex: acsIndex,
 		SPIndex:                spIndex,
@@ -1812,8 +1814,8 @@ func Map2saml(response *goxml.Xp, attrs map[string]interface{}) (err error) {
 		{"iss", "./saml:Issuer", true},
 		{"iss", "./saml:Assertion/saml:Issuer", true},
 		{"aud", "./saml:Assertion//saml:Conditions/saml:AudienceRestriction/saml:Audience", true},
-		{"nonce", "./@InResponseTo", true }, // override what is set by newresponse
-		{"nonce", "./saml:Assertion/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@InResponseTo", true }, // override what is set by newresponse
+		{"nonce", "./@InResponseTo", true}, // override what is set by newresponse
+		{"nonce", "./saml:Assertion/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@InResponseTo", true}, // override what is set by newresponse
 	}
 
 	for _, claim := range elems {
@@ -2200,7 +2202,7 @@ func (h *Hm) innerValidate(id string, signedMsg []byte) (msg []byte, err error) 
 // Marshal hand-held marshal SamlRequest
 func (r SamlRequest) Marshal() (msg []byte) {
 	prefix := []byte{}
-	for _, str := range []string{r.Nonce, r.RequestID, r.SP, r.IDP, r.VirtualIDP, r.AssertionConsumerIndex, r.Protocol} {
+	for _, str := range []string{r.Nonce, r.RequestID, r.SP, r.IDP, r.VirtualIDP, r.WAYFSP, r.AssertionConsumerIndex, r.Protocol, r.IDPProtocol} {
 		prefix = append(prefix, uint8(len(str))) // if over 255 we are in trouble
 		msg = append(msg, str...)
 	}
@@ -2213,7 +2215,7 @@ func (r SamlRequest) Marshal() (msg []byte) {
 // Unmarshal - hand held unmarshal for SamlRequest
 func (r *SamlRequest) Unmarshal(msg []byte) {
 	i := int((msg[0]-97)*(msg[1]-97)) + 2 // num records and number of b64 encoded string lengths
-	for j, x := range []*string{&r.Nonce, &r.RequestID, &r.SP, &r.IDP, &r.VirtualIDP, &r.AssertionConsumerIndex, &r.Protocol} {
+	for j, x := range []*string{&r.Nonce, &r.RequestID, &r.SP, &r.IDP, &r.VirtualIDP, &r.WAYFSP, &r.AssertionConsumerIndex, &r.Protocol, &r.IDPProtocol} {
 		l := int(msg[j+2])
 		*x = string(msg[i : i+l])
 		i = i + l
