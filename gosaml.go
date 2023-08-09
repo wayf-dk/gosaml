@@ -1607,6 +1607,9 @@ func request2samlRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 		if wa == "wsignin1.0" {
 			samlmessage.QueryDashP(protocol, ".", "wsfed", nil)
 		} else if response_type == "id_token" {
+		    if nonce := r.Form.Get("nonce"); nonce == "" {
+		        return nil, "", fmt.Errorf("No nonce found")
+		    }
 			samlmessage.QueryDashPForce(nil, "@ID", "_"+r.Form.Get("nonce"), nil) // force overwriting - even if blank - always start with a _
 			samlmessage.QueryDashP(protocol, ".", "oidc", nil)
 		}
