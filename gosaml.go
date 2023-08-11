@@ -598,11 +598,6 @@ func ReceiveAuthnRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 	if err != nil {
 		return
 	}
-	subject := xp.Query1(nil, "./saml:Subject")
-	if subject != "" {
-		err = fmt.Errorf("subject not allowed in SAMLRequest")
-		return
-	}
 	nameIDFormat := xp.Query1(nil, "./samlp:NameIDPolicy/@Format")
 	if NameIDMap[nameIDFormat] == 0 {
 		err = fmt.Errorf("nameidpolicy format: '%s' is not supported", nameIDFormat)
@@ -1446,6 +1441,10 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDP string, 
 
 	acsIndex := ""
 	if originalRequest != nil { // already checked for supported nameidformat
+	    if subjects := originalRequest.Query(nil, "./saml:Subject"); len(subjects) == 1 {
+	        subject := request.CopyNode(subjects[0], 1)
+	        request.Query(nil, "./samlp:NameIDPolicy")[0].AddPrevSibling(subject)
+   		}
 		ID = originalRequest.Query1(nil, "./@ID")
 		issuer = originalRequest.Query1(nil, "./saml:Issuer")
 		nameIDFormat = originalRequest.Query1(nil, "./samlp:NameIDPolicy/@Format")
