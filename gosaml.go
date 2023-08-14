@@ -1564,6 +1564,7 @@ func NewResponse(idpMd, spMd, authnrequest, sourceResponse *goxml.Xp) (response 
 	response.QueryDashP(conditions, "saml:AudienceRestriction/saml:Audience", spEntityID, nil)
 
 	authstatement := response.Query(assertion, "saml:AuthnStatement")[0]
+	response.QueryDashP(authstatement, "@SessionIndex", ID(), nil)
 
 	if sourceResponse != nil {
 		srcAssertion := sourceResponse.Query(nil, "saml:Assertion")[0]
@@ -1578,7 +1579,6 @@ func NewResponse(idpMd, spMd, authnrequest, sourceResponse *goxml.Xp) (response 
 		response.QueryDashP(authstatement, "@SessionNotOnOrAfter", sourceResponse.Query1(srcAssertion, "saml:AuthnStatement/@SessionNotOnOrAfter"), nil)
 	} else {
 		response.QueryDashP(authstatement, "@AuthnInstant", assertionIssueInstant, nil)
-		response.QueryDashP(authstatement, "@SessionIndex", ID(), nil)
 		response.QueryDashP(authstatement, "@SessionNotOnOrAfter", sessionNotOnOrAfter, nil)
 	}
 	return
