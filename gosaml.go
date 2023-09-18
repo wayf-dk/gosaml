@@ -1812,37 +1812,31 @@ func Jwt2saml(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 func Map2saml(response *goxml.Xp, attrs map[string]interface{}) (err error) {
 	type claimType struct {
 		name, xpath string
-		mandatory   bool
 	}
 
 	elems := []claimType{
-		{"iss", "./saml:Issuer", true},
-		{"iss", "./saml:Assertion/saml:Issuer", true},
-		{"aud", "./saml:Assertion//saml:Conditions/saml:AudienceRestriction/saml:Audience", true},
-		{"nonce", "./@InResponseTo", true}, // override what is set by newresponse
-		{"nonce", "./saml:Assertion/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@InResponseTo", true}, // override what is set by newresponse
+		{"iss", "./saml:Issuer"},
+		{"iss", "./saml:Assertion/saml:Issuer"},
+		{"aud", "./saml:Assertion//saml:Conditions/saml:AudienceRestriction/saml:Audience"},
+		{"nonce", "./@InResponseTo"}, // override what is set by newresponse
+		{"nonce", "./saml:Assertion/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@InResponseTo"}, // override what is set by newresponse
 	}
 
 	for _, claim := range elems {
-		s, ok := attrs[claim.name].(string)
-		if claim.mandatory || ok {
-			response.QueryDashP(nil, claim.xpath, s, nil)
-		}
+		response.QueryDashPForce(nil, claim.xpath, attrs[claim.name].(string), nil)
 	}
 
 	times := []claimType{
-		{"iat", "@IssueInstant", true},
-		{"iat", "./saml:Assertion/@IssueInstant", true},
-		{"exp", "./saml:Assertion/saml:Conditions/@NotOnOrAfter", false},
-		{"nbf", "./saml:Assertion/saml:Conditions/@NotBefore", false},
-		{"auth_time", "./saml:Assertion/saml:AuthnStatement/@AuthnInstant", false},
+		{"iat", "@IssueInstant"},
+		{"iat", "./saml:Assertion/@IssueInstant"},
+		{"exp", "./saml:Assertion/saml:Conditions/@NotOnOrAfter"},
+		{"nbf", "./saml:Assertion/saml:Conditions/@NotBefore"},
+		{"auth_time", "./saml:Assertion/saml:AuthnStatement/@AuthnInstant"},
 	}
 
 	for _, claim := range times {
-		t, ok := attrs[claim.name].(float64)
-		if claim.mandatory || ok {
-			response.QueryDashP(nil, claim.xpath, time.Unix(int64(t), 0).Format(XsDateTime), nil)
-		}
+		t, _ := attrs[claim.name].(float64)
+	    response.QueryDashPForce(nil, claim.xpath, time.Unix(int64(t), 0).Format(XsDateTime), nil)
 	}
 
 	destinationAttributes := response.QueryDashP(nil, `/saml:Assertion/saml:AttributeStatement[1]`, "", nil)
