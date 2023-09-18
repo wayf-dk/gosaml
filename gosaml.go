@@ -1774,7 +1774,7 @@ func Jwt2saml(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 		}
 
 		response := NewResponse(idpMd, spMd, msg, nil)
-		// for id_tokens Map2saml requires "aud" and "nonce" in attrs - is is already in the response, but for legacy reasons not in the attrs sent to Jwt2saml
+		// for id_tokens Map2saml requires "aud" and "nonce" in attrs - they are already in the response, but for legacy reasons not in the attrs sent to Jwt2saml
 		attrs["aud"] = response.Query1(nil, "./saml:Assertion//saml:Conditions/saml:AudienceRestriction/saml:Audience")
 		attrs["nonce"] = response.Query1(nil, "./@InResponseTo")
 		if err = Map2saml(response, attrs); err != nil {
