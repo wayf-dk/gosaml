@@ -845,10 +845,17 @@ findbinding:
 	switch usedBinding {
 	case REDIRECT:
 		{
-			if err = checkRedirect(parseQueryRaw(r.URL.RawQuery), certificates); err != nil {
-				return
+			if err = checkRedirect(parseQueryRaw(r.URL.RawQuery), certificates); err == nil {
+				validatedMessage = xp
+			} else if query := protoChecks[protocol].signatureElements[0]; query != "" {
+                signatures := xp.Query(nil, query)
+                if len(signatures) == 1 {
+                    if err = VerifySign(xp, certificates, signatures[0]); err != nil {
+                        return
+                    }
+                    validatedMessage = xp
+                }
 			}
-			validatedMessage = xp
 		}
 	case POST:
 		{
