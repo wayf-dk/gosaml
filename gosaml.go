@@ -1647,7 +1647,11 @@ func handleOIDCResponse(r *http.Request, issuerMdSets MdSets, spMd *goxml.Xp, lo
 	}
 	// fake an authnRequest with @ACS and @ID
 	request := goxml.NewXpFromString(`<pseudo/>`)
-	nonce, _ := attrs["nonce"].(string)
+	nonce, ok:= attrs["nonce"].(string)
+	if !ok {
+        err = goxml.NewWerror("Mandatory claim not present: nonce")
+        return
+	}
 	request.QueryDashP(nil, "@ID", nonce[1:], nil) // we added a _, now remove it
 	request.QueryDashP(nil, "@AssertionConsumerServiceURL", location, nil)
 	samlmessage = NewResponse(opMd, spMd, request, nil)
@@ -1831,9 +1835,12 @@ func Map2saml(response *goxml.Xp, attrs map[string]interface{}) (err error) {
 		{"nonce", "./@InResponseTo"}, // override what is set by newresponse
 		{"nonce", "./saml:Assertion/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@InResponseTo"}, // override what is set by newresponse
 	}
-
 	for _, claim := range elems {
-		response.QueryDashPForce(nil, claim.xpath, attrs[claim.name].(string), nil)
+	    if t, ok := attrs[claim.name].(string); ok {
+    		response.QueryDashPForce(nil, claim.xpath, t, nil)
+	    } else {
+            return goxml.NewWerror("Mandatory claim not present: "+claim.name)
+        }
 	}
 
 	times := []claimType{
