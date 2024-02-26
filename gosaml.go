@@ -1699,11 +1699,16 @@ func NewWsFedResponse(idpMd, spMd, sourceResponse *goxml.Xp) (response *goxml.Xp
 	authnInstant := sourceResponse.Query1(nil, "./saml:Assertion/saml:AuthnStatement/@AuthnInstant")
 
 	spEntityID := spMd.Query1(nil, `/md:EntityDescriptor/@entityID`)
+	audience := spEntityID
+    if specialAudience := spMd.Query1(nil, `/md:EntityDescriptor/md:Extensions/wayf:wayf/wayf:actualSPEntityID`); specialAudience != "" {
+        audience = specialAudience;
+    }
+
 	idpEntityID := idpMd.Query1(nil, `/md:EntityDescriptor/@entityID`)
 
 	response.QueryDashP(nil, "./t:Lifetime/wsu:Created", issueInstant, nil)
 	response.QueryDashP(nil, "./t:Lifetime/wsu:Expires", assertionNotOnOrAfter, nil)
-	response.QueryDashP(nil, "./wsp:AppliesTo/wsa:EndpointReference/wsa:Address", spEntityID, nil)
+	response.QueryDashP(nil, "./wsp:AppliesTo/wsa:EndpointReference/wsa:Address", audience, nil)
 
 	assertion := response.Query(nil, "t:RequestedSecurityToken/saml1:Assertion")[0]
 	response.QueryDashP(assertion, "@AssertionID", assertionID, nil)
@@ -1713,7 +1718,7 @@ func NewWsFedResponse(idpMd, spMd, sourceResponse *goxml.Xp) (response *goxml.Xp
 	conditions := response.Query(assertion, "saml1:Conditions")[0]
 	response.QueryDashP(conditions, "@NotBefore", assertionNotBefore, nil)
 	response.QueryDashP(conditions, "@NotOnOrAfter", assertionNotOnOrAfter, nil)
-	response.QueryDashP(conditions, "saml1:AudienceRestrictionCondition/saml1:Audience", spEntityID, nil)
+	response.QueryDashP(conditions, "saml1:AudienceRestrictionCondition/saml1:Audience", audience, nil)
 
 	nameIdentifier := sourceResponse.Query1(nil, "./saml:Assertion/saml:Subject/saml:NameID")
 	nameIDFormat := sourceResponse.Query1(nil, "./saml:Assertion/saml:Subject/saml:NameID/@Format")
@@ -1929,7 +1934,7 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 		case "Response":
 
 			if err = CheckDigestAndSignatureAlgorithms(response); err != nil {
-				// return err
+				 return err
 			}
 			if _, err = requestHandler(response, idpMd, spMd); err != nil {
 				return err
