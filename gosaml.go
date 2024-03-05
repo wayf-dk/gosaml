@@ -548,9 +548,10 @@ func SAMLRequest2OIDCRequest(samlrequest *goxml.Xp, relayState, flow string, idp
 	if samlrequest.QueryXMLBool(nil, "@ForceAuthn") {
 		params.Set("prompt", "login")
 	}
-	if requesterID := samlrequest.Query1(nil, "samlp:Scoping/samlp:RequesterID[1]"); requesterID != "" {
-	    params.Set("requester_id", requesterID)
-	}
+
+	if requesterIDs := samlrequest.QueryMulti(nil, "samlp:Scoping/samlp:RequesterID"); len(requesterIDs) > 0 {
+        params.Set("requester_id", strings.Join(requesterIDs, ","))
+    }
 	//    params.Set("acr_values", "")
 	destination.RawQuery = params.Encode()
 	return
