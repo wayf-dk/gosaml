@@ -1452,10 +1452,6 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDP string, 
 
 	acsIndex := ""
 	if originalRequest != nil { // already checked for supported nameidformat
-	    if subjects := originalRequest.Query(nil, "./saml:Subject"); len(subjects) == 1 {
-	        subject := request.CopyNode(subjects[0], 1)
-	        request.Query(nil, "./samlp:NameIDPolicy")[0].AddPrevSibling(subject)
-   		}
 		ID = originalRequest.Query1(nil, "./@ID")
 		issuer = originalRequest.Query1(nil, "./saml:Issuer")
 		nameIDFormat = originalRequest.Query1(nil, "./samlp:NameIDPolicy/@Format")
