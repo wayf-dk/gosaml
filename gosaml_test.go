@@ -148,17 +148,17 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// Using Alice's keypair from rfc7748 as the key escrow's keypair and Bob's private key as the ephemeral private key
+// Using Alice's keypair from rfc7748 as the key escrow's keypair
 func ExampleNemLog() {
 	peerPrivate, _ := hex.DecodeString("77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a")
 	peerPublic, _ := hex.DecodeString("8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a")
-    ephemeralPrivate, _ := hex.DecodeString("5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb")
+    // Just for testing - remember to comment out the real peerPublic in Nemlog.Init ...
     // ephemeralPublic is computed by the Init function
 
 	l := NemLog
-	l.name = "log/nemlog"
 	l.peerPublic = peerPublic
-	l.Init(ephemeralPrivate)
+	slot := time.Now().Unix() / config.NemLogSlotGranularity
+	l.Init(slot)
 	l.writer.Write([]byte("\njust testing\n"))
 	l.Finalize()
 
@@ -171,8 +171,15 @@ func ExampleNemLog() {
 	var iv [aes.BlockSize]byte // blank - we change key for every message
 	stream := cipher.NewOFB(block, iv[:])
 	nemLogDecryptedReader := &cipher.StreamReader{S: stream, R: nemLogReader}
-	nemLogDecompressedReader, _ := gzip.NewReader(nemLogDecryptedReader)
-	io.Copy(os.Stdout, nemLogDecompressedReader)
+
+	nemLogDecompressedReader, err := gzip.NewReader(nemLogDecryptedReader)
+	if err != nil {
+		panic(err)
+	}
+
+	if _, err := io.Copy(os.Stdout, nemLogDecompressedReader); err != nil {
+		panic(err)
+	}
 
 	// Output:
 	// just testing
@@ -187,7 +194,7 @@ func ExampleGetPrivateKey() {
 
 func ExampleParseQueryRaw() {
 	newrequest, _, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "", idPList, "", false, 0, 0)
-	samlURL, _ := SAMLRequest2URL(newrequest, "anton-banton", "", "", "")
+	samlURL, _ := SAMLRequest2URL(newrequest, "anton-banton", nil, "")
 	request := httptest.NewRequest("GET", samlURL.String(), nil)
 	rawValues := parseQueryRaw(request.URL.RawQuery)
 	keys := make([]string, len(rawValues))
@@ -260,7 +267,7 @@ func ExampleNewSLOInfo() {
 func xxExampleNewLogoutRequest() {
 	sloInfo := NewSLOInfo(response, "")
 	newrequest, _, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "", idPList, "", false, 0, 0)
-	url, _ := SAMLRequest2URL(newrequest, "anton-banton", "", "", "")
+	url, _ := SAMLRequest2URL(newrequest, "anton-banton", nil, "")
 	request1 := httptest.NewRequest("GET", url.String(), nil)
 	//request1.Query(nil, "/samlp:AuthnRequest")[0].SetNodeName("LogoutRequest")
 	request, _, _, _, _, _, _ := ReceiveLogoutMessage(request1, MdSets{external}, MdSets{external}, 1)
@@ -477,7 +484,7 @@ func ExamplePublicKeyInfo() {
 func ExampleSAMLRequest2URL() {
 	TestTime = fixedTestTime
 	newrequest, _, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "", idPList, "", false, 0, 0)
-	url, err := SAMLRequest2URL(newrequest, "anton-banton", "", "", "")
+	url, err := SAMLRequest2URL(newrequest, "anton-banton", nil, "")
 	fmt.Println(url, err)
 	// Output:
 	// https://aai-logon.switch.ch/idp/profile/SAML2/Redirect/SSO?SAMLRequest=pJJBj9owEIXv%2FArL98TZqK0qi7Cii1aNtO0iku2hN5MMm5EcO52ZAP33FQEqeuHSqz1v3jdvZv547L3aAzHGUOiHNNMKQhNbDO%2BFfqufk8%2F6cTGbs%2Bv9YJejdGEDv0ZgUcfeB7bTR6FHCjY6RrbB9cBWGlstv73YPM3sQFFiE72%2BkdxXOGYgwRi0%2BnFFy09o5arQ5UqrknmEMrC4IIXOs%2BxTkj0kWV7nuc0%2B2OzjT61WwILByaTuRAa2xjiHiY%2FvMaR8QGm6tOkMtoMZKO7Qgzkh5GYDLRI0YqrqVav1hf8LhnMs99C35yK2X%2Bt6naxfq1qr5XWcpxh47IEqoD028LZ5uSETIdyOAske4QCUOoe3kEGAdtACTRMlAiym6nC7jR6kS5njBX7yvKzMTkHR4n9M%2BK%2FJ3Nz2vB7Fd9dDuVpHj81v9Rypd3I%2FotMLtsluKrXDacEsEESrpffx8ETgBAotNII2i9nZ9d%2FjW8z%2BBAAA%2F%2F8%3D&RelayState=anton-banton <nil>
@@ -486,7 +493,7 @@ func ExampleSAMLRequest2URL() {
 func ExampleURL2SAMLRequest() {
 	TestTime = fixedTestTime
 	newrequest, _, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "", idPList, "", false, 0, 0)
-	url, _ := SAMLRequest2URL(newrequest, "anton-banton", "", "", "")
+	url, _ := SAMLRequest2URL(newrequest, "anton-banton", nil, "")
 	xp, relayState := URL2SAMLRequest(url, nil)
 	fmt.Printf("%t\n", newrequest.PP() == xp.PP())
 	fmt.Println(relayState)
@@ -554,7 +561,7 @@ func ExampleNoAssertion() {
 func ExampleReceiveAuthnRequest() {
 	TestTime = fixedTestTime
 	newrequest, _, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "", idPList, "", false, 0, 0)
-	url, _ := SAMLRequest2URL(newrequest, "anton-banton", "", "", "")
+	url, _ := SAMLRequest2URL(newrequest, "anton-banton", nil, "")
 	request := httptest.NewRequest("GET", url.String(), nil)
 	_, _, _, relayState, _, _, err := ReceiveAuthnRequest(request, MdSets{external}, MdSets{external}, "https://"+request.Host+request.URL.Path)
 	fmt.Println(relayState)
@@ -577,7 +584,7 @@ func TestReceiveAuthnRequest(*testing.T) {
 		for range [1]int{} {
 			//spmetadata, _ = external.MDQ("https://attribute-viewer.aai.switch.ch/interfederation-test/shibboleth")
 			newrequest, _, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "", idPList, "", false, 0, 0)
-			url, _ := SAMLRequest2URL(newrequest, "anton-banton", "", "", "")
+			url, _ := SAMLRequest2URL(newrequest, "anton-banton", nil, "")
 			request := httptest.NewRequest("GET", url.String(), nil)
 			_, _, _, _, _, _, _ = ReceiveAuthnRequest(request, MdSets{external}, MdSets{external}, "https://"+request.Host+request.URL.Path)
 			i++
@@ -588,7 +595,7 @@ func TestReceiveAuthnRequest(*testing.T) {
 func ExampleLogoutMsgProtocolCheck() {
 	TestTime = fixedTestTime
 	newrequest, _, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "", idPList, "", false, 0, 0)
-	url, _ := SAMLRequest2URL(newrequest, "anton-banton", "", "", "")
+	url, _ := SAMLRequest2URL(newrequest, "anton-banton", nil, "")
 	request := httptest.NewRequest("GET", url.String(), nil)
 	_, _, _, _, _, _, err := ReceiveLogoutMessage(request, MdSets{external}, MdSets{external}, 1)
 	fmt.Println(err)
@@ -603,7 +610,7 @@ func ExampleNameIDPolicy() {
 	nameidpolicy := newrequest.Query(nil, "./samlp:NameIDPolicy")[0]
 	newrequest.QueryDashP(nameidpolicy, "@Format", "anton-banton", nil)
 
-	url, _ := SAMLRequest2URL(newrequest, "anton-banton", "", "", "")
+	url, _ := SAMLRequest2URL(newrequest, "anton-banton", nil, "")
 	request := httptest.NewRequest("GET", url.String(), nil)
 
 	_, _, _, _, _, _, err := ReceiveAuthnRequest(request, MdSets{external}, MdSets{external}, "https://"+request.Host+request.URL.Path)
@@ -619,7 +626,7 @@ func ExampleReceiveAuthnRequestNoSubject() {
 	subject := newrequest.QueryDashP(nil, "./saml:Subject/saml:NameID", "mehran", nameidpolicy)
 
 	newrequest.QueryDashP(subject, "@Format", "anton-banton", nil)
-	url, _ := SAMLRequest2URL(newrequest, "anton-banton", "", "", "")
+	url, _ := SAMLRequest2URL(newrequest, "anton-banton", nil, "")
 	request := httptest.NewRequest("GET", url.String(), nil)
 
 	_, _, _, _, _, _, err := ReceiveAuthnRequest(request, MdSets{external}, MdSets{external}, "https://"+request.Host+request.URL.Path)
@@ -632,7 +639,7 @@ func ExampleProtocolCheck() {
 	TestTime = fixedTestTime
 	newrequest, _, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "", idPList, "", false, 0, 0)
 	newrequest.Query(nil, "/samlp:AuthnRequest")[0].SetNodeName("PutRequest")
-	url, _ := SAMLRequest2URL(newrequest, "anton-banton", "", "", "")
+	url, _ := SAMLRequest2URL(newrequest, "anton-banton", nil, "")
 	request := httptest.NewRequest("GET", url.String(), nil)
 	_, _, _, _, _, _, err := ReceiveAuthnRequest(request, MdSets{external}, MdSets{external}, "https://"+request.Host+request.URL.Path)
 	fmt.Println(err)
@@ -741,7 +748,7 @@ func ExampleInvalidSchema() {
 	TestTime = fixedTestTime
 	newrequest, _, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "", idPList, "", false, 0, 0)
 	newrequest.Query(nil, "/samlp:AuthnRequest")[0].SetNodeName("PutRequest")
-	url, _ := SAMLRequest2URL(newrequest, "anton-banton", "", "", "")
+	url, _ := SAMLRequest2URL(newrequest, "anton-banton", nil, "")
 	request := httptest.NewRequest("GET", url.String(), nil)
 	_, _, _, _, _, _, err := ReceiveAuthnRequest(request, MdSets{external}, MdSets{external}, "https://"+request.Host+request.URL.Path)
 	fmt.Println(err)
@@ -753,7 +760,7 @@ func ExampleInvalidSchema() {
 
 func ExampleInvalidTime() {
 	newrequest, _, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "", idPList, "", false, 0, 0)
-	url, _ := SAMLRequest2URL(newrequest, "anton-banton", "", "", "")
+	url, _ := SAMLRequest2URL(newrequest, "anton-banton", nil, "")
 	request := httptest.NewRequest("GET", url.String(), nil)
 	xp, _, _, _, _, _, _ := ReceiveAuthnRequest(request, MdSets{external}, MdSets{external}, "https://"+request.Host+request.URL.Path)
 	xp.QueryDashP(nil, "@IssueInstant", "abc", nil)
@@ -765,7 +772,7 @@ func ExampleInvalidTime() {
 
 func ExampleOutOfRangeTime() {
 	newrequest, _, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "", idPList, "", false, 0, 0)
-	url, _ := SAMLRequest2URL(newrequest, "anton-banton", "", "", "")
+	url, _ := SAMLRequest2URL(newrequest, "anton-banton", nil, "")
 	request := httptest.NewRequest("GET", url.String(), nil)
 
 	xp, _, _, _, _, _, _ := ReceiveAuthnRequest(request, MdSets{external}, MdSets{external}, "https://"+request.Host+request.URL.Path)
@@ -779,7 +786,7 @@ func ExampleOutOfRangeTime() {
 func ExampleNoTime() {
 	newrequest, _, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "", idPList, "", false, 0, 0)
 	newrequest.QueryDashP(nil, "@IssueInstant", "2014-12-22", nil)
-	url, _ := SAMLRequest2URL(newrequest, "anton-banton", "", "", "")
+	url, _ := SAMLRequest2URL(newrequest, "anton-banton", nil, "")
 	request := httptest.NewRequest("GET", url.String(), nil)
 	req, _, _, _, _, _, err := ReceiveAuthnRequest(request, MdSets{external}, MdSets{external}, "https://"+request.Host+request.URL.Path)
 	fmt.Println(req, err)
@@ -792,7 +799,7 @@ func ExampleNoTime() {
 func ExampleNoTime2() {
 	newrequest, _, _ := NewAuthnRequest(nil, spmetadata, idpmetadata, "", idPList, "", false, 0, 0)
 	newrequest.QueryDashP(nil, "@IssueInstant", "2002-10-10T12:00:00-05:00", nil)
-	url, _ := SAMLRequest2URL(newrequest, "", "", "", "")
+	url, _ := SAMLRequest2URL(newrequest, "", nil, "")
 	request := httptest.NewRequest("GET", url.String(), nil)
 	req, _, _, _, _, _, err := ReceiveAuthnRequest(request, MdSets{external}, MdSets{external}, "https://"+request.Host+request.URL.Path)
 	fmt.Println(req, err)
