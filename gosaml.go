@@ -736,6 +736,12 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSets, destinationMdSets MdSets, role
 			return
 		}
 
+        // PHPH can't currently handle entities with both SP and IdP roles, so if a request comes in from an IdP map it to it's twin SP
+        if sp := config.IdP2SPMappping[issuer]; sp != "" && protocol == "AuthnRequest" {
+            issuer = sp
+            xp.QueryDashP(nil, "./saml:Issuer", issuer, nil)
+        }
+
 		issuerMd, issuerIndex, err = FindInMetadataSets(issuerMdSets, issuer)
 		if err != nil {
 			return
