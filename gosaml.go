@@ -550,8 +550,8 @@ func SAMLRequest2OIDCRequest(samlrequest *goxml.Xp, relayState, flow string, idp
 	}
 
 	if requesterIDs := samlrequest.QueryMulti(nil, "samlp:Scoping/samlp:RequesterID"); len(requesterIDs) > 0 {
-        params.Set("requester_id", strings.Join(requesterIDs, ","))
-    }
+		params.Set("requester_id", strings.Join(requesterIDs, ","))
+	}
 	//    params.Set("acr_values", "")
 	destination.RawQuery = params.Encode()
 	return
@@ -736,11 +736,11 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSets, destinationMdSets MdSets, role
 			return
 		}
 
-        // PHPH can't currently handle entities with both SP and IdP roles, so if a request comes in from an IdP map it to it's twin SP
-        if sp := config.IdP2SPMappping[issuer]; sp != "" && protocol == "AuthnRequest" {
-            issuer = sp
-            xp.QueryDashP(nil, "./saml:Issuer", issuer, nil)
-        }
+		// PHPH can't currently handle entities with both SP and IdP roles, so if a request comes in from an IdP map it to it's twin SP
+		if sp := config.IdP2SPMappping[issuer]; sp != "" && protocol == "AuthnRequest" {
+			issuer = sp
+			xp.QueryDashP(nil, "./saml:Issuer", issuer, nil)
+		}
 
 		issuerMd, issuerIndex, err = FindInMetadataSets(issuerMdSets, issuer)
 		if err != nil {
@@ -858,13 +858,13 @@ findbinding:
 			if err = checkRedirect(parseQueryRaw(r.URL.RawQuery), certificates); err == nil {
 				validatedMessage = xp
 			} else if query := protoChecks[protocol].signatureElements[0]; query != "" {
-                signatures := xp.Query(nil, query)
-                if len(signatures) == 1 {
-                    if err = VerifySign(xp, certificates, signatures[0]); err != nil {
-                        return
-                    }
-                    validatedMessage = xp
-                }
+				signatures := xp.Query(nil, query)
+				if len(signatures) == 1 {
+					if err = VerifySign(xp, certificates, signatures[0]); err != nil {
+						return
+					}
+					validatedMessage = xp
+				}
 			}
 		}
 	case POST:
@@ -1619,9 +1619,9 @@ func request2samlRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 		if wa == "wsignin1.0" {
 			samlmessage.QueryDashP(protocol, ".", "wsfed", nil)
 		} else if response_type == "id_token" {
-		    if nonce := r.Form.Get("nonce"); nonce == "" {
-		        return nil, "", fmt.Errorf("No nonce found")
-		    }
+			if nonce := r.Form.Get("nonce"); nonce == "" {
+				return nil, "", fmt.Errorf("No nonce found")
+			}
 			samlmessage.QueryDashPForce(nil, "@ID", "_"+r.Form.Get("nonce"), nil) // force overwriting - even if blank - always start with a _
 			samlmessage.QueryDashP(protocol, ".", "oidc", nil)
 		}
@@ -1650,10 +1650,10 @@ func handleOIDCResponse(r *http.Request, issuerMdSets MdSets, spMd *goxml.Xp, lo
 	}
 	// fake an authnRequest with @ACS and @ID
 	request := goxml.NewXpFromString(`<pseudo/>`)
-	nonce, ok:= attrs["nonce"].(string)
+	nonce, ok := attrs["nonce"].(string)
 	if !ok {
-        err = goxml.NewWerror("Mandatory claim not present: nonce")
-        return
+		err = goxml.NewWerror("Mandatory claim not present: nonce")
+		return
 	}
 	request.QueryDashP(nil, "@ID", nonce[1:], nil) // we added a _, now remove it
 	request.QueryDashP(nil, "@AssertionConsumerServiceURL", location, nil)
@@ -1703,9 +1703,9 @@ func NewWsFedResponse(idpMd, spMd, sourceResponse *goxml.Xp) (response *goxml.Xp
 
 	spEntityID := spMd.Query1(nil, `/md:EntityDescriptor/@entityID`)
 	audience := spEntityID
-    if specialAudience := spMd.Query1(nil, `/md:EntityDescriptor/md:Extensions/wayf:wayf/wayf:actualSPEntityID`); specialAudience != "" {
-        audience = specialAudience;
-    }
+	if specialAudience := spMd.Query1(nil, `/md:EntityDescriptor/md:Extensions/wayf:wayf/wayf:actualSPEntityID`); specialAudience != "" {
+		audience = specialAudience
+	}
 
 	idpEntityID := idpMd.Query1(nil, `/md:EntityDescriptor/@entityID`)
 
@@ -1844,11 +1844,11 @@ func Map2saml(response *goxml.Xp, attrs map[string]interface{}) (err error) {
 		{"nonce", "./saml:Assertion/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData/@InResponseTo"}, // override what is set by newresponse
 	}
 	for _, claim := range elems {
-	    if t, ok := attrs[claim.name].(string); ok {
-    		response.QueryDashPForce(nil, claim.xpath, t, nil)
-	    } else {
-            return goxml.NewWerror("Mandatory claim not present: "+claim.name)
-        }
+		if t, ok := attrs[claim.name].(string); ok {
+			response.QueryDashPForce(nil, claim.xpath, t, nil)
+		} else {
+			return goxml.NewWerror("Mandatory claim not present: " + claim.name)
+		}
 	}
 
 	times := []claimType{
@@ -1861,7 +1861,7 @@ func Map2saml(response *goxml.Xp, attrs map[string]interface{}) (err error) {
 
 	for _, claim := range times {
 		t, _ := attrs[claim.name].(float64)
-	    response.QueryDashPForce(nil, claim.xpath, time.Unix(int64(t), 0).Format(XsDateTime), nil)
+		response.QueryDashPForce(nil, claim.xpath, time.Unix(int64(t), 0).Format(XsDateTime), nil)
 	}
 
 	destinationAttributes := response.QueryDashP(nil, `/saml:Assertion/saml:AttributeStatement[1]`, "", nil)
@@ -1937,7 +1937,7 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 		case "Response":
 
 			if err = CheckDigestAndSignatureAlgorithms(response); err != nil {
-				 return err
+				return err
 			}
 			if _, err = requestHandler(response, idpMd, spMd); err != nil {
 				return err
@@ -2227,7 +2227,7 @@ func (h *Hm) innerValidate(id string, signedMsg []byte) (msg []byte, err error) 
 func (r SamlRequest) Marshal() (msg []byte) {
 	prefix := []byte{}
 	for _, str := range []string{r.RequestID} {
-	    l := len(str)
+		l := len(str)
 		prefix = append(prefix, byte(l>>8), byte(l)) // if over 65535 we are in trouble
 		msg = append(msg, str...)
 	}
@@ -2319,4 +2319,3 @@ func (sil *SLOInfoList) Unmarshal(msg []byte) {
 	}
 	return
 }
-
