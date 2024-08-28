@@ -2226,7 +2226,12 @@ func (h *Hm) innerValidate(id string, signedMsg []byte) (msg []byte, err error) 
 // Marshal hand-held marshal SamlRequest
 func (r SamlRequest) Marshal() (msg []byte) {
 	prefix := []byte{}
-	for _, str := range []string{r.Nonce, r.RequestID, r.SP, r.IDP, r.VirtualIDP, r.WAYFSP, r.AssertionConsumerIndex, r.Protocol, r.IDPProtocol} {
+	for _, str := range []string{r.RequestID} {
+	    l := len(str)
+		prefix = append(prefix, byte(l>>8), byte(l)) // if over 65535 we are in trouble
+		msg = append(msg, str...)
+	}
+	for _, str := range []string{r.Nonce, r.SP, r.IDP, r.VirtualIDP, r.WAYFSP, r.AssertionConsumerIndex, r.Protocol, r.IDPProtocol} {
 		prefix = append(prefix, uint8(len(str))) // if over 255 we are in trouble
 		msg = append(msg, str...)
 	}
@@ -2239,8 +2244,17 @@ func (r SamlRequest) Marshal() (msg []byte) {
 // Unmarshal - hand held unmarshal for SamlRequest
 func (r *SamlRequest) Unmarshal(msg []byte) {
 	i := int((msg[0]-97)*(msg[1]-97)) + 2 // num records and number of b64 encoded string lengths
-	for j, x := range []*string{&r.Nonce, &r.RequestID, &r.SP, &r.IDP, &r.VirtualIDP, &r.WAYFSP, &r.AssertionConsumerIndex, &r.Protocol, &r.IDPProtocol} {
-		l := int(msg[j+2])
+	j := 2
+	for _, x := range []*string{&r.RequestID} {
+		l := int(msg[j])<<8 + int(msg[j+1])
+		j += 2
+		*x = string(msg[i : i+l])
+		i = i + l
+	}
+
+	for _, x := range []*string{&r.Nonce, &r.SP, &r.IDP, &r.VirtualIDP, &r.WAYFSP, &r.AssertionConsumerIndex, &r.Protocol, &r.IDPProtocol} {
+		l := int(msg[j])
+		j++
 		*x = string(msg[i : i+l])
 		i = i + l
 	}
@@ -2305,3 +2319,4 @@ func (sil *SLOInfoList) Unmarshal(msg []byte) {
 	}
 	return
 }
+
