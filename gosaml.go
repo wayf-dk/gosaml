@@ -2237,14 +2237,14 @@ func (r SamlRequest) Marshal() (msg []byte) {
 	}
 	msg = append(msg, r.NameIDFormat+97, r.SPIndex+97, r.HubBirkIndex+97) // use a-z for small numbers 0-26 that does not need to be b64 encoded
 	msg = append(prefix, msg...)
-	msg = append([]byte{98, byte(len(prefix) + 97)}, msg...)
+	msg = append([]byte{byte(len(prefix) + 97)}, msg...)
 	return
 }
 
 // Unmarshal - hand held unmarshal for SamlRequest
 func (r *SamlRequest) Unmarshal(msg []byte) {
-	i := int((msg[0]-97)*(msg[1]-97)) + 2 // num records and number of b64 encoded string lengths
-	j := 2
+	i := int(msg[0]-97)+1 // start of texts
+	j := 1
 	for _, x := range []*string{&r.RequestID} {
 		l := int(msg[j])<<8 + int(msg[j+1])
 		j += 2
