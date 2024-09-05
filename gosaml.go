@@ -1622,6 +1622,9 @@ func request2samlRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 			if nonce := r.Form.Get("nonce"); nonce == "" {
 				return nil, "", fmt.Errorf("No nonce found")
 			}
+			for _, acr := range strings.Split(r.Form.Get("acr"), ",") {
+			    samlmessage.QueryDashP(nil, "./samlp:RequestedAuthnContext/saml:AuthnContextClassRef[0]", acr, nil)
+			}
 			samlmessage.QueryDashPForce(nil, "@ID", "_"+r.Form.Get("nonce"), nil) // force overwriting - even if blank - always start with a _
 			samlmessage.QueryDashP(protocol, ".", "oidc", nil)
 		}
@@ -1898,6 +1901,7 @@ func Saml2map(response *goxml.Xp) (attrs map[string]interface{}) {
 	}
 
 	attrs["saml:AuthenticatingAuthority"] = response.QueryMulti(assertion, "./saml:AuthnStatement/saml:AuthnContext/saml:AuthenticatingAuthority")
+    attrs["acr"] = response.QueryMulti(assertion, "./saml:AuthnStatement/saml:AuthnContext/saml:AuthnContextClassRef")
 	//attrs["saml:AuthenticatingAuthority"] = append(attrs["saml:AuthenticatingAuthority"].([]string), attrs["iss"].(string))
 	return
 }
