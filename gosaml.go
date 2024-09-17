@@ -1622,7 +1622,7 @@ func request2samlRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 			if nonce := r.Form.Get("nonce"); nonce == "" {
 				return nil, "", fmt.Errorf("No nonce found")
 			}
-			for _, acr := range strings.Split(r.Form.Get("acr"), ",") {
+			for _, acr := range strings.Split(r.Form.Get("acr_values"), " ") {
 			    samlmessage.QueryDashP(nil, "./samlp:RequestedAuthnContext/saml:AuthnContextClassRef[0]", acr, nil)
 			}
 			samlmessage.QueryDashPForce(nil, "@ID", "_"+r.Form.Get("nonce"), nil) // force overwriting - even if blank - always start with a _
