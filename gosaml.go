@@ -886,6 +886,13 @@ findbinding:
 						return nil, false, goxml.Wrap(err)
 					}
 
+                    signatures := xp.Query(nil, "/samlp:Response[1]/ds:Signature[1]/..")
+                    if len(signatures) == 1 {
+                        if err = VerifySign(xp, certificates, signatures[0]); err != nil {
+                            return nil, false, goxml.Wrap(err, "err:unable to validate signature")
+                        }
+                    }
+
 					encryptedAssertion := encryptedAssertions[0]
 					err = xp.Decrypt(encryptedAssertion.(types.Element), privatekey)
 					if err != nil {
@@ -893,6 +900,8 @@ findbinding:
 						err = goxml.PublicError(err.(goxml.Werror), "cause:encryption error") // hide the real problem from attacker
 						return nil, false, err
 					}
+
+                    validatedMessage = xp
 
 					// repeat schemacheck
 					err = xp.SchemaValidate()
