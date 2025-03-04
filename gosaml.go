@@ -2286,7 +2286,8 @@ func (sil SLOInfoList) Marshal() (msg []byte) {
 		fields := []string{r.IDP, r.SP, r.NameID, r.SPNameQualifier, r.SessionIndex, r.ID, r.Protocol}
 		n = len(fields)
 		for _, str := range fields {
-			prefix = append(prefix, uint8(len(str)))
+			l := len(str)
+	    	prefix = append(prefix, byte(0xff & (l >> 8)), byte(0xff & l)) // signals string longer than 254 when decoding
 			msg = append(msg, str...)
 		}
 		msg = append(msg, r.NameIDFormat+97, r.HubRole+97, r.SLOStatus+97, B2I[r.SLOSupport]+97, B2I[r.Async]+97)
@@ -2302,22 +2303,18 @@ func (sil *SLOInfoList) Unmarshal(msg []byte) {
 	if length == 0 {
 		return
 	}
-	i := int((msg[0]-97)*(msg[1]-97)) + 2 // num records and number of b64 encoded string lengths
+	i := int((msg[0]-97)*(msg[1]-97)*2) + 2 // num records and number of b64 encoded string lengths
 	j := 2
-	n := int(msg[1] - 97)
 	for {
 		if i == length {
 			break
 		}
 		r := SLOInfo{}
-		for nn, x := range []*string{&r.IDP, &r.SP, &r.NameID, &r.SPNameQualifier, &r.SessionIndex, &r.ID, &r.Protocol} {
-			if nn >= n { // needed to be backwards compatible with old SLOInfo recs with no protocol field
-				break
-			}
-			l := int(msg[j])
+		for _, x := range []*string{&r.IDP, &r.SP, &r.NameID, &r.SPNameQualifier, &r.SessionIndex, &r.ID, &r.Protocol} {
+			l := int(msg[j]) << 8 + int(msg[j+1])
 			*x = string(msg[i : i+l])
 			i = i + l
-			j = j + 1
+			j = j + 2
 		}
 		r.NameIDFormat = msg[i] - 97
 		i++
