@@ -886,12 +886,12 @@ findbinding:
 						return nil, false, goxml.Wrap(err)
 					}
 
-                    signatures := xp.Query(nil, "/samlp:Response[1]/ds:Signature[1]/..")
-                    if len(signatures) == 1 {
-                        if err = VerifySign(xp, certificates, signatures[0]); err != nil {
-                            return nil, false, goxml.Wrap(err, "err:unable to validate signature")
-                        }
-                    }
+					signatures := xp.Query(nil, "/samlp:Response[1]/ds:Signature[1]/..")
+					if len(signatures) == 1 {
+						if err = VerifySign(xp, certificates, signatures[0]); err != nil {
+							return nil, false, goxml.Wrap(err, "err:unable to validate signature")
+						}
+					}
 
 					encryptedAssertion := encryptedAssertions[0]
 					err = xp.Decrypt(encryptedAssertion.(types.Element), privatekey)
@@ -901,7 +901,7 @@ findbinding:
 						return nil, false, err
 					}
 
-                    validatedMessage = xp
+					validatedMessage = xp
 
 					// repeat schemacheck
 					err = xp.SchemaValidate()
@@ -1633,7 +1633,7 @@ func request2samlRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 				return nil, "", fmt.Errorf("No nonce found")
 			}
 			for _, acr := range strings.Split(r.Form.Get("acr_values"), " ") {
-			    samlmessage.QueryDashP(nil, "./samlp:RequestedAuthnContext/saml:AuthnContextClassRef[0]", acr, nil)
+				samlmessage.QueryDashP(nil, "./samlp:RequestedAuthnContext/saml:AuthnContextClassRef[0]", acr, nil)
 			}
 			samlmessage.QueryDashPForce(nil, "@ID", "_"+r.Form.Get("nonce"), nil) // force overwriting - even if blank - always start with a _
 			samlmessage.QueryDashP(protocol, ".", "oidc", nil)
@@ -1911,7 +1911,7 @@ func Saml2map(response *goxml.Xp) (attrs map[string]interface{}) {
 	}
 
 	attrs["saml:AuthenticatingAuthority"] = response.QueryMulti(assertion, "./saml:AuthnStatement/saml:AuthnContext/saml:AuthenticatingAuthority")
-    attrs["acr"] = response.QueryMulti(assertion, "./saml:AuthnStatement/saml:AuthnContext/saml:AuthnContextClassRef")
+	attrs["acr"] = response.QueryMulti(assertion, "./saml:AuthnStatement/saml:AuthnContext/saml:AuthnContextClassRef")
 	//attrs["saml:AuthenticatingAuthority"] = append(attrs["saml:AuthenticatingAuthority"].([]string), attrs["iss"].(string))
 	return
 }
@@ -2257,7 +2257,7 @@ func (r SamlRequest) Marshal() (msg []byte) {
 
 // Unmarshal - hand held unmarshal for SamlRequest
 func (r *SamlRequest) Unmarshal(msg []byte) {
-	i := int(msg[0]-97)+1 // start of texts
+	i := int(msg[0]-97) + 1 // start of texts
 	j := 1
 	for _, x := range []*string{&r.RequestID} {
 		l := int(msg[j])<<8 + int(msg[j+1])
@@ -2288,7 +2288,7 @@ func (sil SLOInfoList) Marshal() (msg []byte) {
 		for _, str := range fields {
 			l := len(str)
 	    	prefix = append(prefix, byte(0xff & (l >> 8)), byte(0xff & l)) // signals string longer than 254 when decoding
-			msg = append(msg, str...)
+    		msg = append(msg, str...)
 		}
 		msg = append(msg, r.NameIDFormat+97, r.HubRole+97, r.SLOStatus+97, B2I[r.SLOSupport]+97, B2I[r.Async]+97)
 	}
