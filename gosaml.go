@@ -65,6 +65,11 @@ const (
 )
 
 const (
+    OIDCQuery = iota
+    OIDCForm_post
+)
+
+const (
 	// XsDateTime Setting the Date Time
 	XsDateTime = "2006-01-02T15:04:05Z"
 	// SigningCertQuery refers to get the key from the metadata
@@ -95,8 +100,9 @@ const (
 type (
 	// SamlRequest - compact representation of a request across the hub
 	SamlRequest struct {
-		Nonce, RequestID, SP, IDP, VirtualIDP, WAYFSP, AssertionConsumerIndex, Protocol, IDPProtocol string
-		NameIDFormat, SPIndex, HubBirkIndex                                                          uint8
+		RequestID, SP, IDP, VirtualIDP, WAYFSP, AssertionConsumerIndex, Protocol, IDPProtocol string
+		Nonce, CodeChallenge                                                                  string
+		NameIDFormat, SPIndex, HubBirkIndex, OIDCBinding                                      uint8
 	}
 
 	// Md Interface for metadata provider
@@ -118,13 +124,13 @@ type (
 
 	// Formdata for passing parameters to display template
 	Formdata struct {
-		AcsURL                                   template.URL
-		Acs, Samlresponse, Samlrequest, Id_token string
-		RelayState, SigAlg, Signature            string
-		Protocol                                 string
-		SLOStatus                                string
-		Ard                                      template.JS
-		Initial                                  bool
+		AcsURL                                         template.URL
+		Acs, Samlresponse, Samlrequest, Id_token, Code string
+		RelayState, SigAlg, Signature                  string
+		Protocol, Method                               string
+		SLOStatus                                      string
+		Ard                                            template.JS
+		Initial                                        bool
 	}
 
 	// Hm - HMac struct
@@ -1443,7 +1449,7 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDP string, 
 </samlp:AuthnRequest>`
 	idp := idpMd.Query1(nil, "@entityID")
 	issueInstant, msgID, _, _, _, _ := IDAndTiming()
-	var ID, issuer, nameIDFormat, protocol string
+	var ID, issuer, nameIDFormat, protocol, codeChallenge, oidcBinding string
 
 	request = goxml.NewXpFromString(template)
 	request.QueryDashP(nil, "./@ID", msgID, nil)
@@ -1472,6 +1478,9 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDP string, 
 		issuer = originalRequest.Query1(nil, "./saml:Issuer")
 		nameIDFormat = originalRequest.Query1(nil, "./samlp:NameIDPolicy/@Format")
 		protocol = originalRequest.Query1(nil, "./samlp:Extensions/wayf:protocol")
+		codeChallenge = originalRequest.Query1(nil, "./samlp:Extensions/wayf:protocol/@CodeChallenge")
+		oidcBinding = originalRequest.Query1(nil, "./samlp:Extensions/wayf:protocol/@OIDCBinding")
+
 		acsIndex = originalRequest.Query1(nil, "./@AssertionConsumerServiceIndex")
 
 		for _, attr := range []string{"./@ForceAuthn", "./@IsPassive"} {
@@ -1505,6 +1514,8 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDP string, 
 	}
 
 	sRequest = SamlRequest{
+	    OIDCBinding:            map[string]uint8{"query": OIDCQuery, "form_post": OIDCForm_post}[oidcBinding],
+	    CodeChallenge:          codeChallenge,
 		Nonce:                  msgID,
 		RequestID:              ID,
 		SP:                     IDHash(issuer),
@@ -1616,7 +1627,7 @@ func request2samlRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 	response_type := r.Form.Get("response_type")
 
 	switch {
-	case wa == "wsignin1.0", response_type == "id_token":
+	case wa == "wsignin1.0", response_type == "id_token", response_type == "code":
 		samlmessage = goxml.NewXpFromString(`<samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" Version="2.0"/>`)
 		issueInstant, msgID, _, _, _, _ := IDAndTiming()
 		samlmessage.QueryDashP(nil, "./@ID", msgID, nil)
@@ -1626,18 +1637,32 @@ func request2samlRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 		samlmessage.QueryDashP(nil, "./@ProtocolBinding", POST, nil)
 		samlmessage.QueryDashP(nil, "./saml:Issuer", issuer, nil)
 		protocol := samlmessage.QueryDashP(nil, "./samlp:Extensions/wayf:protocol", "", nil)
-		if wa == "wsignin1.0" {
+		switch {
+		case wa == "wsignin1.0":
 			samlmessage.QueryDashP(protocol, ".", "wsfed", nil)
-		} else if response_type == "id_token" {
+		case response_type == "id_token", response_type == "code":
+		    var code_challenge string
+		    oidcbinding := "form_post"
 			if nonce := r.Form.Get("nonce"); nonce == "" {
 				return nil, "", fmt.Errorf("No nonce found")
+			}
+			if response_type == "code" {
+				if code_challenge = r.Form.Get("code_challenge"); len(code_challenge) < 43 || len(code_challenge) > 128 {
+					return nil, "", fmt.Errorf("no valid code_challenge found")
+				}
+				if response_mode := r.Form.Get("response_mode"); response_mode == "" {
+				    oidcbinding = "query"
+				}
 			}
 			for _, acr := range strings.Split(r.Form.Get("acr_values"), " ") {
 				samlmessage.QueryDashP(nil, "./samlp:RequestedAuthnContext/saml:AuthnContextClassRef[0]", acr, nil)
 			}
 			samlmessage.QueryDashPForce(nil, "@ID", "_"+r.Form.Get("nonce"), nil) // force overwriting - even if blank - always start with a _
-			samlmessage.QueryDashP(protocol, ".", "oidc", nil)
+			samlmessage.QueryDashP(protocol, ".", response_type, nil)
+			samlmessage.QueryDashP(protocol, "./@CodeChallenge", code_challenge, nil)
+			samlmessage.QueryDashP(protocol, "./@OIDCBinding", oidcbinding, nil)
 		}
+		// fmt.Println(samlmessage.PP())
 		return
 	case wa == "wsignout1.0":
 		samlmessage = logoutRequest(&SLOInfo{ID: "dummy", NameID: "dummy"}, issuer, location, false)
@@ -2245,11 +2270,11 @@ func (r SamlRequest) Marshal() (msg []byte) {
 		prefix = append(prefix, byte(l>>8), byte(l)) // if over 65535 we are in trouble
 		msg = append(msg, str...)
 	}
-	for _, str := range []string{r.Nonce, r.SP, r.IDP, r.VirtualIDP, r.WAYFSP, r.AssertionConsumerIndex, r.Protocol, r.IDPProtocol} {
+	for _, str := range []string{r.CodeChallenge, r.Nonce, r.SP, r.IDP, r.VirtualIDP, r.WAYFSP, r.AssertionConsumerIndex, r.Protocol, r.IDPProtocol} {
 		prefix = append(prefix, uint8(len(str))) // if over 255 we are in trouble
 		msg = append(msg, str...)
 	}
-	msg = append(msg, r.NameIDFormat+97, r.SPIndex+97, r.HubBirkIndex+97) // use a-z for small numbers 0-26 that does not need to be b64 encoded
+	msg = append(msg, r.NameIDFormat+97, r.SPIndex+97, r.HubBirkIndex+97, r.OIDCBinding+97) // use a-z for small numbers 0-26 that does not need to be b64 encoded
 	msg = append(prefix, msg...)
 	msg = append([]byte{byte(len(prefix) + 97)}, msg...)
 	return
@@ -2266,7 +2291,7 @@ func (r *SamlRequest) Unmarshal(msg []byte) {
 		i = i + l
 	}
 
-	for _, x := range []*string{&r.Nonce, &r.SP, &r.IDP, &r.VirtualIDP, &r.WAYFSP, &r.AssertionConsumerIndex, &r.Protocol, &r.IDPProtocol} {
+	for _, x := range []*string{&r.CodeChallenge, &r.Nonce, &r.SP, &r.IDP, &r.VirtualIDP, &r.WAYFSP, &r.AssertionConsumerIndex, &r.Protocol, &r.IDPProtocol} {
 		l := int(msg[j])
 		j++
 		*x = string(msg[i : i+l])
@@ -2275,6 +2300,7 @@ func (r *SamlRequest) Unmarshal(msg []byte) {
 	r.NameIDFormat = msg[i] - 97 // cheap char to int8
 	r.SPIndex = msg[i+1] - 97
 	r.HubBirkIndex = msg[i+2] - 97
+	r.OIDCBinding = msg[i+3] - 97
 	return
 }
 
@@ -2287,8 +2313,8 @@ func (sil SLOInfoList) Marshal() (msg []byte) {
 		n = len(fields)
 		for _, str := range fields {
 			l := len(str)
-	    	prefix = append(prefix, byte(0xff & (l >> 8)), byte(0xff & l)) // signals string longer than 254 when decoding
-    		msg = append(msg, str...)
+			prefix = append(prefix, byte(0xff&(l>>8)), byte(0xff&l)) // signals string longer than 254 when decoding
+			msg = append(msg, str...)
 		}
 		msg = append(msg, r.NameIDFormat+97, r.HubRole+97, r.SLOStatus+97, B2I[r.SLOSupport]+97, B2I[r.Async]+97)
 	}
@@ -2311,7 +2337,7 @@ func (sil *SLOInfoList) Unmarshal(msg []byte) {
 		}
 		r := SLOInfo{}
 		for _, x := range []*string{&r.IDP, &r.SP, &r.NameID, &r.SPNameQualifier, &r.SessionIndex, &r.ID, &r.Protocol} {
-			l := int(msg[j]) << 8 + int(msg[j+1])
+			l := int(msg[j])<<8 + int(msg[j+1])
 			*x = string(msg[i : i+l])
 			i = i + l
 			j = j + 2
