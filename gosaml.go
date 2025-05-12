@@ -1647,7 +1647,8 @@ func request2samlRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 				return nil, "", fmt.Errorf("No nonce found")
 			}
 			if response_type == "code" {
-				if code_challenge = r.Form.Get("code_challenge"); len(code_challenge) < 43 || len(code_challenge) > 128 {
+				code_challenge = r.Form.Get("code_challenge")
+				if len(code_challenge) != 0 && (len(code_challenge) < 43 || len(code_challenge) > 128) {
 					return nil, "", fmt.Errorf("no valid code_challenge found")
 				}
 				if response_mode := r.Form.Get("response_mode"); response_mode == "" {
