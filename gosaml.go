@@ -377,20 +377,20 @@ func GetPrivateKey(md *goxml.Xp, path string) (privatekey crypto.PrivateKey, cer
 	return
 }
 
-func GetPrivateKeyByMethodWithPW(md *goxml.Xp, path string, keyType x509.PublicKeyAlgorithm, pw string) (privatekey crypto.PrivateKey, cert string, err error) {
+func GetPrivateKeyByMethodWithPW(md *goxml.Xp, path string, keyType x509.PublicKeyAlgorithm, pw string) (privatekey crypto.PrivateKey, cert, kid string, err error) {
 	certs := md.QueryMulti(nil, path)
 	names, crts, _, _ := PublicKeyInfoByMethod(certs, keyType)
 	if len(names) == 0 {
 		err = fmt.Errorf("No keys found: %d", keyType)
 		return
 	}
-
-	privatekey, err = getPrivateKeyByName(names[0], pw)
+    kid = names[0]
+	privatekey, err = getPrivateKeyByName(kid, pw)
 	cert = crts[0]
 	return
 }
 
-func GetPrivateKeyByMethod(md *goxml.Xp, path string, keyType x509.PublicKeyAlgorithm) (privatekey crypto.PrivateKey, cert string, err error) {
+func GetPrivateKeyByMethod(md *goxml.Xp, path string, keyType x509.PublicKeyAlgorithm) (privatekey crypto.PrivateKey, cert, kid string, err error) {
 	return GetPrivateKeyByMethodWithPW(md, path, keyType, "")
 }
 
@@ -887,7 +887,7 @@ findbinding:
 			if protocol == "Response" {
 				encryptedAssertions := xp.Query(nil, "/samlp:Response/saml:EncryptedAssertion")
 				if len(encryptedAssertions) == 1 {
-					privatekey, _, err := GetPrivateKeyByMethod(destinationMd, "md:SPSSODescriptor"+EncryptionCertQuery, x509.RSA)
+					privatekey, _, _, err := GetPrivateKeyByMethod(destinationMd, "md:SPSSODescriptor"+EncryptionCertQuery, x509.RSA)
 					if err != nil {
 						return nil, false, goxml.Wrap(err)
 					}
@@ -1408,10 +1408,10 @@ func (sil *SLOInfoList) Find(response *goxml.Xp) (slo *SLOInfo, ok bool) {
 // SignResponse signs the response with the given method.
 // Returns an error if unable to sign.
 func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp, signingMethod string, signFor int) (err error) {
-	privatekey, cert, err := GetPrivateKeyByMethod(md, "md:IDPSSODescriptor"+SigningCertQuery, config.CryptoMethods[signingMethod].Type)
+	privatekey, cert, _, err := GetPrivateKeyByMethod(md, "md:IDPSSODescriptor"+SigningCertQuery, config.CryptoMethods[signingMethod].Type)
 	if err != nil {
 		signingMethod = config.DefaultCryptoMethod // try again with default signingMethod
-		privatekey, cert, err = GetPrivateKeyByMethod(md, "md:IDPSSODescriptor"+SigningCertQuery, config.CryptoMethods[signingMethod].Type)
+		privatekey, cert, _, err = GetPrivateKeyByMethod(md, "md:IDPSSODescriptor"+SigningCertQuery, config.CryptoMethods[signingMethod].Type)
 		if err != nil {
 			return
 		}
@@ -1968,7 +1968,7 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 		if err != nil {
 			return err
 		}
-		privatekey, _, err := GetPrivateKeyByMethod(idpMd, "md:IDPSSODescriptor"+SigningCertQuery, x509.RSA)
+		privatekey, _, kid, err := GetPrivateKeyByMethod(idpMd, "md:IDPSSODescriptor"+SigningCertQuery, x509.RSA)
 		if err != nil {
 			return err
 		}
@@ -1988,7 +1988,7 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 			if err != nil {
 				return err
 			}
-			jwt, _, err := JwtSign(json, privatekey, "RS256")
+			jwt, _, err := JwtSign(json, privatekey, "RS256", kid)
 			if err != nil {
 				return err
 			}
@@ -2007,7 +2007,7 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 			w.Write([]byte(jwt))
 			return err
 		case "LogoutResponse":
-			jwt, _, err := JwtSign([]byte("{}"), privatekey, "RS256")
+			jwt, _, err := JwtSign([]byte("{}"), privatekey, "RS256", kid)
 			if err != nil {
 				return err
 			}
@@ -2075,8 +2075,8 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 }
 
 // JwtSign - sign a json payload, return jwt and at_atHash
-func JwtSign(payload []byte, privatekey crypto.PrivateKey, alg string) (jwt, atHash string, err error) {
-	hd, _ := json.Marshal(map[string]interface{}{"typ": "JWT", "alg": alg})
+func JwtSign(payload []byte, privatekey crypto.PrivateKey, alg, kid string) (jwt, atHash string, err error) {
+	hd, _ := json.Marshal(map[string]interface{}{"typ": "JWT", "alg": alg, "kid": kid})
 	header := base64.RawURLEncoding.EncodeToString(hd) + "."
 	payload = append([]byte(header), base64.RawURLEncoding.EncodeToString(payload)...)
 	var dgst hash.Hash
@@ -2112,7 +2112,7 @@ func JwtSign(payload []byte, privatekey crypto.PrivateKey, alg string) (jwt, atH
 func JwtVerify(jwt string, issuerMdSets MdSets, md *goxml.Xp, path, iss string) (attrs map[string]interface{}, idpMd *goxml.Xp, err error) {
 	peica := strings.Split(jwt, ".")
 	if len(peica) == 5 {
-		privatekey, _, err := GetPrivateKeyByMethod(md, path, x509.RSA)
+		privatekey, _, _, err := GetPrivateKeyByMethod(md, path, x509.RSA)
 		if err != nil {
 			return nil, nil, err
 		}
