@@ -184,10 +184,14 @@ var (
 func DebugSetting(r *http.Request, name string) string {
 	cookie, err := r.Cookie("debug")
 	if err == nil {
-		vals, _ := url.ParseQuery(cookie.Value)
-		return vals.Get(name)
+	    return DebugSetting2(cookie.Value, name)
 	}
 	return ""
+}
+
+func DebugSetting2(value, name string) string {
+    vals, _ := url.ParseQuery(value)
+    return vals.Get(name)
 }
 
 func DebugSettingWithDefault(r *http.Request, name, def string) (res string) {
