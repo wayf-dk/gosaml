@@ -1453,7 +1453,7 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDP string, 
 </samlp:AuthnRequest>`
 	idp := idpMd.Query1(nil, "@entityID")
 	issueInstant, msgID, _, _, _, _ := IDAndTiming()
-	var ID, issuer, nameIDFormat, protocol, codeChallenge, oidcBinding string
+	var ID, issuer, nameIDFormat, protocol, nonce, codeChallenge, oidcBinding string
 
 	request = goxml.NewXpFromString(template)
 	request.QueryDashP(nil, "./@ID", msgID, nil)
@@ -1483,6 +1483,7 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDP string, 
 		nameIDFormat = originalRequest.Query1(nil, "./samlp:NameIDPolicy/@Format")
 		protocol = originalRequest.Query1(nil, "./samlp:Extensions/wayf:protocol")
 		codeChallenge = originalRequest.Query1(nil, "./samlp:Extensions/wayf:protocol/@CodeChallenge")
+		nonce = originalRequest.Query1(nil, "./samlp:Extensions/wayf:protocol/@Nonce")
 		oidcBinding = originalRequest.Query1(nil, "./samlp:Extensions/wayf:protocol/@OIDCBinding")
 
 		acsIndex = originalRequest.Query1(nil, "./@AssertionConsumerServiceIndex")
@@ -1518,10 +1519,10 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDP string, 
 	}
 
 	sRequest = SamlRequest{
+		RequestID:              ID,
 	    OIDCBinding:            map[string]uint8{"query": OIDCQuery, "form_post": OIDCForm_post}[oidcBinding],
 	    CodeChallenge:          codeChallenge,
-		Nonce:                  msgID,
-		RequestID:              ID,
+		Nonce:                  nonce,
 		SP:                     IDHash(issuer),
 		IDP:                    IDHash(idp),
 		VirtualIDP:             IDHash(virtualIDP),
@@ -1647,9 +1648,6 @@ func request2samlRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 		case response_type == "id_token", response_type == "code":
 		    var code_challenge string
 		    oidcbinding := "form_post"
-			if nonce := r.Form.Get("nonce"); nonce == "" {
-				return nil, "", fmt.Errorf("No nonce found")
-			}
 			if response_type == "code" {
 				code_challenge = r.Form.Get("code_challenge")
 				if len(code_challenge) != 0 && (len(code_challenge) < 43 || len(code_challenge) > 128) {
@@ -1662,8 +1660,8 @@ func request2samlRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 			for _, acr := range strings.Split(r.Form.Get("acr_values"), " ") {
 				samlmessage.QueryDashP(nil, "./samlp:RequestedAuthnContext/saml:AuthnContextClassRef[0]", acr, nil)
 			}
-			samlmessage.QueryDashPForce(nil, "@ID", "_"+r.Form.Get("nonce"), nil) // force overwriting - even if blank - always start with a _
 			samlmessage.QueryDashP(protocol, ".", response_type, nil)
+			samlmessage.QueryDashP(protocol, "./@Nonce", r.Form.Get("nonce"), nil)
 			samlmessage.QueryDashP(protocol, "./@CodeChallenge", code_challenge, nil)
 			samlmessage.QueryDashP(protocol, "./@OIDCBinding", oidcbinding, nil)
 		}
@@ -1698,7 +1696,7 @@ func handleOIDCResponse(r *http.Request, issuerMdSets MdSets, spMd *goxml.Xp, lo
 		err = goxml.NewWerror("Mandatory claim not present: nonce")
 		return
 	}
-	request.QueryDashP(nil, "@ID", nonce[1:], nil) // we added a _, now remove it
+	request.QueryDashP(nil, "@ID", nonce, nil) // we added a _, now remove it
 	request.QueryDashP(nil, "@AssertionConsumerServiceURL", location, nil)
 	samlmessage = NewResponse(opMd, spMd, request, nil)
 
