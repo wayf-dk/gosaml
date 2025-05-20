@@ -34,6 +34,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -1922,11 +1923,15 @@ func Map2saml(response *goxml.Xp, attrs map[string]interface{}) (err error) {
 }
 
 func Saml2map(response *goxml.Xp) (attrs map[string]interface{}) {
+    stdoidcclaims := []string{"email", "sub", "name"}
 	attrs = map[string]interface{}{}
 	assertion := response.Query(nil, "/samlp:Response/saml:Assertion")[0]
 	names := response.QueryMulti(assertion, "saml:AttributeStatement/saml:Attribute/@Name")
 	for _, name := range names {
-		attrs[name] = response.QueryMulti(assertion, "saml:AttributeStatement/saml:Attribute[@Name="+strconv.Quote(name)+"]/saml:AttributeValue")
+	    attrs[name] = response.QueryMulti(assertion, "saml:AttributeStatement/saml:Attribute[@Name="+strconv.Quote(name)+"]/saml:AttributeValue")
+	    if slices.Contains(stdoidcclaims, name) {
+	        attrs[name] = attrs[name].([]string)[0]
+	    }
 	}
 
 	attrs["iss"] = response.Query1(assertion, "./saml:Issuer")
@@ -1939,7 +1944,7 @@ func Saml2map(response *goxml.Xp) (attrs map[string]interface{}) {
 	}
 
 	attrs["saml:AuthenticatingAuthority"] = response.QueryMulti(assertion, "./saml:AuthnStatement/saml:AuthnContext/saml:AuthenticatingAuthority")
-	attrs["acr"] = response.QueryMulti(assertion, "./saml:AuthnStatement/saml:AuthnContext/saml:AuthnContextClassRef")
+	attrs["acr"] = response.Query1(assertion, "./saml:AuthnStatement/saml:AuthnContext/saml:AuthnContextClassRef")
 	//attrs["saml:AuthenticatingAuthority"] = append(attrs["saml:AuthenticatingAuthority"].([]string), attrs["iss"].(string))
 	return
 }
