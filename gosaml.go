@@ -66,8 +66,8 @@ const (
 )
 
 const (
-    OIDCQuery = iota
-    OIDCForm_post
+	OIDCQuery = iota
+	OIDCForm_post
 )
 
 const (
@@ -185,14 +185,14 @@ var (
 func DebugSetting(r *http.Request, name string) string {
 	cookie, err := r.Cookie("debug")
 	if err == nil {
-	    return DebugSetting2(cookie.Value, name)
+		return DebugSetting2(cookie.Value, name)
 	}
 	return ""
 }
 
 func DebugSetting2(value, name string) string {
-    vals, _ := url.ParseQuery(value)
-    return vals.Get(name)
+	vals, _ := url.ParseQuery(value)
+	return vals.Get(name)
 }
 
 func DebugSettingWithDefault(r *http.Request, name, def string) (res string) {
@@ -389,7 +389,7 @@ func GetPrivateKeyByMethodWithPW(md *goxml.Xp, path string, keyType x509.PublicK
 		err = fmt.Errorf("No keys found: %d", keyType)
 		return
 	}
-    kid = names[0]
+	kid = names[0]
 	privatekey, err = getPrivateKeyByName(kid, pw)
 	cert = crts[0]
 	return
@@ -1449,8 +1449,6 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDP string, 
 	template := `<samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
                     xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
                     Version="2.0">
-<saml:Issuer>Issuer</saml:Issuer>
-<samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" AllowCreate="true" />
 </samlp:AuthnRequest>`
 	idp := idpMd.Query1(nil, "@entityID")
 	issueInstant, msgID, _, _, _, _ := IDAndTiming()
@@ -1475,10 +1473,25 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDP string, 
 	request.QueryDashP(nil, "./@AssertionConsumerServiceURL", acs, nil)
 	wayfsp := spMd.Query1(nil, `./@entityID`) // we save the issueing SP in the sRequest for edge request - will be overwritten later if an originalRequest is given
 	request.QueryDashP(nil, "./saml:Issuer", wayfsp, nil)
+
+	if originalRequest != nil {
+	    exts :=[]string{"./samlp:Extensions/nl:AppSwitch/nl:Platform", "./samlp:Extensions/nl:AppSwitch/nl:ReturnURL"}
+	    for _, ext := range exts {
+	        request.QueryDashP(nil, ext, originalRequest.Query1(nil, ext), nil)
+	    }
+	}
+
+	request.QueryDashP(nil, "./samlp:NameIDPolicy/@AllowCreate", "true", nil)
+	request.QueryDashP(nil, "./samlp:NameIDPolicy/@Format", "urn:oasis:names:tc:SAML:2.0:nameid-format:transient", nil) // might be overridden below
 	request.QueryDashP(nil, "./samlp:NameIDPolicy/@Format", spMd.Query1(nil, `./md:SPSSODescriptor/md:NameIDFormat`), nil)
 
 	acsIndex := ""
 	if originalRequest != nil { // already checked for supported nameidformat
+	    exts :=[]string{"./samlp:Extensions/nl:AppSwitch/nl:Platform", "./samlp:Extensions/nl:AppSwitch/nl:ReturnURL"}
+	    for _, ext := range exts {
+	        request.QueryDashP(nil, ext, originalRequest.Query1(nil, ext), nil)
+	    }
+
 		ID = originalRequest.Query1(nil, "./@ID")
 		issuer = originalRequest.Query1(nil, "./saml:Issuer")
 		nameIDFormat = originalRequest.Query1(nil, "./samlp:NameIDPolicy/@Format")
@@ -1521,8 +1534,8 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDP string, 
 
 	sRequest = SamlRequest{
 		RequestID:              ID,
-	    OIDCBinding:            map[string]uint8{"query": OIDCQuery, "form_post": OIDCForm_post}[oidcBinding],
-	    CodeChallenge:          codeChallenge,
+		OIDCBinding:            map[string]uint8{"query": OIDCQuery, "form_post": OIDCForm_post}[oidcBinding],
+		CodeChallenge:          codeChallenge,
 		Nonce:                  nonce,
 		SP:                     IDHash(issuer),
 		IDP:                    IDHash(idp),
@@ -1647,15 +1660,15 @@ func request2samlRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 		case wa == "wsignin1.0":
 			samlmessage.QueryDashP(protocol, ".", "wsfed", nil)
 		case response_type == "id_token", response_type == "code":
-		    var code_challenge string
-		    oidcbinding := "form_post"
+			var code_challenge string
+			oidcbinding := "form_post"
 			if response_type == "code" {
 				code_challenge = r.Form.Get("code_challenge")
 				if len(code_challenge) != 0 && (len(code_challenge) < 43 || len(code_challenge) > 128) {
 					return nil, "", fmt.Errorf("no valid code_challenge found")
 				}
 				if response_mode := r.Form.Get("response_mode"); response_mode == "" {
-				    oidcbinding = "query"
+					oidcbinding = "query"
 				}
 			}
 			for _, acr := range strings.Split(r.Form.Get("acr_values"), " ") {
@@ -1923,15 +1936,15 @@ func Map2saml(response *goxml.Xp, attrs map[string]interface{}) (err error) {
 }
 
 func Saml2map(response *goxml.Xp) (attrs map[string]interface{}) {
-    stdoidcclaims := []string{"email", "sub", "name"}
+	stdoidcclaims := []string{"email", "sub", "name"}
 	attrs = map[string]interface{}{}
 	assertion := response.Query(nil, "/samlp:Response/saml:Assertion")[0]
 	names := response.QueryMulti(assertion, "saml:AttributeStatement/saml:Attribute/@Name")
 	for _, name := range names {
-	    attrs[name] = response.QueryMulti(assertion, "saml:AttributeStatement/saml:Attribute[@Name="+strconv.Quote(name)+"]/saml:AttributeValue")
-	    if slices.Contains(stdoidcclaims, name) {
-	        attrs[name] = attrs[name].([]string)[0]
-	    }
+		attrs[name] = response.QueryMulti(assertion, "saml:AttributeStatement/saml:Attribute[@Name="+strconv.Quote(name)+"]/saml:AttributeValue")
+		if slices.Contains(stdoidcclaims, name) {
+			attrs[name] = attrs[name].([]string)[0]
+		}
 	}
 
 	attrs["iss"] = response.Query1(assertion, "./saml:Issuer")
