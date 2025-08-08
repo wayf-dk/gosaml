@@ -614,16 +614,18 @@ func ReceiveAuthnRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 		return
 	}
 	nameIDFormat := xp.Query1(nil, "./samlp:NameIDPolicy/@Format")
-	if NameIDMap[nameIDFormat] == 0 {
-		err = fmt.Errorf("nameidpolicy format: '%s' is not supported", nameIDFormat)
-		return
-	}
 
 	if nameIDFormat == Unspecified || nameIDFormat == "" {
 		nameIDFormat = issuerMd.Query1(nil, "./md:SPSSODescriptor/md:NameIDFormat") // none ends up being Transient
-	} else if inArray(nameIDFormat, issuerMd.QueryMulti(nil, "./md:SPSSODescriptor/md:NameIDFormat")) {
-	} else {
+	}
+
+	if nameIDFormat == "" {
 		nameIDFormat = Transient
+	}
+
+	if NameIDMap[nameIDFormat] == 0 {
+		err = fmt.Errorf("nameidpolicy format: '%s' is not supported", nameIDFormat)
+		return
 	}
 	xp.QueryDashP(nil, "./samlp:NameIDPolicy/@Format", nameIDFormat, nil)
 
