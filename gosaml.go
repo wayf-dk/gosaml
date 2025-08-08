@@ -1498,9 +1498,7 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDP string, 
 	if originalRequest != nil {
 		exts := []string{"./samlp:Extensions/nl:AppSwitch/nl:Platform", "./samlp:Extensions/nl:AppSwitch/nl:ReturnURL"}
 		for _, ext := range exts {
-			if d := originalRequest.Query1(nil, ext); d != "" {
-				request.QueryDashP(nil, ext, d, nil)
-			}
+	        request.QueryDashP(nil, ext, originalRequest.Query1(nil, ext), nil)
 		}
 	}
 
@@ -1510,6 +1508,11 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDP string, 
 
 	acsIndex := ""
 	if originalRequest != nil { // already checked for supported nameidformat
+	    exts :=[]string{"./samlp:Extensions/nl:AppSwitch/nl:Platform", "./samlp:Extensions/nl:AppSwitch/nl:ReturnURL"}
+	    for _, ext := range exts {
+	        request.QueryDashP(nil, ext, originalRequest.Query1(nil, ext), nil)
+	    }
+
 		ID = originalRequest.Query1(nil, "./@ID")
 		issuer = originalRequest.Query1(nil, "./saml:Issuer")
 		nameIDFormat = originalRequest.Query1(nil, "./samlp:NameIDPolicy/@Format")
