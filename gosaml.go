@@ -152,6 +152,11 @@ type (
 		slot       int64
 		peerPublic []byte
 	}
+
+	relayStateInfo struct {
+		eol        time.Time
+		relayState string
+	}
 )
 
 var (
@@ -179,6 +184,7 @@ var (
 	privatekeyLock  sync.RWMutex
 	privatekeyCache = map[string]crypto.PrivateKey{}
 	NemLog          = &nemLog{}
+	relayStateMap   = sync.Map{}
 )
 
 // DebugSetting for debugging cookies
@@ -519,7 +525,12 @@ func SAMLRequest2URL(samlrequest *goxml.Xp, relayState string, privatekey crypto
 	destination, _ = url.Parse(samlrequest.Query1(nil, "@Destination"))
 	q := paramName + url.QueryEscape(req)
 	if relayState != "" {
-		q += "&RelayState=" + url.QueryEscape(relayState)
+		rs := url.QueryEscape(relayState)
+		if len(rs) <= 80 {
+			q += "&RelayState=" + rs
+		} else {
+			relayStateMap.Store(samlrequest.Query1(nil, "./@ID"), relayStateInfo{relayState: relayState, eol: time.Now().Add(180 * time.Second)})
+		}
 	}
 
 	if privatekey != nil {
@@ -665,7 +676,15 @@ func FindInMetadataSets(metadataSets MdSets, key string) (md *goxml.Xp, index ui
 // Receives the metadatasets for resp. the sender and the receiver
 // Returns metadata for the sender and the receiver
 func ReceiveSAMLResponse(r *http.Request, issuerMdSets, destinationMdSets MdSets, location string, xtraCerts []string) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, issuerIndex, destinationIndex uint8, err error) {
-	return DecodeSAMLMsg(r, issuerMdSets, destinationMdSets, SPRole, []string{"Response"}, location, xtraCerts)
+	xp, issuerMd, destinationMd, relayState, issuerIndex, destinationIndex, err = DecodeSAMLMsg(r, issuerMdSets, destinationMdSets, SPRole, []string{"Response"}, location, xtraCerts)
+	if err != nil {
+		return
+	}
+	rs, ok := relayStateMap.LoadAndDelete(xp.Query1(nil, "@InResponseTo"))
+	if ok {
+		relayState = rs.(relayStateInfo).relayState
+	}
+	return
 }
 
 // ReceiveLogoutMessage receives the Logout Message
@@ -1477,10 +1496,12 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDP string, 
 	request.QueryDashP(nil, "./saml:Issuer", wayfsp, nil)
 
 	if originalRequest != nil {
-	    exts :=[]string{"./samlp:Extensions/nl:AppSwitch/nl:Platform", "./samlp:Extensions/nl:AppSwitch/nl:ReturnURL"}
-	    for _, ext := range exts {
-	        request.QueryDashP(nil, ext, originalRequest.Query1(nil, ext), nil)
-	    }
+		exts := []string{"./samlp:Extensions/nl:AppSwitch/nl:Platform", "./samlp:Extensions/nl:AppSwitch/nl:ReturnURL"}
+		for _, ext := range exts {
+			if d := originalRequest.Query1(nil, ext); d != "" {
+				request.QueryDashP(nil, ext, d, nil)
+			}
+		}
 	}
 
 	request.QueryDashP(nil, "./samlp:NameIDPolicy/@AllowCreate", "true", nil)
@@ -1489,11 +1510,6 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDP string, 
 
 	acsIndex := ""
 	if originalRequest != nil { // already checked for supported nameidformat
-	    exts :=[]string{"./samlp:Extensions/nl:AppSwitch/nl:Platform", "./samlp:Extensions/nl:AppSwitch/nl:ReturnURL"}
-	    for _, ext := range exts {
-	        request.QueryDashP(nil, ext, originalRequest.Query1(nil, ext), nil)
-	    }
-
 		ID = originalRequest.Query1(nil, "./@ID")
 		issuer = originalRequest.Query1(nil, "./saml:Issuer")
 		nameIDFormat = originalRequest.Query1(nil, "./samlp:NameIDPolicy/@Format")
@@ -2378,4 +2394,19 @@ func (sil *SLOInfoList) Unmarshal(msg []byte) {
 		*sil = append(*sil, r)
 	}
 	return
+}
+
+func cleanUpRelayStateMap(sm *sync.Map, ttl time.Duration) {
+	ticker := time.NewTicker(ttl)
+	go func() {
+		for {
+			<-ticker.C
+			sm.Range(func(k, v any) bool {
+				if v.(relayStateInfo).eol.Before(time.Now()) {
+					sm.Delete(k)
+				}
+				return true
+			})
+		}
+	}()
 }
