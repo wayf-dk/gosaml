@@ -1690,7 +1690,9 @@ func request2samlRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 				}
 			}
 			for _, acr := range strings.Split(r.Form.Get("acr_values"), " ") {
-				samlmessage.QueryDashP(nil, "./samlp:RequestedAuthnContext/saml:AuthnContextClassRef[0]", acr, nil)
+			    if acr != "" {
+    				samlmessage.QueryDashP(nil, "./samlp:RequestedAuthnContext/saml:AuthnContextClassRef[0]", acr, nil)
+    			}
 			}
 			samlmessage.QueryDashP(protocol, ".", response_type, nil)
 			samlmessage.QueryDashP(protocol, "./@Nonce", r.Form.Get("nonce"), nil)
