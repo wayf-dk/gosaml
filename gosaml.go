@@ -640,6 +640,10 @@ func ReceiveAuthnRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 	}
 	xp.QueryDashP(nil, "./samlp:NameIDPolicy/@Format", nameIDFormat, nil)
 
+	if forceAuthn := issuerMd.Query1(nil, "./md:Extensions/wayf:wayf/wayf:ForceAuthn"); forceAuthn != "" {
+    	xp.QueryDashP(nil, "./@ForceAuthn", forceAuthn, nil)
+    }
+
 	/*
 	   allowcreate := xp.Query1(nil, "./samlp:NameIDPolicy/@AllowCreate")
 	   if allowcreate != "true" && allowcreate != "1" {
