@@ -695,7 +695,16 @@ func ReceiveSAMLResponse(r *http.Request, issuerMdSets, destinationMdSets MdSets
 // Receives the metadatasets for resp. the sender and the receiver
 // Returns metadata for the sender and the receiver
 func ReceiveLogoutMessage(r *http.Request, issuerMdSets, destinationMdSets MdSets, role int) (xp, issuerMd, destinationMd *goxml.Xp, relayState string, issuerIndex, destinationIndex uint8, err error) {
-	return DecodeSAMLMsg(r, issuerMdSets, destinationMdSets, role, []string{"LogoutRequest", "LogoutResponse"}, "https://"+r.Host+r.URL.Path, nil)
+	xp, issuerMd, destinationMd, relayState, issuerIndex, destinationIndex, err = DecodeSAMLMsg(r, issuerMdSets, destinationMdSets, role, []string{"LogoutRequest", "LogoutResponse"}, "https://"+r.Host+r.URL.Path, nil)
+	if err != nil {
+		return
+	}
+	rs, ok := relayStateMap.LoadAndDelete(xp.Query1(nil, "@InResponseTo"))
+	if ok {
+		relayState = rs.(relayStateInfo).relayState
+	}
+	fmt.Println(ok, relayState)
+	return
 }
 
 // DecodeSAMLMsg decodes the Request. Extracts Issuer, Destination
