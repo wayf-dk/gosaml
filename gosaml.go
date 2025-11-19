@@ -1349,7 +1349,7 @@ func NewSLOInfo(xp *goxml.Xp, context types.Node, sp string, sloSupport bool, hu
 	return
 }
 
-func (sil *SLOInfoList) LogoutRequest(request *goxml.Xp, hub string, hubRole uint8, protocol string) (slo *SLOInfo) {
+func (sil *SLOInfoList) LogoutRequest(request *goxml.Xp, hub string, hubRole, signingKey uint8, protocol string) (slo *SLOInfo) {
 	context := request.Query(nil, "/samlp:LogoutRequest")[0]
 	newSlo := NewSLOInfo(request, context, hub, true, hubRole, protocol)
 	if hubRole == IDPRole { // if from a SP we need to swap roles - the hub is the IDP
@@ -1365,6 +1365,7 @@ func (sil *SLOInfoList) LogoutRequest(request *goxml.Xp, hub string, hubRole uin
 			(*sil)[i].SLOStatus = 1
 			(*sil)[i].Async = request.QueryBool(context, "boolean(samlp:Extensions/aslo:Asynchronous)")
 			(*sil)[i].Protocol = request.Query1(context, "samlp:Extensions/wayf:protocol")
+			(*sil)[i].SigningKey = signingKey
 			break
 		}
 	}
