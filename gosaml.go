@@ -405,6 +405,10 @@ func GetPrivateKeyByMethod(md *goxml.Xp, path string, keyType x509.PublicKeyAlgo
 	return GetPrivateKeyByMethodWithPW(md, path, keyType, "")
 }
 
+func PrivateKeyByName(keyname, pw string) (privatekey crypto.PrivateKey, err error) {
+    return getPrivateKeyByName(keyname, pw)
+}
+
 func getPrivateKeyByName(keyname, pw string) (privatekey crypto.PrivateKey, err error) {
 	privatekeyLock.RLock()
 	privatekey, ok := privatekeyCache[keyname]
