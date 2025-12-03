@@ -103,7 +103,7 @@ type (
 	SamlRequest struct {
 		RequestID, SP, IDP, VirtualIDP, WAYFSP, AssertionConsumerIndex, Protocol, IDPProtocol string
 		Nonce, CodeChallenge                                                                  string
-		NameIDFormat, SPIndex, HubBirkIndex, OIDCBinding                                      uint8
+		NameIDFormat, SPIndex, HubBirkIndex, OIDCBinding, SigningKey                          uint8
 	}
 
 	// Md Interface for metadata provider
@@ -117,7 +117,7 @@ type (
 	// SLOInfo refers to Single Logout information
 	SLOInfo struct {
 		IDP, SP, NameID, SPNameQualifier, SessionIndex, ID, Protocol string
-		NameIDFormat, HubRole, SLOStatus                             uint8
+		NameIDFormat, HubRole, SLOStatus, SigningKey                 uint8
 		SLOSupport, Async                                            bool
 	}
 
@@ -358,6 +358,7 @@ func PublicKeyInfo(cert string) (keyname string, publickey crypto.PublicKey, err
 	return
 }
 
+// if keyType is x509.UnknownPublicKeyAlgorithm every key is returned
 func PublicKeyInfoByMethod(certs []string, keyType x509.PublicKeyAlgorithm) (keynames, crts []string, publickeys []crypto.PublicKey, err error) {
 	for _, cert := range certs {
 		var ok bool
@@ -368,7 +369,7 @@ func PublicKeyInfoByMethod(certs []string, keyType x509.PublicKeyAlgorithm) (key
 		case ed25519.PublicKey:
 			ok = keyType == x509.Ed25519
 		}
-		if ok {
+		if ok || keyType == x509.UnknownPublicKeyAlgorithm {
 			keynames = append(keynames, name)
 			publickeys = append(publickeys, publickey)
 			crts = append(crts, cert)
@@ -377,15 +378,13 @@ func PublicKeyInfoByMethod(certs []string, keyType x509.PublicKeyAlgorithm) (key
 	return
 }
 
-// GetPrivateKey extract the key from Metadata and builds a name and reads the key
-func GetPrivateKey(md *goxml.Xp, path string) (privatekey crypto.PrivateKey, cert string, err error) {
-	cert = md.Query1(nil, path)
-	keyname, _, err := PublicKeyInfo(cert)
+func GetPrivateKey(md *goxml.Xp, query string) (privatekey crypto.PrivateKey, kid string, err error) {
+	names, _, _, err := PublicKeyInfoByMethod(md.QueryMulti(nil, query), x509.RSA)
 	if err != nil {
 		return
 	}
-	privatekey, err = getPrivateKeyByName(keyname, "")
-	return
+	privatekey, err = PrivateKeyByName(names[0], "")
+	return privatekey, names[0], err
 }
 
 func GetPrivateKeyByMethodWithPW(md *goxml.Xp, path string, keyType x509.PublicKeyAlgorithm, pw string) (privatekey crypto.PrivateKey, cert, kid string, err error) {
@@ -555,7 +554,7 @@ func SAMLRequest2URL(samlrequest *goxml.Xp, relayState string, privatekey crypto
 	return
 }
 
-func SAMLRequest2OIDCRequest(samlrequest *goxml.Xp, relayState, flow string, idpMD *goxml.Xp) (destination *url.URL, err error) {
+func SAMLRequest2OIDCRequest(samlrequest *goxml.Xp, relayState, flow, codeChallenge string, idpMD *goxml.Xp) (destination *url.URL, err error) {
 	destination, err = url.Parse(samlrequest.Query1(nil, "@Destination"))
 	if err != nil {
 		return
@@ -569,6 +568,9 @@ func SAMLRequest2OIDCRequest(samlrequest *goxml.Xp, relayState, flow string, idp
 	params.Set("redirect_uri", samlrequest.Query1(nil, "@AssertionConsumerServiceURL"))
 	params.Set("response_mode", "form_post")
 	params.Set("audience", client_id)
+	if (codeChallenge != "") {
+		params.Set("code_challenge", codeChallenge)
+	}
 	params.Set("nonce", samlrequest.Query1(nil, "@ID"))
 	params.Set("state", relayState)
 	if samlrequest.QueryXMLBool(nil, "@ForceAuthn") {
@@ -645,8 +647,8 @@ func ReceiveAuthnRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 	xp.QueryDashP(nil, "./samlp:NameIDPolicy/@Format", nameIDFormat, nil)
 
 	if forceAuthn := issuerMd.Query1(nil, "./md:Extensions/wayf:wayf/wayf:ForceAuthn"); forceAuthn != "" {
-    	xp.QueryDashP(nil, "./@ForceAuthn", forceAuthn, nil)
-    }
+		xp.QueryDashP(nil, "./@ForceAuthn", forceAuthn, nil)
+	}
 
 	/*
 	   allowcreate := xp.Query1(nil, "./samlp:NameIDPolicy/@AllowCreate")
@@ -656,15 +658,6 @@ func ReceiveAuthnRequest(r *http.Request, issuerMdSets, destinationMdSets MdSets
 	   }
 	*/
 	return
-}
-
-func inArray(item string, array []string) bool {
-	for _, i := range array {
-		if i == item {
-			return true
-		}
-	}
-	return false
 }
 
 // FindInMetadataSets - find an entity in a list of MD sets and return it and the index
@@ -707,7 +700,6 @@ func ReceiveLogoutMessage(r *http.Request, issuerMdSets, destinationMdSets MdSet
 	if ok {
 		relayState = rs.(relayStateInfo).relayState
 	}
-	fmt.Println(ok, relayState)
 	return
 }
 
@@ -930,11 +922,6 @@ findbinding:
 			if protocol == "Response" {
 				encryptedAssertions := xp.Query(nil, "/samlp:Response/saml:EncryptedAssertion")
 				if len(encryptedAssertions) == 1 {
-					privatekey, _, _, err := GetPrivateKeyByMethod(destinationMd, "md:SPSSODescriptor"+EncryptionCertQuery, x509.RSA)
-					if err != nil {
-						return nil, false, goxml.Wrap(err)
-					}
-
 					signatures := xp.Query(nil, "/samlp:Response[1]/ds:Signature[1]/..")
 					if len(signatures) == 1 {
 						if err = VerifySign(xp, certificates, signatures[0]); err != nil {
@@ -942,10 +929,19 @@ findbinding:
 						}
 					}
 
-					encryptedAssertion := encryptedAssertions[0]
-					err = xp.Decrypt(encryptedAssertion.(types.Element), privatekey)
-					if err != nil {
-						err = goxml.Wrap(err)
+					names, _, _, err := PublicKeyInfoByMethod(destinationMd.QueryMulti(nil, SPEnc), x509.RSA)
+					var fail error
+					for _, name := range names {
+						privatekey, err := PrivateKeyByName(name, "")
+						if err != nil {
+							return nil, false, goxml.Wrap(err)
+						}
+						if fail = xp.Decrypt(encryptedAssertions[0].(types.Element), privatekey); fail == nil {
+							break
+						}
+					}
+					if fail != nil {
+						err = goxml.Wrap(fail)
 						err = goxml.PublicError(err.(goxml.Werror), "cause:encryption error") // hide the real problem from attacker
 						return nil, false, err
 					}
@@ -1046,6 +1042,7 @@ func checkRedirect(params url.Values, certificates []string) (err error) {
 func checkDestinationAndACS(message, issuerMd, destinationMd *goxml.Xp, role int, location string) (checkedMessage *goxml.Xp, err error) {
 	var checkedDest string
 	var acsIndex string
+
 	mdRole := "./" + Roles[role]
 	protocol := message.QueryString(nil, "local-name(/*)")
 	switch protocol {
@@ -1321,14 +1318,17 @@ func NewLogoutResponseWithBinding(issuer string, destination *goxml.Xp, inRespon
 }
 
 // SloRequest generates a single logout request
-func SloRequest(w http.ResponseWriter, r *http.Request, response, spMd, IdpMd *goxml.Xp, pk crypto.PrivateKey, protocol string) {
+func SloRequest(w http.ResponseWriter, r *http.Request, response, spMd, IdpMd *goxml.Xp, pk crypto.PrivateKey, protocol, relayState string) {
 	context := response.Query(nil, "/samlp:Response/saml:Assertion")[0]
 	sloinfo := NewSLOInfo(response, context, spMd.Query1(nil, "@entityID"), false, SPRole, protocol)
 	request, binding, _ := NewLogoutRequest(IdpMd, sloinfo, spMd.Query1(nil, "@entityID"), false)
+	if sso := r.Form.Get("sso"); sso != "" {
+		request.QueryDashP(nil, "@Destination", sso, nil)
+	}
 	request.QueryDashP(nil, "@ID", ID(), nil)
 	switch binding {
 	case REDIRECT:
-		u, _ := SAMLRequest2URL(request, "", pk, config.DefaultCryptoMethod)
+		u, _ := SAMLRequest2URL(request, relayState, pk, config.DefaultCryptoMethod)
 		http.Redirect(w, r, u.String(), http.StatusFound)
 	case POST:
 		data := Formdata{Acs: request.Query1(nil, "./@Destination"), Samlrequest: base64.StdEncoding.EncodeToString(request.Dump())}
@@ -1370,7 +1370,7 @@ func NewSLOInfo(xp *goxml.Xp, context types.Node, sp string, sloSupport bool, hu
 	return
 }
 
-func (sil *SLOInfoList) LogoutRequest(request *goxml.Xp, hub string, hubRole uint8, protocol string) (slo *SLOInfo) {
+func (sil *SLOInfoList) LogoutRequest(request *goxml.Xp, hub string, hubRole, signingKey uint8, protocol string) (slo *SLOInfo) {
 	context := request.Query(nil, "/samlp:LogoutRequest")[0]
 	newSlo := NewSLOInfo(request, context, hub, true, hubRole, protocol)
 	if hubRole == IDPRole { // if from a SP we need to swap roles - the hub is the IDP
@@ -1386,6 +1386,7 @@ func (sil *SLOInfoList) LogoutRequest(request *goxml.Xp, hub string, hubRole uin
 			(*sil)[i].SLOStatus = 1
 			(*sil)[i].Async = request.QueryBool(context, "boolean(samlp:Extensions/aslo:Asynchronous)")
 			(*sil)[i].Protocol = request.Query1(context, "samlp:Extensions/wayf:protocol")
+			(*sil)[i].SigningKey = signingKey
 			break
 		}
 	}
@@ -1450,15 +1451,23 @@ func (sil *SLOInfoList) Find(response *goxml.Xp) (slo *SLOInfo, ok bool) {
 
 // SignResponse signs the response with the given method.
 // Returns an error if unable to sign.
-func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp, signingMethod string, signFor int) (err error) {
-	privatekey, cert, _, err := GetPrivateKeyByMethod(md, "md:IDPSSODescriptor"+SigningCertQuery, config.CryptoMethods[signingMethod].Type)
-	if err != nil {
-		signingMethod = config.DefaultCryptoMethod // try again with default signingMethod
-		privatekey, cert, _, err = GetPrivateKeyByMethod(md, "md:IDPSSODescriptor"+SigningCertQuery, config.CryptoMethods[signingMethod].Type)
-		if err != nil {
-			return
-		}
+func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp, signingMethod string, signFor int, signingKey uint8) (err error) {
+	if _, ok := config.CryptoMethods[signingMethod]; !ok {
+		signingMethod = config.DefaultCryptoMethod
 	}
+	// we can't cache the hub certs because birk requires an IdP specific cert - but they all uses the same key
+	names, certs, _, err := PublicKeyInfoByMethod(md.QueryMulti(nil, "md:IDPSSODescriptor"+SigningCertQuery), x509.UnknownPublicKeyAlgorithm)
+	if err != nil {
+		return
+	}
+	privateKeyName := config.KeyNames[signingKey]
+	privatekey, err := PrivateKeyByName(privateKeyName, "")
+	if err != nil {
+		return
+	}
+	i := slices.Index(names, privateKeyName)
+
+	cert := certs[i]
 	element := response.Query(nil, elementQuery)
 	if len(element) != 1 {
 		err = errors.New("did not find exactly one element to sign")
@@ -1526,6 +1535,8 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDP string, 
 	request.QueryDashP(nil, "./samlp:NameIDPolicy/@Format", spMd.Query1(nil, `./md:SPSSODescriptor/md:NameIDFormat`), nil)
 
 	acsIndex := ""
+
+	var signingkey uint8
 	if originalRequest != nil { // already checked for supported nameidformat
 		ID = originalRequest.Query1(nil, "./@ID")
 		issuer = originalRequest.Query1(nil, "./saml:Issuer")
@@ -1559,6 +1570,9 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDP string, 
 				request.QueryDashP(nil, "./samlp:Scoping/samlp:RequesterID[0]", virtualIDP, nil)
 			}
 		}
+		if slices.ContainsFunc(config.KeySelectionMap, func(prefix string) bool { return strings.HasPrefix(originalRequest.Query1(nil, "./@Destination"), prefix)}) {
+		    signingkey = 1
+		}
 	}
 
 	for _, providerID := range idPList {
@@ -1581,6 +1595,7 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDP string, 
 		SPIndex:                spIndex,
 		HubBirkIndex:           hubBirkIndex,
 		Protocol:               protocol,
+		SigningKey:             signingkey,
 	}
 	return
 }
@@ -1850,79 +1865,6 @@ func SamlTime2JwtTime(xmlTime string) int64 {
 	return samlTime.Unix()
 }
 
-// Jwt2saml - JSON based IdP interface
-func Jwt2saml(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExternalIDP, mdExternalSP Md, requestHandler func(*goxml.Xp, *goxml.Xp, *goxml.Xp) (map[string][]string, error), signerMd *goxml.Xp) (err error) {
-	defer r.Body.Close()
-	r.ParseForm()
-
-	msg, spMd, idpMd, relayState, _, _, err := DecodeSAMLMsg(r, MdSets{mdHub, mdExternalSP}, MdSets{mdInternal, mdExternalIDP}, IDPRole, []string{"AuthnRequest", "LogoutRequest", "LogoutResponse"}, r.Form.Get("sso"), nil)
-	if err != nil {
-		return err
-	}
-
-	entityID := idpMd.Query1(nil, `/md:EntityDescriptor/@entityID`)
-	log.Println("jwt2saml:", entityID)
-
-	jwt := r.Form.Get("jwt")
-	if jwt == "" {
-		req, err := requestHandler(msg, idpMd, spMd)
-		if err != nil {
-			return err
-		}
-		json, err := json.MarshalIndent(&req, "", "  ")
-		if err != nil {
-			return err
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Content-Length", strconv.Itoa(len(json)))
-		w.Write(json)
-		return err
-	}
-	msgType := msg.QueryString(nil, "local-name(/*)")
-	switch msgType {
-	case "AuthnRequest":
-		attrs, _, err := JwtVerify(jwt, MdSets{mdInternal, mdExternalIDP}, spMd, SPEnc, entityID)
-		if err != nil {
-			return err
-		}
-
-		response := NewResponse(idpMd, spMd, msg, nil)
-		// for id_tokens Map2saml requires "aud" and "nonce" in attrs - they are already in the response, but for legacy reasons not in the attrs sent to Jwt2saml
-		attrs["aud"] = response.Query1(nil, "./saml:Assertion//saml:Conditions/saml:AudienceRestriction/saml:Audience")
-		attrs["nonce"] = response.Query1(nil, "./@InResponseTo")
-		if err = Map2saml(response, attrs); err != nil {
-			return err
-		}
-
-		err = SignResponse(response, "/samlp:Response/saml:Assertion", signerMd, config.DefaultCryptoMethod, SAMLSign)
-		if err != nil {
-			return err
-		}
-		if spMd.QueryXMLBool(nil, "/md:EntityDescriptor/md:Extensions/wayf:wayf/wayf:assertion.encryption") {
-			cert := spMd.Query1(nil, "./md:SPSSODescriptor"+EncryptionCertQuery) // actual encryption key is always first
-			_, publicKey, _ := PublicKeyInfo(cert)
-			assertion := response.Query(nil, "saml:Assertion[1]")[0]
-			err = response.Encrypt(assertion, "saml:EncryptedAssertion", publicKey.(*rsa.PublicKey), []string{})
-			if err != nil {
-				return err
-			}
-		}
-
-		data := Formdata{Acs: response.Query1(nil, "./@Destination"), Samlresponse: base64.StdEncoding.EncodeToString(response.Dump()), RelayState: relayState}
-		return PostForm.ExecuteTemplate(w, "postForm", data)
-	case "LogoutRequest":
-		response, err := NewLogoutResponseWithBinding(idpMd.Query1(nil, `./@entityID`), spMd, msg.Query1(nil, "@ID"), SPRole, POST)
-		if err != nil {
-			return err
-		}
-		data := Formdata{Acs: response.Query1(nil, "./@Destination"), Samlresponse: base64.StdEncoding.EncodeToString(response.Dump())}
-		return PostForm.ExecuteTemplate(w, "postForm", data)
-	case "LogoutResponse":
-	}
-	return
-}
-
 func Map2saml(response *goxml.Xp, attrs map[string]interface{}) (err error) {
 	type claimType struct {
 		name, xpath string
@@ -2001,7 +1943,7 @@ func Saml2map(response *goxml.Xp) (attrs map[string]interface{}) {
 }
 
 // Saml2jwt - JSON based SP interface
-func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExternalIDP, mdExternalSP Md, requestHandler func(*goxml.Xp, *goxml.Xp, *goxml.Xp) (map[string][]string, error), defaultIdpentityid string) (err error) {
+func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExternalIDP, mdExternalSP Md, requestHandler func(*goxml.Xp, *goxml.Xp, *goxml.Xp) (map[string][]string, error), defaultIdpentityid string) error {
 	defer r.Body.Close()
 	r.ParseForm()
 
@@ -2011,7 +1953,7 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 
 	spMd, _, err := FindInMetadataSets(MdSets{mdInternal, mdExternalSP}, entityID)
 	if err != nil {
-		return
+		return err
 	}
 
 	idpentityid := r.Form.Get("idpentityid")
@@ -2027,10 +1969,16 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 		if err != nil {
 			return err
 		}
-		privatekey, _, kid, err := GetPrivateKeyByMethod(idpMd, "md:IDPSSODescriptor"+SigningCertQuery, x509.RSA)
+		certs := idpMd.QueryMulti(nil, "md:IDPSSODescriptor"+SigningCertQuery)
+		names, _, _, err := PublicKeyInfoByMethod(certs, x509.RSA)
 		if err != nil {
 			return err
 		}
+		privatekey, err := PrivateKeyByName(names[0], "")
+		if err != nil {
+			return err
+		}
+		kid := names[0]
 		switch response.QueryString(nil, "local-name(/*)") {
 		case "Response":
 
@@ -2128,9 +2076,9 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 		buf := new(bytes.Buffer)
 		discoveryURL.Execute(buf, struct{ EntityID, ACS string }{entityID, acs})
 		http.Redirect(w, r, buf.String(), http.StatusFound)
-		return
+		return nil
 	}
-	return
+	return nil
 }
 
 // JwtSign - sign a json payload, return jwt and at_atHash
@@ -2171,12 +2119,23 @@ func JwtSign(payload []byte, privatekey crypto.PrivateKey, alg, kid string) (jwt
 func JwtVerify(jwt string, issuerMdSets MdSets, md *goxml.Xp, path, iss string) (attrs map[string]interface{}, idpMd *goxml.Xp, err error) {
 	peica := strings.Split(jwt, ".")
 	if len(peica) == 5 {
-		privatekey, _, _, err := GetPrivateKeyByMethod(md, path, x509.RSA)
+		certs := md.QueryMulti(nil, "md:IDPSSODescriptor"+SigningCertQuery)
+		names, _, _, err := PublicKeyInfoByMethod(certs, x509.RSA)
 		if err != nil {
 			return nil, nil, err
 		}
-		jwt, err = goxml.DeJwe(peica, privatekey)
-		if err != nil {
+		var fail error
+		for _, name := range names {
+			privatekey, err := PrivateKeyByName(name, "")
+			if err != nil {
+				return nil, nil, goxml.Wrap(err)
+			}
+
+			if jwt, fail = goxml.DeJwe(peica, privatekey); fail == nil {
+				break
+			}
+		}
+		if fail != nil {
 			return nil, nil, err
 		}
 	}
@@ -2333,7 +2292,7 @@ func (r SamlRequest) Marshal() (msg []byte) {
 		prefix = append(prefix, uint8(len(str))) // if over 255 we are in trouble
 		msg = append(msg, str...)
 	}
-	msg = append(msg, r.NameIDFormat+97, r.SPIndex+97, r.HubBirkIndex+97, r.OIDCBinding+97) // use a-z for small numbers 0-26 that does not need to be b64 encoded
+	msg = append(msg, r.NameIDFormat+97, r.SPIndex+97, r.HubBirkIndex+97, r.OIDCBinding+97, r.SigningKey+97) // use a-z for small numbers 0-26 that does not need to be b64 encoded
 	msg = append(prefix, msg...)
 	msg = append([]byte{byte(len(prefix) + 97)}, msg...)
 	return
@@ -2360,6 +2319,9 @@ func (r *SamlRequest) Unmarshal(msg []byte) {
 	r.SPIndex = msg[i+1] - 97
 	r.HubBirkIndex = msg[i+2] - 97
 	r.OIDCBinding = msg[i+3] - 97
+	if len(msg) > i+4 {
+		r.SigningKey = msg[i+4] - 97
+	}
 	return
 }
 
@@ -2375,7 +2337,7 @@ func (sil SLOInfoList) Marshal() (msg []byte) {
 			prefix = append(prefix, byte(0xff&(l>>8)), byte(0xff&l)) // signals string longer than 254 when decoding
 			msg = append(msg, str...)
 		}
-		msg = append(msg, r.NameIDFormat+97, r.HubRole+97, r.SLOStatus+97, B2I[r.SLOSupport]+97, B2I[r.Async]+97)
+		msg = append(msg, r.NameIDFormat+97, r.HubRole+97, r.SLOStatus+97, B2I[r.SLOSupport]+97, r.SigningKey<<1+B2I[r.Async]+97) // tmp hack to encode SigningKey without changing the cookie
 	}
 	msg = append(prefix, msg...)
 	msg = append([]byte{byte(len(sil) + 97), byte(n + 97)}, msg...)
@@ -2409,7 +2371,9 @@ func (sil *SLOInfoList) Unmarshal(msg []byte) {
 		i++
 		r.SLOSupport = msg[i]-97 != 0
 		i++
-		r.Async = msg[i]-97 != 0
+		v := msg[i] - 97
+		r.SigningKey = v >> 1
+		r.Async = v&1 != 0
 		i++
 		*sil = append(*sil, r)
 	}
