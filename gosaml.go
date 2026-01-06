@@ -751,6 +751,11 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSets, destinationMdSets MdSets, role
 				return
 			}
 		}
+
+		if xp.Query1(nil, "./@Destination") == "" {
+		    xp.QueryDashP(nil, "./@Destination", location, nil)
+		}
+
 		DumpFileIfTracing(r, xp)
 		//log.Println("stack", goxml.New().Stack(1))
 		err = xp.SchemaValidate()
@@ -931,7 +936,8 @@ findbinding:
 
 					names, _, _, err := PublicKeyInfoByMethod(destinationMd.QueryMulti(nil, SPEnc), x509.RSA)
 					var fail error
-					for _, name := range names {
+					var name string
+					for _, name = range names {
 						privatekey, err := PrivateKeyByName(name, "")
 						if err != nil {
 							return nil, false, goxml.Wrap(err)
@@ -946,6 +952,7 @@ findbinding:
 						return nil, false, err
 					}
 
+                    fmt.Println("enc:", issuerMd.Query1(nil, "./@entityID"), name)
 					validatedMessage = xp
 
 					// repeat schemacheck
@@ -1466,7 +1473,9 @@ func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp, signing
 		return
 	}
 	i := slices.Index(names, privateKeyName)
-
+    if i == -1 {
+        return fmt.Errorf("Privatekeyname not found in md: %s had: %s", privateKeyName, names)
+    }
 	cert := certs[i]
 	element := response.Query(nil, elementQuery)
 	if len(element) != 1 {
@@ -1570,7 +1579,7 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDP string, 
 				request.QueryDashP(nil, "./samlp:Scoping/samlp:RequesterID[0]", virtualIDP, nil)
 			}
 		}
-		if slices.ContainsFunc(config.KeySelectionMap, func(prefix string) bool { return strings.HasPrefix(originalRequest.Query1(nil, "./@Destination"), prefix)}) {
+		if slices.ContainsFunc(config.KeySelectionList, func(prefix string) bool { return strings.HasPrefix(originalRequest.Query1(nil, "./@Destination"), prefix)}) {
 		    signingkey = 1
 		}
 	}
@@ -1943,13 +1952,13 @@ func Saml2map(response *goxml.Xp) (attrs map[string]interface{}) {
 }
 
 // Saml2jwt - JSON based SP interface
-func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExternalIDP, mdExternalSP Md, requestHandler func(*goxml.Xp, *goxml.Xp, *goxml.Xp) (map[string][]string, error), defaultIdpentityid string) error {
+func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExternalIDP, mdExternalSP Md, requestHandler func(*goxml.Xp, *goxml.Xp, *goxml.Xp) (map[string][]string, error), defaultIdpentityid string) (err error) {
 	defer r.Body.Close()
 	r.ParseForm()
 
 	// backward compatible - use either or
 	entityID := r.Header.Get("X-Issuer") + r.Form.Get("issuer")
-	log.Println("saml2jwt:", entityID)
+	log.Println(r.URL.Path, entityID)
 
 	spMd, _, err := FindInMetadataSets(MdSets{mdInternal, mdExternalSP}, entityID)
 	if err != nil {
@@ -1969,16 +1978,17 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 		if err != nil {
 			return err
 		}
-		certs := idpMd.QueryMulti(nil, "md:IDPSSODescriptor"+SigningCertQuery)
-		names, _, _, err := PublicKeyInfoByMethod(certs, x509.RSA)
+
+		kidIndex := 0
+		if strings.HasPrefix(r.Host+r.URL.Path, config.Saml3jwt) {
+		    kidIndex = 1
+		}
+        kid := config.KeyNames[kidIndex]
+		privatekey, err := PrivateKeyByName(kid, "")
 		if err != nil {
 			return err
 		}
-		privatekey, err := PrivateKeyByName(names[0], "")
-		if err != nil {
-			return err
-		}
-		kid := names[0]
+
 		switch response.QueryString(nil, "local-name(/*)") {
 		case "Response":
 
