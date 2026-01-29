@@ -1584,7 +1584,9 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDP string, 
 				request.QueryDashP(nil, "./samlp:Scoping/samlp:RequesterID[0]", virtualIDP, nil)
 			}
 		}
-		if slices.ContainsFunc(config.KeySelectionList, func(prefix string) bool { return strings.HasPrefix(originalRequest.Query1(nil, "./@Destination"), prefix)}) {
+		if slices.ContainsFunc(config.KeySelectionList, func(prefix string) bool {
+			return strings.HasPrefix(originalRequest.Query1(nil, "./@Destination"), prefix)
+		}) {
 		    signingkey = 1
 		}
 	}
