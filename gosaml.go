@@ -958,7 +958,6 @@ findbinding:
 						return nil, false, err
 					}
 
-                    fmt.Println("enc:", issuerMd.Query1(nil, "./@entityID"), name)
 					validatedMessage = xp
 
 					// repeat schemacheck
