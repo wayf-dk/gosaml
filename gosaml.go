@@ -354,7 +354,7 @@ func PublicKeyInfo(cert string) (keyname string, publickey crypto.PublicKey, err
 	case ed25519.PublicKey:
 		keyname = fmt.Sprintf("%x", sha1.Sum(pk))
 	case *ecdsa.PublicKey:
-	    b, _ := pk.Bytes()
+		b, _ := pk.Bytes()
 		keyname = fmt.Sprintf("%x", sha1.Sum(b))
 	default:
 		panic("unknown type of public key")
@@ -409,7 +409,7 @@ func GetPrivateKeyByMethod(md *goxml.Xp, path string, keyType x509.PublicKeyAlgo
 }
 
 func PrivateKeyByName(keyname, pw string) (privatekey crypto.PrivateKey, err error) {
-    return getPrivateKeyByName(keyname, pw)
+	return getPrivateKeyByName(keyname, pw)
 }
 
 func getPrivateKeyByName(keyname, pw string) (privatekey crypto.PrivateKey, err error) {
@@ -759,7 +759,7 @@ func DecodeSAMLMsg(r *http.Request, issuerMdSets, destinationMdSets MdSets, role
 		}
 
 		if xp.Query1(nil, "./@Destination") == "" {
-		    xp.QueryDashP(nil, "./@Destination", location, nil)
+			xp.QueryDashP(nil, "./@Destination", location, nil)
 		}
 
 		DumpFileIfTracing(r, xp)
@@ -1478,9 +1478,9 @@ func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp, signing
 		return
 	}
 	i := slices.Index(names, privateKeyName)
-    if i == -1 {
-        return fmt.Errorf("Privatekeyname not found in md: %s had: %s", privateKeyName, names)
-    }
+	if i == -1 {
+		return fmt.Errorf("Privatekeyname not found in md: %s had: %s", privateKeyName, names)
+	}
 	cert := certs[i]
 	element := response.Query(nil, elementQuery)
 	if len(element) != 1 {
@@ -1587,7 +1587,7 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDP string, 
 		if slices.ContainsFunc(config.KeySelectionList, func(prefix string) bool {
 			return strings.HasPrefix(originalRequest.Query1(nil, "./@Destination"), prefix)
 		}) {
-		    signingkey = 1
+			signingkey = 1
 		}
 	}
 
@@ -1988,9 +1988,9 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 
 		kidIndex := 0
 		if strings.HasPrefix(r.Host+r.URL.Path, config.Saml3jwt) {
-		    kidIndex = 1
+			kidIndex = 1
 		}
-        kid := config.KeyNames[kidIndex]
+		kid := config.KeyNames[kidIndex]
 		privatekey, err := PrivateKeyByName(kid, "")
 		if err != nil {
 			return err
