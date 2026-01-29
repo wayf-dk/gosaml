@@ -9,6 +9,7 @@ import (
 	"crypto"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/hmac"
 	"crypto/rand"
@@ -351,7 +352,10 @@ func PublicKeyInfo(cert string) (keyname string, publickey crypto.PublicKey, err
 	case *rsa.PublicKey:
 		keyname = fmt.Sprintf("%x", sha1.Sum([]byte(fmt.Sprintf("Modulus=%X\n", pk.N))))
 	case ed25519.PublicKey:
-		keyname = fmt.Sprintf("%x", sha1.Sum([]byte(fmt.Sprintf("%X", pk))))
+		keyname = fmt.Sprintf("%x", sha1.Sum(pk))
+	case *ecdsa.PublicKey:
+	    b, _ := pk.Bytes()
+		keyname = fmt.Sprintf("%x", sha1.Sum(b))
 	default:
 		panic("unknown type of public key")
 	}
