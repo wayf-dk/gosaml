@@ -354,8 +354,8 @@ func PublicKeyInfo(cert string) (keyname string, publickey crypto.PublicKey, err
 	case ed25519.PublicKey:
 		keyname = fmt.Sprintf("%x", sha1.Sum(pk))
 	case *ecdsa.PublicKey:
-		b, _ := pk.Bytes()
-		keyname = fmt.Sprintf("%x", sha1.Sum(b))
+		b, _ := pk.ECDH()
+		keyname = fmt.Sprintf("%x", sha1.Sum(b.Bytes()))
 	default:
 		panic("unknown type of public key")
 	}
