@@ -574,7 +574,7 @@ func SAMLRequest2OIDCRequest(samlrequest *goxml.Xp, relayState, flow, codeChalle
 	params.Set("redirect_uri", samlrequest.Query1(nil, "@AssertionConsumerServiceURL"))
 	params.Set("response_mode", "form_post")
 	params.Set("audience", client_id)
-	if (codeChallenge != "") {
+	if codeChallenge != "" {
 		params.Set("code_challenge", codeChallenge)
 	}
 	params.Set("nonce", samlrequest.Query1(nil, "@ID"))
