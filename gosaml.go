@@ -1376,6 +1376,7 @@ func NewSLOInfo(xp *goxml.Xp, context types.Node, sp string, sloSupport bool, hu
 		NameIDFormat:    NameIDMap[xp.Query1(context, "saml:Subject/saml:NameID/@Format")],
 		SPNameQualifier: xp.Query1(context, "saml:Subject/saml:NameID/@SPNameQualifier"),
 		SessionIndex:    xp.Query1(context, "saml:AuthnStatement/@SessionIndex") + xp.Query1(context, "samlp:SessionIndex"), // never both at the same time !!!
+		SigningKey:      1,
 		SLOSupport:      sloSupport,
 		Protocol:        protocol,
 	}
