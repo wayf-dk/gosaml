@@ -104,7 +104,7 @@ type (
 	SamlRequest struct {
 		RequestID, SP, IDP, VirtualIDP, WAYFSP, AssertionConsumerIndex, Protocol, IDPProtocol string
 		Nonce, CodeChallenge                                                                  string
-		NameIDFormat, SPIndex, HubBirkIndex, OIDCBinding, SigningKey                          uint8
+		NameIDFormat, SPIndex, HubBirkIndex, OIDCBinding, SigningKey, SSOIndex                uint8
 	}
 
 	// Md Interface for metadata provider
@@ -1507,7 +1507,7 @@ func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp, signing
 //   - The ProtocolBinding is post
 //   - The Issuer is the entityID in the idpmetadata
 //   - The NameID defaults to transient
-func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDP string, idPList []string, acs string, wantRequesterID bool, spIndex, hubBirkIndex uint8) (request *goxml.Xp, sRequest SamlRequest, err error) {
+func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDP string, idPList []string, acs string, wantRequesterID bool, spIndex, hubBirkIndex, ssoIndex uint8) (request *goxml.Xp, sRequest SamlRequest, err error) {
 	template := `<samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
                     xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
                     Version="2.0">
@@ -1585,8 +1585,9 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDP string, 
 				request.QueryDashP(nil, "./samlp:Scoping/samlp:RequesterID[0]", virtualIDP, nil)
 			}
 		}
+		destination := originalRequest.Query1(nil, "./@Destination")
 		if slices.ContainsFunc(config.KeySelectionList, func(prefix string) bool {
-			return strings.HasPrefix(originalRequest.Query1(nil, "./@Destination"), prefix)
+			return strings.HasPrefix(destination, prefix)
 		}) {
 			signingkey = 1
 		}
@@ -1613,6 +1614,7 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDP string, 
 		HubBirkIndex:           hubBirkIndex,
 		Protocol:               protocol,
 		SigningKey:             signingkey,
+		SSOIndex:               ssoIndex,
 	}
 	return
 }
@@ -1966,7 +1968,6 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 
 	// backward compatible - use either or
 	entityID := r.Header.Get("X-Issuer") + r.Form.Get("issuer")
-	log.Println(r.URL.Path, entityID)
 
 	spMd, _, err := FindInMetadataSets(MdSets{mdInternal, mdExternalSP}, entityID)
 	if err != nil {
@@ -2076,7 +2077,7 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 			return err
 		}
 
-		request, _, err := NewAuthnRequest(nil, spMd, idpMd, "", strings.Split(r.Form.Get("idplist"), ","), acs, false, 0, 0)
+		request, _, err := NewAuthnRequest(nil, spMd, idpMd, "", strings.Split(r.Form.Get("idplist"), ","), acs, false, 0, 0, 0)
 		if err != nil {
 			return err
 		}
@@ -2310,7 +2311,7 @@ func (r SamlRequest) Marshal() (msg []byte) {
 		prefix = append(prefix, uint8(len(str))) // if over 255 we are in trouble
 		msg = append(msg, str...)
 	}
-	msg = append(msg, r.NameIDFormat+97, r.SPIndex+97, r.HubBirkIndex+97, r.OIDCBinding+97, r.SigningKey+97) // use a-z for small numbers 0-26 that does not need to be b64 encoded
+	msg = append(msg, r.NameIDFormat+97, r.SPIndex+97, r.HubBirkIndex+97, r.OIDCBinding+97, r.SigningKey+97, r.SSOIndex+97) // use a-z for small numbers 0-26 that does not need to be b64 encoded
 	msg = append(prefix, msg...)
 	msg = append([]byte{byte(len(prefix) + 97)}, msg...)
 	return
@@ -2339,6 +2340,7 @@ func (r *SamlRequest) Unmarshal(msg []byte) {
 	r.OIDCBinding = msg[i+3] - 97
 	if len(msg) > i+4 {
 		r.SigningKey = msg[i+4] - 97
+		r.SSOIndex = msg[i+5] - 97
 	}
 	return
 }
