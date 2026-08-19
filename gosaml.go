@@ -1569,13 +1569,13 @@ func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDP string, 
 			}
 		}
 
-		for _, rac := range originalRequest.QueryMulti(nil, `./saml:AttributeStatement/saml:Attribute[@Name="RequestedAuthnContextClassRef"]/saml:AttributeValue`) {
+		for _, rac := range originalRequest.QueryMulti(nil, `./saml:Assertion/saml:AttributeStatement/saml:Attribute[@Name="RequestedAuthnContextClassRef"]/saml:AttributeValue`) {
 			if rac != "*" {
 				request.QueryDashP(nil, "./samlp:RequestedAuthnContext/saml:AuthnContextClassRef[0]", rac, nil)
 			}
 		}
 
-		if comparison := originalRequest.Query1(nil, `./saml:AttributeStatement/saml:Attribute[@Name="RequestedAuthnContextComparison"]`); comparison != "" && comparison != "*" {
+		if comparison := originalRequest.Query1(nil, `./saml:Assertion/saml:AttributeStatement/saml:Attribute[@Name="RequestedAuthnContextComparison"]`); comparison != "" && comparison != "*" {
 			request.QueryDashP(nil, "./samlp:RequestedAuthnContext/@Comparison", comparison, nil)
 		}
 
@@ -1983,7 +1983,7 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 	acs := r.Header.Get("X-Acs") + r.Form.Get("acs")
 
 	if _, ok := r.Form["SAMLResponse"]; ok {
-		response, idpMd, _, relayState, _, _, err := DecodeSAMLMsg(r, MdSets{mdHub, mdExternalIDP}, MdSets{mdInternal, mdExternalSP}, SPRole, []string{"Response", "LogoutResponse"}, acs, nil)
+		response, _, _, relayState, _, _, err := DecodeSAMLMsg(r, MdSets{mdHub, mdExternalIDP}, MdSets{mdInternal, mdExternalSP}, SPRole, []string{"Response", "LogoutResponse"}, acs, nil)
 		if err != nil {
 			return err
 		}
@@ -2004,9 +2004,9 @@ func Saml2jwt(w http.ResponseWriter, r *http.Request, mdHub, mdInternal, mdExter
 			if err = CheckDigestAndSignatureAlgorithms(response); err != nil {
 				return err
 			}
-			if _, err = requestHandler(response, idpMd, spMd); err != nil {
-				return err
-			}
+//			if _, err = requestHandler(response, idpMd, spMd); err != nil {
+//				return err
+//			}
 
 			attrs := Saml2map(response)
 
