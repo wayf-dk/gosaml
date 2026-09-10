@@ -971,6 +971,7 @@ findbinding:
 					err = fmt.Errorf("only 1 EncryptedAssertion allowed, %d found", len(encryptedAssertions))
 				}
 			}
+		    DumpFileIfTracing(r, xp)
 			// Only Responses with an Assertion will have a second signatureElements query
 			if query := protoChecks[protocol].signatureElements[1]; query != "" {
 				signatures := xp.Query(nil, query)
