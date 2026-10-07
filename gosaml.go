@@ -1511,6 +1511,7 @@ func SignResponse(response *goxml.Xp, elementQuery string, md *goxml.Xp, signing
 func NewAuthnRequest(originalRequest, spMd, idpMd *goxml.Xp, virtualIDP string, idPList []string, acs string, wantRequesterID bool, spIndex, hubBirkIndex, ssoIndex uint8) (request *goxml.Xp, sRequest SamlRequest, err error) {
 	template := `<samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
                     xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
+                    xmlns:nl="https://data.gov.dk/eid/saml/extensions"
                     Version="2.0">
 </samlp:AuthnRequest>`
 	idp := idpMd.Query1(nil, "@entityID")
